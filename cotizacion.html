@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic - Cotizacion</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="assets/css/cotizacion.css">
+</head>
+<body>
+
+    <div class="cot-page">
+
+        <!-- Header -->
+        <header class="cot-header">
+            <img src="public/img/logo.png" alt="Traffic" class="cot-logo">
+            <div class="cot-header-info">
+                <span class="cot-numero" id="cotNumero">COT-0000</span>
+                <span class="cot-fecha" id="cotFecha"></span>
+            </div>
+        </header>
+
+        <!-- Estado -->
+        <div class="cot-status-bar" id="cotStatusBar">
+            <i class="bi bi-clock"></i>
+            <span id="cotStatusText">Pendiente de aprobacion</span>
+        </div>
+
+        <!-- Datos cliente -->
+        <div class="cot-section">
+            <h3><i class="bi bi-person"></i> Cliente</h3>
+            <div class="cot-cliente-grid">
+                <div class="cot-data-item">
+                    <span class="cot-data-label">Nombre</span>
+                    <span class="cot-data-value" id="cotCliente">-</span>
+                </div>
+                <div class="cot-data-item">
+                    <span class="cot-data-label">NIT / Cedula</span>
+                    <span class="cot-data-value" id="cotNit">-</span>
+                </div>
+                <div class="cot-data-item">
+                    <span class="cot-data-label">Telefono</span>
+                    <span class="cot-data-value" id="cotTelefono">-</span>
+                </div>
+                <div class="cot-data-item">
+                    <span class="cot-data-label">Tipo</span>
+                    <span class="cot-data-value" id="cotTipo">-</span>
+                </div>
+                <div class="cot-data-item">
+                    <span class="cot-data-label">Fecha</span>
+                    <span class="cot-data-value" id="cotFechaCliente">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items -->
+        <div class="cot-section">
+            <h3><i class="bi bi-list-check"></i> Detalle</h3>
+            <div class="cot-table-wrap">
+                <table class="cot-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tipo</th>
+                            <th>Producto</th>
+                            <th>Cant.</th>
+                            <th>Terminado</th>
+                            <th>Color</th>
+                            <th>P. Unit.</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cotItemsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Total -->
+        <div class="cot-totales">
+            <div class="cot-total-row cot-total-final">
+                <span>Total</span>
+                <span id="cotTotal">$0</span>
+            </div>
+        </div>
+
+        <!-- Seccion de decision y pago -->
+        <div class="cot-section cot-decision" id="seccionDecision">
+            <h3><i class="bi bi-check2-square"></i> Decision y metodo de pago</h3>
+            <div class="decision-layout">
+                <div class="decision-left">
+                    <div class="decision-buttons">
+                        <button class="btn-decision btn-aprobar-cot" id="btnAprobarCot">
+                            <i class="bi bi-check-circle"></i> Aprobar
+                        </button>
+                        <button class="btn-decision btn-rechazar-cot" id="btnRechazarCot">
+                            <i class="bi bi-x-circle"></i> Rechazar
+                        </button>
+                    </div>
+                </div>
+                <div class="decision-right" id="decisionPago" style="display:none;">
+                    <div class="pago-options">
+                        <label class="pago-option">
+                            <input type="radio" name="metodoPago" value="davivienda">
+                            <div class="pago-option-content">
+                                <i class="bi bi-bank"></i>
+                                <span class="pago-option-name">Davivienda</span>
+                            </div>
+                        </label>
+                        <label class="pago-option">
+                            <input type="radio" name="metodoPago" value="bancolombia">
+                            <div class="pago-option-content">
+                                <i class="bi bi-bank"></i>
+                                <span class="pago-option-name">Bancolombia</span>
+                            </div>
+                        </label>
+                        <label class="pago-option">
+                            <input type="radio" name="metodoPago" value="nequi">
+                            <div class="pago-option-content">
+                                <i class="bi bi-phone"></i>
+                                <span class="pago-option-name">Nequi</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Datos cuenta + comprobante -->
+            <div class="datos-comprobante-row" id="seccionDatosPago" style="display:none;">
+                <div class="datos-cuenta-col">
+                    <div class="pago-datos" id="datosDavivienda" style="display:none;">
+                        <div class="pago-datos-card">
+                            <h4><i class="bi bi-bank"></i> Davivienda</h4>
+                            <div class="pago-datos-grid">
+                                <div class="pago-dato"><span>Titular:</span> Sherley Sinisterra Tenorio</div>
+                                <div class="pago-dato"><span>Numero:</span> 4884 0653 5812</div>
+                                <div class="pago-dato"><span>Tipo:</span> Cuenta de Ahorros</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pago-datos" id="datosBancolombia" style="display:none;">
+                        <div class="pago-datos-card">
+                            <h4><i class="bi bi-bank"></i> Bancolombia</h4>
+                            <div class="pago-datos-grid">
+                                <div class="pago-dato"><span>Titular:</span> Sherley Sinisterra Tenorio</div>
+                                <div class="pago-dato"><span>Numero:</span> 803-379806-98</div>
+                                <div class="pago-dato"><span>Tipo:</span> Cuenta de Ahorros</div>
+                                <div class="pago-dato"><span>Cedula:</span> 1143925013</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pago-datos" id="datosNequi" style="display:none;">
+                        <div class="pago-datos-card">
+                            <h4><i class="bi bi-phone"></i> Nequi</h4>
+                            <div class="pago-datos-grid">
+                                <div class="pago-dato"><span>Titular:</span> Sherley Sinisterra Tenorio</div>
+                                <div class="pago-dato"><span>Numero:</span> 318 398 1777</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tipo de pago: completo o abono -->
+                    <div class="tipo-pago-row">
+                        <label class="tipo-pago-option">
+                            <input type="radio" name="tipoPago" value="completo" checked>
+                            <span><i class="bi bi-check2-circle"></i> Pago completo</span>
+                        </label>
+                        <label class="tipo-pago-option">
+                            <input type="radio" name="tipoPago" value="abono">
+                            <span><i class="bi bi-cash-coin"></i> Abono</span>
+                        </label>
+                    </div>
+
+                    <div class="abono-input" id="abonoInput" style="display:none;">
+                        <label>Monto del abono</label>
+                        <div class="input-money-wrap">
+                            <span class="input-money-prefix">$</span>
+                            <input type="text" id="montoAbono" placeholder="0" inputmode="numeric">
+                        </div>
+                    </div>
+                </div>
+                <div class="comprobante-col">
+                    <button class="btn-upload-comp" id="uploadComprobante">
+                        <i class="bi bi-cloud-arrow-up"></i> Subir comprobante
+                    </button>
+                    <input type="file" id="inputComprobante" accept="image/*,.pdf" hidden>
+                    <div class="comprobante-preview" id="comprobantePreview"></div>
+                </div>
+            </div>
+
+            <!-- Boton enviar al final -->
+            <div class="cot-actions" id="seccionAcciones">
+                <button class="btn-aprobar" id="btnAprobar" disabled>
+                    <i class="bi bi-check-circle"></i> Aprobar y enviar cotizacion
+                </button>
+            </div>
+        </div>
+
+        <!-- Mensaje aprobada -->
+        <div class="cot-aprobada" id="seccionAprobada" style="display:none;">
+            <i class="bi bi-check-circle-fill"></i>
+            <h3>Cotizacion aprobada</h3>
+            <p>Tu cotizacion ha sido aprobada y enviada. Nos pondremos en contacto contigo pronto.</p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="cot-footer">
+            <p>&copy; 2026 Traffic Empaques - Publicidad</p>
+        </footer>
+
+    </div>
+
+    <!-- Modal previsualizacion -->
+    <div class="img-modal" id="imgModal">
+        <button class="img-modal-close" id="imgModalClose"><i class="bi bi-x-lg"></i></button>
+        <img id="imgModalImg" src="" alt="Comprobante">
+    </div>
+
+    <script type="module" src="assets/js/cotizacion-publica.js"></script>
+</body>
+</html>

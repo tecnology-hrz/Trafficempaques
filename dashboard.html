@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic - Dashboard</title>
+    <link rel="stylesheet" href="assets/css/dashboard.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body>
+
+    <!-- ===== SIDEBAR (desktop) ===== -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <img src="public/img/logo.png" alt="Traffic">
+        </div>
+        <nav class="sidebar-nav">
+            <a class="nav-item active" data-section="cotizador" data-role="administrador">
+                <i class="bi bi-calculator"></i>
+                <span>Cotizador</span>
+            </a>
+            <a class="nav-item" data-section="ordenes">
+                <i class="bi bi-clipboard-check"></i>
+                <span>Ordenes</span>
+            </a>
+            <a class="nav-item" data-section="usuarios" data-role="administrador">
+                <i class="bi bi-people"></i>
+                <span>Usuarios</span>
+            </a>
+            <a class="nav-item" data-section="configuracion" data-role="administrador">
+                <i class="bi bi-sliders"></i>
+                <span>Configuracion</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar" id="userAvatar">--</div>
+                <div class="user-details">
+                    <div class="user-name" id="userName">Cargando...</div>
+                    <div class="user-role" id="userRole">--</div>
+                </div>
+            </div>
+            <button class="btn-logout" id="btnLogout">
+                <i class="bi bi-box-arrow-left"></i>
+                <span>Cerrar sesion</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <div class="main-content">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <span class="topbar-title" id="topbarTitle">Cotizador</span>
+            <div class="topbar-right">
+                <span class="topbar-date" id="currentDate"></span>
+                <span class="role-badge" id="roleBadge">Rol</span>
+            </div>
+        </header>
+
+        <!-- Contenido -->
+        <div class="page-content">
+
+            <!-- ===== SECCION: COTIZADOR ===== -->
+            <div class="section active" id="section-cotizador">
+
+                <!-- Vista: Lista de cotizaciones -->
+                <div id="cotizadorLista">
+                    <div class="section-header">
+                        <h2 class="section-title"><i class="bi bi-calculator"></i> Cotizaciones</h2>
+                        <button class="btn-primary" id="btnNuevaCotizacion">
+                            <i class="bi bi-plus-lg"></i> Nueva cotizacion
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-body" id="listaCotizaciones">
+                            <div class="empty-state">
+                                <i class="bi bi-file-earmark-text"></i>
+                                <p>No hay cotizaciones creadas</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vista: Crear/Editar cotizacion -->
+                <div id="cotizadorForm" style="display:none;">
+                    <div class="section-header">
+                        <button class="btn-back" id="btnVolverLista">
+                            <i class="bi bi-arrow-left"></i> Volver
+                        </button>
+                        <h2 class="section-title" id="formCotTitle">Nueva Cotizacion</h2>
+                    </div>
+
+                    <div class="form-grid">
+                        <!-- Datos del cliente -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-person"></i> Datos del cliente</span>
+                            </div>
+                            <div class="card-body padded">
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label>Nombre del cliente</label>
+                                        <input type="text" id="cotCliente" placeholder="Nombre o empresa">
+                                    </div>
+                                    <div class="form-field">
+                                        <label>NIT / Cedula</label>
+                                        <input type="text" id="cotNit" placeholder="900.000.000-0">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label>Telefono</label>
+                                        <input type="text" id="cotTelefono" placeholder="300 000 0000">
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Tipo de cotizacion</label>
+                                        <select id="cotTipo">
+                                            <option value="imprenta">Imprenta</option>
+                                            <option value="digital">Digital</option>
+                                            <option value="ambas">Imprenta y Digital</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label>Fecha actual</label>
+                                        <input type="text" id="cotFechaActual" readonly>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Fecha de entrega</label>
+                                        <input type="date" id="cotFechaEntrega">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Items -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-list-check"></i> Productos / Servicios</span>
+                                <button class="btn-add" id="btnAddItem"><i class="bi bi-plus-lg"></i></button>
+                            </div>
+                            <div class="card-body" id="cotItemsContainer">
+                                <div class="empty-state" id="cotItemsEmpty">
+                                    <i class="bi bi-cart"></i>
+                                    <p>Agrega productos a la cotizacion</p>
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="cot-total-inline">
+                                    <span>Total:</span>
+                                    <span id="cotTotal">$0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Boton guardar -->
+                        <button class="btn-primary btn-full" id="btnGuardarCotizacion">
+                            <i class="bi bi-check-lg"></i> Guardar y generar link
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ===== SECCION: ORDENES ===== -->
+            <div class="section" id="section-ordenes">
+                <!-- Tabs solo para admin -->
+                <div class="tab-bar" id="ordenesTabBar">
+                    <button class="tab-btn active" data-tab="digital">
+                        <i class="bi bi-display"></i> Digital
+                    </button>
+                    <button class="tab-btn" data-tab="imprenta">
+                        <i class="bi bi-printer"></i> Imprenta
+                    </button>
+                </div>
+
+                <!-- Tab Digital -->
+                <div class="tab-content active" id="tab-digital">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title"><i class="bi bi-display"></i> Ordenes Digital</span>
+                        </div>
+                        <div class="card-body" id="ordenesDigitalLista">
+                            <div class="empty-state">
+                                <i class="bi bi-inbox"></i>
+                                <p>No hay ordenes digitales aun</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Imprenta -->
+                <div class="tab-content" id="tab-imprenta">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title"><i class="bi bi-printer"></i> Ordenes Imprenta</span>
+                        </div>
+                        <div class="card-body" id="ordenesImprentaLista">
+                            <div class="empty-state">
+                                <i class="bi bi-inbox"></i>
+                                <p>No hay ordenes de imprenta aun</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== SECCION: USUARIOS (solo admin) ===== -->
+            <div class="section" id="section-usuarios">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-people"></i> Gestion de Usuarios</h2>
+                    <button class="btn-primary" id="btnNuevoUsuario">
+                        <i class="bi bi-person-plus"></i> Nuevo usuario
+                    </button>
+                </div>
+                <div class="card">
+                    <div class="card-body" id="listaUsuarios">
+                        <div class="empty-state">
+                            <i class="bi bi-people"></i>
+                            <p>Cargando usuarios...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== SECCION: CONFIGURACION (solo admin) ===== -->
+            <div class="section" id="section-configuracion">
+
+                <!-- Menu superior de categorias -->
+                <div class="config-tabs">
+                    <button class="config-tab active" data-config="productosImprenta">
+                        <i class="bi bi-printer"></i> Productos Imprenta
+                    </button>
+                    <button class="config-tab" data-config="productosDigital">
+                        <i class="bi bi-display"></i> Productos Digital
+                    </button>
+                    <button class="config-tab" data-config="terminados">
+                        <i class="bi bi-brush"></i> Terminados
+                    </button>
+                    <button class="config-tab" data-config="colores">
+                        <i class="bi bi-palette"></i> Colores
+                    </button>
+                </div>
+
+                <!-- Panel: Productos Imprenta -->
+                <div class="config-panel active" id="config-productosImprenta">
+                    <div class="config-panel-header">
+                        <h3>Productos Imprenta</h3>
+                        <button class="btn-primary btn-sm" id="btnAddProductoImprenta">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="config-tabla-wrap">
+                        <table class="config-tabla">
+                            <thead><tr><th>Nombre</th><th>Valor</th><th>Acciones</th></tr></thead>
+                            <tbody id="listaProductosImprenta"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Panel: Productos Digital -->
+                <div class="config-panel" id="config-productosDigital">
+                    <div class="config-panel-header">
+                        <h3>Productos Digital</h3>
+                        <button class="btn-primary btn-sm" id="btnAddProductoDigital">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="config-tabla-wrap">
+                        <table class="config-tabla">
+                            <thead><tr><th>Nombre</th><th>Valor</th><th>Acciones</th></tr></thead>
+                            <tbody id="listaProductosDigital"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Panel: Terminados -->
+                <div class="config-panel" id="config-terminados">
+                    <div class="config-panel-header">
+                        <h3>Terminados</h3>
+                        <button class="btn-primary btn-sm" id="btnAddTerminado">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="config-tabla-wrap">
+                        <table class="config-tabla">
+                            <thead><tr><th>Nombre</th><th>Valor</th><th>Acciones</th></tr></thead>
+                            <tbody id="listaTerminados"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Panel: Colores -->
+                <div class="config-panel" id="config-colores">
+                    <div class="config-panel-header">
+                        <h3>Colores</h3>
+                        <button class="btn-primary btn-sm" id="btnAddColor">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="config-tabla-wrap">
+                        <table class="config-tabla">
+                            <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
+                            <tbody id="listaColores"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===== MODAL AGREGAR/EDITAR ===== -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Agregar</h3>
+                <button class="modal-close" id="modalClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-field">
+                    <label for="modalInputName">Nombre</label>
+                    <input type="text" id="modalInputName" placeholder="Escribe el nombre...">
+                </div>
+                <div class="modal-field" id="modalValueGroup">
+                    <label for="modalInputValue">Valor ($)</label>
+                    <div class="input-money">
+                        <span class="input-money-prefix">$</span>
+                        <input type="text" id="modalInputValue" placeholder="0" inputmode="numeric">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="modalCancel">Cancelar</button>
+                <button class="btn-save" id="modalSave"><i class="bi bi-plus-lg"></i> Agregar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL DETALLE COTIZACION ===== -->
+    <div class="modal-overlay" id="cotDetalleOverlay">
+        <div class="modal modal-detalle">
+            <div class="modal-header">
+                <div>
+                    <h3 id="cotDetalleNumero">COT-0000</h3>
+                    <span class="cot-estado aprobada" id="cotDetalleEstado">aprobada</span>
+                </div>
+                <button class="modal-close" id="cotDetalleClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="detalle-info-grid">
+                    <div class="detalle-info-item">
+                        <span class="detalle-label">Cliente</span>
+                        <span class="detalle-value" id="cotDetalleCliente"></span>
+                    </div>
+                    <div class="detalle-info-item">
+                        <span class="detalle-label">NIT / Cedula</span>
+                        <span class="detalle-value" id="cotDetalleNit"></span>
+                    </div>
+                    <div class="detalle-info-item">
+                        <span class="detalle-label">Telefono</span>
+                        <span class="detalle-value" id="cotDetalleTelefono"></span>
+                    </div>
+                    <div class="detalle-info-item">
+                        <span class="detalle-label">Tipo</span>
+                        <span class="detalle-value" id="cotDetalleTipo"></span>
+                    </div>
+                    <div class="detalle-info-item">
+                        <span class="detalle-label">Total</span>
+                        <span class="detalle-value detalle-total" id="cotDetalleTotal"></span>
+                    </div>
+                    <div class="detalle-info-item">
+                        <span class="detalle-label">Pago</span>
+                        <span class="detalle-value" id="cotDetallePago"></span>
+                    </div>
+                </div>
+
+                <div class="detalle-acciones" id="cotDetalleAcciones">
+                    <!-- Se llena dinamicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL DETALLE ORDEN (productos) ===== -->
+    <div class="modal-overlay" id="ordenDetalleOverlay">
+        <div class="modal modal-orden-detalle">
+            <div class="modal-header">
+                <div>
+                    <h3 id="ordenDetalleNumero">ORD-0000</h3>
+                    <span class="detalle-label" id="ordenDetalleCliente"></span>
+                </div>
+                <button class="modal-close" id="ordenDetalleClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="orden-detalle-tabla-wrap">
+                    <table class="orden-detalle-tabla">
+                        <thead>
+                            <tr>
+                                <th>Cant.</th>
+                                <th>Producto</th>
+                                <th>Terminado</th>
+                                <th>Color</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordenDetalleItems"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="ordenDetalleCancel">Cerrar</button>
+                <button class="btn-primary" id="btnCrearOrdenDiseno">
+                    <i class="bi bi-brush"></i> Crear orden de diseño
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL IMAGEN COMPROBANTE ===== -->
+    <div class="img-modal-dash" id="imgModalDash">
+        <button class="img-modal-close" id="imgModalDashClose"><i class="bi bi-x-lg"></i></button>
+        <img id="imgModalDashImg" src="" alt="Comprobante">
+    </div>
+
+    <!-- ===== MODAL ACCIONES COTIZACION ===== -->
+    <div class="modal-overlay" id="accionesOverlay">
+        <div class="modal modal-acciones">
+            <div class="modal-header">
+                <h3 id="accionesTitulo">Acciones</h3>
+                <button class="modal-close" id="accionesClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <button class="btn-accion-modal" id="btnAccionEditar">
+                    <i class="bi bi-pencil"></i>
+                    <span>Editar cotizacion</span>
+                </button>
+                <button class="btn-accion-modal btn-accion-danger" id="btnAccionEliminar">
+                    <i class="bi bi-trash3"></i>
+                    <span>Eliminar cotizacion</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL NOTIFICACION ===== -->
+    <div class="modal-overlay" id="notifOverlay">
+        <div class="modal modal-notif">
+            <div class="modal-header">
+                <h3 id="notifTitle">Aviso</h3>
+                <button class="modal-close" id="notifClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="notifMessage"></p>
+                <div id="notifLinkWrap" style="display:none;">
+                    <div class="notif-link-box">
+                        <input type="text" id="notifLinkInput" readonly>
+                        <button class="btn-copy" id="notifCopyBtn"><i class="bi bi-clipboard"></i></button>
+                    </div>
+                    <div class="notif-actions">
+                        <button class="btn-primary btn-sm" id="notifCopyLink">
+                            <i class="bi bi-clipboard-check"></i> Copiar link
+                        </button>
+                        <button class="btn-whatsapp btn-sm" id="notifWhatsapp">
+                            <i class="bi bi-whatsapp"></i> Enviar por WhatsApp
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="notifOk">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL CONFIRMACION ===== -->
+    <div class="modal-overlay" id="confirmOverlay">
+        <div class="modal modal-confirm">
+            <div class="modal-header">
+                <h3 id="confirmTitle">Confirmar</h3>
+                <button class="modal-close" id="confirmClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="confirm-message" id="confirmMessage">Estas seguro?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="confirmNo">Cancelar</button>
+                <button class="btn-danger" id="confirmYes"><i class="bi bi-check-lg"></i> Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL USUARIO ===== -->
+    <div class="modal-overlay" id="usuarioOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="usuarioModalTitle">Nuevo Usuario</h3>
+                <button class="modal-close" id="usuarioClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-field">
+                    <label>Nombre completo</label>
+                    <input type="text" id="usuarioNombre" placeholder="Nombre del usuario">
+                </div>
+                <div class="modal-field">
+                    <label>Correo electronico</label>
+                    <input type="email" id="usuarioEmail" placeholder="usuario@traffic.com">
+                </div>
+                <div class="modal-field">
+                    <label>Contrasena</label>
+                    <input type="text" id="usuarioPassword" placeholder="Contrasena">
+                </div>
+                <div class="modal-field">
+                    <label>Rol</label>
+                    <div class="rol-selector" id="usuarioRolSelector">
+                        <button type="button" class="rol-option" data-rol="administrador">
+                            <i class="bi bi-shield-lock"></i>
+                            <span>Administrador</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="digital">
+                            <i class="bi bi-display"></i>
+                            <span>Digital</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="imprenta">
+                            <i class="bi bi-printer"></i>
+                            <span>Imprenta</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="usuarioRol" value="digital">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="usuarioCancel">Cancelar</button>
+                <button class="btn-save" id="usuarioSave"><i class="bi bi-check-lg"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== BOTTOM NAV (mobile) ===== -->
+    <nav class="bottom-nav">
+        <a class="bottom-nav-item active" data-section="cotizador" data-role="administrador">
+            <i class="bi bi-calculator"></i>
+            <span>Cotizador</span>
+        </a>
+        <a class="bottom-nav-item" data-section="ordenes">
+            <i class="bi bi-clipboard-check"></i>
+            <span>Ordenes</span>
+        </a>
+        <a class="bottom-nav-item" data-section="usuarios" data-role="administrador">
+            <i class="bi bi-people"></i>
+            <span>Usuarios</span>
+        </a>
+        <a class="bottom-nav-item" data-section="configuracion" data-role="administrador">
+            <i class="bi bi-sliders"></i>
+            <span>Config</span>
+        </a>
+        <a class="bottom-nav-item" id="btnLogoutMobile">
+            <i class="bi bi-box-arrow-left"></i>
+            <span>Salir</span>
+        </a>
+    </nav>
+
+    <script type="module" src="assets/js/dashboard.js"></script>
+</body>
+</html>
