@@ -16,6 +16,27 @@ if (!rol || !nombre) {
 const formatMoney = getFormatMoney();
 const parseMoney  = getParseMoney();
 
+// ===== CLIPBOARD HELPER (fallback para contextos no seguros) =====
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    }
+    // Fallback para HTTP / file://
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand("copy");
+    } catch (e) {
+        console.warn("No se pudo copiar al portapapeles", e);
+    }
+    document.body.removeChild(textarea);
+    return Promise.resolve();
+}
+
 initDashboard(rol, nombre);
 
 async function initDashboard(rol, nombre) {
@@ -262,7 +283,7 @@ function setupNotifModal() {
 
     btnCopy.addEventListener("click", () => {
         const input = document.getElementById("notifLinkInput");
-        navigator.clipboard.writeText(input.value).then(() => {
+        copyToClipboard(input.value).then(() => {
             btnCopy.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
             setTimeout(() => { btnCopy.innerHTML = '<i class="bi bi-clipboard-check"></i> Copiar link'; }, 2000);
         });
@@ -270,7 +291,7 @@ function setupNotifModal() {
 
     btnCopyIcon.addEventListener("click", () => {
         const input = document.getElementById("notifLinkInput");
-        navigator.clipboard.writeText(input.value).then(() => {
+        copyToClipboard(input.value).then(() => {
             btnCopyIcon.innerHTML = '<i class="bi bi-check-lg"></i>';
             setTimeout(() => { btnCopyIcon.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
         });
@@ -711,7 +732,7 @@ async function cargarListaCotizaciones() {
         container.querySelectorAll(".btn-copiar-link").forEach(btn => {
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(btn.dataset.link).then(() => {
+                copyToClipboard(btn.dataset.link).then(() => {
                     btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
                     setTimeout(() => { btn.innerHTML = '<i class="bi bi-link-45deg"></i> Copiar link'; }, 2000);
                 });
