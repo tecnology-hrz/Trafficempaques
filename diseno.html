@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic - Aprobacion de Diseños</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="assets/css/diseno.css">
+</head>
+<body>
+
+    <div class="diseno-page">
+
+        <!-- Header -->
+        <header class="diseno-header">
+            <img src="public/img/logo.png" alt="Traffic" class="diseno-logo">
+            <div class="diseno-header-info">
+                <span class="diseno-numero" id="disenoNumero">ORD-0000</span>
+                <span class="diseno-fecha" id="disenoFecha"></span>
+            </div>
+        </header>
+
+        <!-- Estado -->
+        <div class="diseno-status-bar" id="disenoStatusBar">
+            <i class="bi bi-clock"></i>
+            <span id="disenoStatusText">Pendiente de aprobacion</span>
+        </div>
+
+        <!-- Info cliente -->
+        <div class="diseno-section">
+            <h3><i class="bi bi-person"></i> Cliente</h3>
+            <div class="diseno-cliente-grid">
+                <div class="diseno-data-item">
+                    <span class="diseno-data-label">Nombre</span>
+                    <span class="diseno-data-value" id="pubCliente">-</span>
+                </div>
+                <div class="diseno-data-item">
+                    <span class="diseno-data-label">Telefono</span>
+                    <span class="diseno-data-value" id="pubTelefono">-</span>
+                </div>
+                <div class="diseno-data-item">
+                    <span class="diseno-data-label">Tipo</span>
+                    <span class="diseno-data-value" id="pubTipo">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos con diseños -->
+        <div class="diseno-section">
+            <h3><i class="bi bi-brush"></i> Diseños para aprobacion</h3>
+            <p class="diseno-instrucciones">Revisa cada diseño y marca como <strong>aprobado</strong> o <strong>rechazado</strong>. Puedes aprobar uno o varios diseños por producto.</p>
+            <div id="pubProductosContainer"></div>
+        </div>
+
+        <!-- Boton enviar -->
+        <div class="diseno-actions" id="seccionAccionesDiseno">
+            <button class="btn-enviar-diseno" id="btnEnviarAprobacion" disabled>
+                <i class="bi bi-check-circle"></i> Enviar aprobacion
+            </button>
+        </div>
+
+        <!-- Mensaje enviado -->
+        <div class="diseno-completado" id="seccionCompletado" style="display:none;">
+            <i class="bi bi-check-circle-fill"></i>
+            <h3>Aprobacion enviada</h3>
+            <p>Tu respuesta ha sido registrada. Nos pondremos en contacto contigo pronto.</p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="diseno-footer">
+            <p>&copy; 2026 Traffic Empaques - Publicidad</p>
+        </footer>
+
+    </div>
+
+    <!-- Modal imagen grande -->
+    <div class="img-modal" id="imgModal">
+        <button class="img-modal-close" id="imgModalClose"><i class="bi bi-x-lg"></i></button>
+        <img id="imgModalImg" src="" alt="Diseño">
+    </div>
+
+    <!-- Modal Pacdora 3D Preview -->
+    <div class="pacdora-modal" id="pacdoraModal">
+        <div class="pacdora-modal-content">
+            <div class="pacdora-modal-header">
+                <span class="pacdora-modal-title"><i class="bi bi-box-seam"></i> Vista 3D - Pacdora</span>
+                <button class="pacdora-modal-close" id="pacdoraModalClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="pacdora-modal-body">
+                <iframe id="pacdoraIframe" src="" frameborder="0" allowfullscreen></iframe>
+            </div>
+            <div class="pacdora-modal-footer">
+                <a id="pacdoraOpenExternal" href="" target="_blank" rel="noopener noreferrer" class="btn-pacdora-external">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir en nueva pestaña
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="assets/js/diseno-publico.js"></script>
+</body>
+</html>

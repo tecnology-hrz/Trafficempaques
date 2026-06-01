@@ -23,6 +23,10 @@
                 <i class="bi bi-clipboard-check"></i>
                 <span>Ordenes</span>
             </a>
+            <a class="nav-item" data-section="disenos" data-role="administrador">
+                <i class="bi bi-brush"></i>
+                <span>Diseños</span>
+            </a>
             <a class="nav-item" data-section="usuarios" data-role="administrador">
                 <i class="bi bi-people"></i>
                 <span>Usuarios</span>
@@ -167,42 +171,146 @@
 
             <!-- ===== SECCION: ORDENES ===== -->
             <div class="section" id="section-ordenes">
-                <!-- Tabs solo para admin -->
-                <div class="tab-bar" id="ordenesTabBar">
-                    <button class="tab-btn active" data-tab="digital">
-                        <i class="bi bi-display"></i> Digital
-                    </button>
-                    <button class="tab-btn" data-tab="imprenta">
-                        <i class="bi bi-printer"></i> Imprenta
-                    </button>
-                </div>
 
-                <!-- Tab Digital -->
-                <div class="tab-content active" id="tab-digital">
-                    <div class="card">
-                        <div class="card-header">
-                            <span class="card-title"><i class="bi bi-display"></i> Ordenes Digital</span>
+                <!-- Vista principal de ordenes -->
+                <div id="ordenesListaView">
+                    <!-- Tabs solo para admin -->
+                    <div class="tab-bar" id="ordenesTabBar">
+                        <button class="tab-btn active" data-tab="digital">
+                            <i class="bi bi-display"></i> Digital
+                        </button>
+                        <button class="tab-btn" data-tab="imprenta">
+                            <i class="bi bi-printer"></i> Imprenta
+                        </button>
+                    </div>
+
+                    <!-- Tab para roles imprenta/digital: Pendientes y Diseños aprobados -->
+                    <div class="tab-bar" id="ordenesRolTabBar" style="display:none;">
+                        <button class="tab-btn active" data-tab="pendientes">
+                            <i class="bi bi-clipboard-check"></i> Pendientes
+                        </button>
+                        <button class="tab-btn" data-tab="disenosAprobados">
+                            <i class="bi bi-brush"></i> Diseños
+                        </button>
+                    </div>
+
+                    <!-- Tab Digital -->
+                    <div class="tab-content active" id="tab-digital">
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-display"></i> Ordenes Digital</span>
+                            </div>
+                            <div class="card-body" id="ordenesDigitalLista">
+                                <div class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <p>No hay ordenes digitales aun</p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body" id="ordenesDigitalLista">
-                            <div class="empty-state">
-                                <i class="bi bi-inbox"></i>
-                                <p>No hay ordenes digitales aun</p>
+                    </div>
+
+                    <!-- Tab Imprenta -->
+                    <div class="tab-content" id="tab-imprenta">
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-printer"></i> Ordenes Imprenta</span>
+                            </div>
+                            <div class="card-body" id="ordenesImprentaLista">
+                                <div class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <p>No hay ordenes de imprenta aun</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Pendientes (para roles imprenta/digital) -->
+                    <div class="tab-content" id="tab-pendientes">
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-clipboard-check"></i> Ordenes Pendientes</span>
+                            </div>
+                            <div class="card-body" id="ordenesPendientesLista">
+                                <div class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <p>No hay ordenes pendientes</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Diseños Aprobados (para roles imprenta/digital) -->
+                    <div class="tab-content" id="tab-disenosAprobados">
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-brush"></i> Diseños Respondidos</span>
+                            </div>
+                            <div class="card-body" id="ordenesDisenosLista">
+                                <div class="empty-state">
+                                    <i class="bi bi-brush"></i>
+                                    <p>No hay diseños respondidos aun</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tab Imprenta -->
-                <div class="tab-content" id="tab-imprenta">
-                    <div class="card">
-                        <div class="card-header">
-                            <span class="card-title"><i class="bi bi-printer"></i> Ordenes Imprenta</span>
-                        </div>
-                        <div class="card-body" id="ordenesImprentaLista">
-                            <div class="empty-state">
-                                <i class="bi bi-inbox"></i>
-                                <p>No hay ordenes de imprenta aun</p>
+                <!-- Vista: Orden de Diseño -->
+                <div id="ordenDisenoView" style="display:none;">
+                    <div class="section-header">
+                        <button class="btn-back" id="btnVolverOrdenes">
+                            <i class="bi bi-arrow-left"></i> Volver
+                        </button>
+                        <h2 class="section-title" id="disenoViewTitle"><i class="bi bi-brush"></i> Orden de Diseño</h2>
+                    </div>
+
+                    <!-- Info del cliente -->
+                    <div class="card diseno-info-card">
+                        <div class="card-body padded">
+                            <div class="diseno-info-grid">
+                                <div class="diseno-info-item">
+                                    <span class="diseno-info-label">Orden</span>
+                                    <span class="diseno-info-value" id="disenoOrdenNum">-</span>
+                                </div>
+                                <div class="diseno-info-item">
+                                    <span class="diseno-info-label">Cliente</span>
+                                    <span class="diseno-info-value" id="disenoCliente">-</span>
+                                </div>
+                                <div class="diseno-info-item">
+                                    <span class="diseno-info-label">Telefono</span>
+                                    <span class="diseno-info-value" id="disenoTelefono">-</span>
+                                </div>
+                                <div class="diseno-info-item">
+                                    <span class="diseno-info-label">Tipo</span>
+                                    <span class="diseno-info-value" id="disenoTipo">-</span>
+                                </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Productos con imagenes -->
+                    <div id="disenoProductosContainer"></div>
+
+                    <!-- Acciones -->
+                    <div class="diseno-actions">
+                        <button class="btn-primary btn-full" id="btnGuardarDiseno">
+                            <i class="bi bi-check-lg"></i> Guardar y generar link
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ===== SECCION: DISEÑOS (aprobaciones) ===== -->
+            <div class="section" id="section-disenos">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-brush"></i> Ordenes de Diseño</h2>
+                </div>
+                <div class="card">
+                    <div class="card-body" id="listaDisenosAprobados">
+                        <div class="empty-state">
+                            <i class="bi bi-brush"></i>
+                            <p>Cargando ordenes de diseño...</p>
                         </div>
                     </div>
                 </div>
@@ -413,9 +521,6 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-cancel" id="ordenDetalleCancel">Cerrar</button>
-                <button class="btn-primary" id="btnCrearOrdenDiseno">
-                    <i class="bi bi-brush"></i> Crear orden de diseño
-                </button>
             </div>
         </div>
     </div>
@@ -424,6 +529,24 @@
     <div class="img-modal-dash" id="imgModalDash">
         <button class="img-modal-close" id="imgModalDashClose"><i class="bi bi-x-lg"></i></button>
         <img id="imgModalDashImg" src="" alt="Comprobante">
+    </div>
+
+    <!-- ===== MODAL PACDORA 3D PREVIEW ===== -->
+    <div class="pacdora-modal" id="pacdoraModal">
+        <div class="pacdora-modal-content">
+            <div class="pacdora-modal-header">
+                <span class="pacdora-modal-title"><i class="bi bi-box-seam"></i> Vista 3D - Pacdora</span>
+                <button class="pacdora-modal-close" id="pacdoraModalClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="pacdora-modal-body">
+                <iframe id="pacdoraIframe" src="" frameborder="0" allowfullscreen></iframe>
+            </div>
+            <div class="pacdora-modal-footer">
+                <a id="pacdoraOpenExternal" href="" target="_blank" rel="noopener noreferrer" class="btn-pacdora-external">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir en nueva pestaña
+                </a>
+            </div>
+        </div>
     </div>
 
     <!-- ===== MODAL ACCIONES COTIZACION ===== -->
@@ -548,6 +671,10 @@
         <a class="bottom-nav-item" data-section="ordenes">
             <i class="bi bi-clipboard-check"></i>
             <span>Ordenes</span>
+        </a>
+        <a class="bottom-nav-item" data-section="disenos" data-role="administrador">
+            <i class="bi bi-brush"></i>
+            <span>Diseños</span>
         </a>
         <a class="bottom-nav-item" data-section="usuarios" data-role="administrador">
             <i class="bi bi-people"></i>

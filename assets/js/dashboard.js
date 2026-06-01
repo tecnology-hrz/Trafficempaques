@@ -70,6 +70,7 @@ async function initDashboard(rol, nombre) {
     setupAccionesModal();
     loadConfig();
     setupOrdenDetalleModal(); // Modal detalle orden para todos los roles
+    setupPacdoraModal(); // Modal Pacdora 3D preview
 
     // Cotizador (solo admin)
     if (rol === "administrador") {
@@ -83,6 +84,7 @@ async function initDashboard(rol, nombre) {
 
     // Cargar ordenes para todos los roles
     cargarOrdenes(rol);
+    cargarDisenosAprobados(rol);
 
     document.getElementById("btnLogout").addEventListener("click", () => {
         showConfirm("Cerrar sesion", "Estas seguro que deseas cerrar sesion?", logout);
@@ -97,15 +99,18 @@ function setupOrdenesByRole(rol) {
     const tabBar      = document.getElementById("ordenesTabBar");
     const tabDigital  = document.getElementById("tab-digital");
     const tabImprenta = document.getElementById("tab-imprenta");
+    const rolTabBar   = document.getElementById("ordenesRolTabBar");
+    const tabPendientes = document.getElementById("tab-pendientes");
+    const tabDisenosAprobados = document.getElementById("tab-disenosAprobados");
 
-    if (rol === "digital") {
-        tabBar.style.display = "none";
-        tabDigital.classList.add("active");
-        tabImprenta.style.display = "none";
-    } else if (rol === "imprenta") {
+    if (rol === "digital" || rol === "imprenta") {
         tabBar.style.display = "none";
         tabDigital.style.display = "none";
-        tabImprenta.classList.add("active");
+        tabDigital.classList.remove("active");
+        tabImprenta.style.display = "none";
+        // Mostrar tabs de rol
+        rolTabBar.style.display = "flex";
+        tabPendientes.classList.add("active");
     }
 }
 
@@ -149,22 +154,27 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", usuarios: "Usuarios", configuracion: "Configuracion" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", disenos: "Diseños", usuarios: "Usuarios", configuracion: "Configuracion" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
 // ===== TABS ORDENES =====
 function setupTabs() {
-    const tabBtns = document.querySelectorAll(".tab-btn");
-    const tabContents = document.querySelectorAll(".tab-content");
+    const allTabBars = document.querySelectorAll(".tab-bar");
 
-    tabBtns.forEach(btn => {
-        btn.addEventListener("click", () => {
-            const target = btn.dataset.tab;
-            tabBtns.forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            tabContents.forEach(c => c.classList.remove("active"));
-            document.getElementById("tab-" + target).classList.add("active");
+    allTabBars.forEach(bar => {
+        const btns = bar.querySelectorAll(".tab-btn");
+        btns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const target = btn.dataset.tab;
+                // Desactivar solo los tabs de este bar
+                btns.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                // Desactivar todos los tab-content y activar el target
+                document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+                const el = document.getElementById("tab-" + target);
+                if (el) el.classList.add("active");
+            });
         });
     });
 }
@@ -959,6 +969,8 @@ async function cargarUsuarios() {
 }
 
 // ===== ORDENES (cotizaciones aprobadas) =====
+let ordenesDisenoDB = {}; // Cache de ordenes de diseño existentes
+
 async function cargarOrdenes(rolUsuario) {
     try {
         // Leer de la coleccion "produccion" que el admin crea al enviar
@@ -967,18 +979,109 @@ async function cargarOrdenes(rolUsuario) {
         snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
         ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
 
-        renderOrdenesPorTipo(ordenes, "digital", "ordenesDigitalLista", rolUsuario);
-        renderOrdenesPorTipo(ordenes, "imprenta", "ordenesImprentaLista", rolUsuario);
+        // Cargar ordenes de diseño existentes
+        const snapDiseno = await getDocs(collection(db, "ordenesDiseno"));
+        ordenesDisenoDB = {};
+        snapDiseno.forEach(d => { ordenesDisenoDB[d.id] = { id: d.id, ...d.data() }; });
+
+        if (rolUsuario === "administrador") {
+            // Admin ve todo en tabs digital/imprenta
+            renderOrdenesPorTipo(ordenes, "digital", "ordenesDigitalLista", rolUsuario);
+            renderOrdenesPorTipo(ordenes, "imprenta", "ordenesImprentaLista", rolUsuario);
+        } else {
+            // Imprenta/Digital: separar en pendientes y con diseño respondido
+            const tipoRol = rolUsuario; // "imprenta" o "digital"
+            const misOrdenes = ordenes.filter(o => o.tipo === tipoRol);
+
+            // Separar: las que tienen diseño respondido con al menos 1 aprobada
+            const pendientes = [];
+            const respondidas = [];
+
+            misOrdenes.forEach(orden => {
+                const disenoId = orden.id + "-diseno";
+                const diseno = ordenesDisenoDB[disenoId];
+                if (diseno && diseno.estado === "respondida") {
+                    // Verificar si tiene al menos 1 imagen aprobada
+                    const tieneAprobada = (diseno.items || []).some(item =>
+                        (item.imagenes || []).some(img => img.estado === "aprobada")
+                    );
+                    if (tieneAprobada) {
+                        respondidas.push({ orden, diseno });
+                    } else {
+                        pendientes.push(orden);
+                    }
+                } else {
+                    pendientes.push(orden);
+                }
+            });
+
+            renderOrdenesPorTipo(pendientes, tipoRol, "ordenesPendientesLista", rolUsuario);
+            renderDisenosRespondidos(respondidas, "ordenesDisenosLista", rolUsuario);
+        }
     } catch (err) {
         console.error("Error al cargar ordenes:", err);
     }
+}
+
+function renderDisenosRespondidos(items, containerId, rolUsuario) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-brush"></i><p>No hay diseños respondidos aun</p></div>';
+        return;
+    }
+
+    let html = '<div class="disenos-lista">';
+
+    items.forEach(({ orden, diseno }) => {
+        const fecha = new Date(diseno.fechaCreacion || "");
+        const fechaStr = isNaN(fecha) ? "-" : fecha.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+
+        // Contar aprobadas y rechazadas
+        let aprobadas = 0, rechazadas = 0;
+        (diseno.items || []).forEach(item => {
+            (item.imagenes || []).forEach(img => {
+                if (img.estado === "aprobada") aprobadas++;
+                if (img.estado === "rechazada") rechazadas++;
+            });
+        });
+
+        html += `
+            <div class="diseno-lista-item">
+                <div class="diseno-lista-info">
+                    <div class="diseno-lista-top">
+                        <strong>${orden.numero}</strong>
+                        <span class="diseno-estado-badge respondida"><i class="bi bi-check-circle"></i> ${aprobadas} aprobadas, ${rechazadas} rechazadas</span>
+                    </div>
+                    <span class="diseno-lista-sub">${orden.cliente} &bull; ${fechaStr}</span>
+                </div>
+                <button class="btn-ver-diseno" data-id="${diseno.id}">
+                    <i class="bi bi-eye"></i> Ver diseños
+                </button>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Eventos
+    container.querySelectorAll(".btn-ver-diseno").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const item = items.find(i => i.diseno.id === id);
+            if (item) abrirModalVerDisenos(item.diseno);
+        });
+    });
 }
 
 function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    const filtradas = ordenes.filter(o => o.tipo === tipo);
+    // Si es admin, filtrar por tipo. Si es rol, ya vienen filtradas.
+    const filtradas = rolUsuario === "administrador" ? ordenes.filter(o => o.tipo === tipo) : ordenes;
 
     if (filtradas.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="bi bi-inbox"></i><p>No hay ordenes de ${tipo} aun</p></div>`;
@@ -1031,15 +1134,43 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
 
         const fechaMostrar = orden.fechaEntrega || fechaStr;
 
+        // Verificar si ya existe orden de diseño
+        const disenoId = orden.id + "-diseno";
+        const tieneDiseno = !!ordenesDisenoDB[disenoId];
+        const disenoData = ordenesDisenoDB[disenoId];
+        const btnDisenoLabel = tieneDiseno
+            ? '<i class="bi bi-pencil"></i> Editar orden de diseño'
+            : '<i class="bi bi-brush"></i> Crear orden de diseño';
+        const btnDisenoClass = tieneDiseno ? "btn-crear-diseno btn-editar-diseno" : "btn-crear-diseno";
+
+        // Badge de estado de diseño
+        let disenoEstadoBadge = "";
+        if (disenoData && disenoData.estado === "respondida") {
+            disenoEstadoBadge = `<span class="diseno-estado-inline respondida"><i class="bi bi-check-circle"></i> Diseño respondido</span>`;
+        } else if (tieneDiseno) {
+            disenoEstadoBadge = `<span class="diseno-estado-inline pendiente"><i class="bi bi-clock"></i> Diseño pendiente</span>`;
+        }
+
+        // Boton copiar link solo si ya existe orden de diseño
+        const btnCopyLink = tieneDiseno
+            ? `<button class="btn-copiar-link-diseno" data-id="${orden.id}"><i class="bi bi-link-45deg"></i> Copiar link</button>`
+            : "";
+
         html += `
             <tr class="${filaClass}">
-                <td><strong>${orden.numero}</strong></td>
+                <td><strong>${orden.numero}</strong> ${disenoEstadoBadge}</td>
                 <td>${orden.cliente}</td>
                 <td>${fechaMostrar}</td>
                 <td>
-                    <button class="btn-ver-orden" data-id="${orden.id}">
-                        <i class="bi bi-eye"></i> Ver mas
-                    </button>
+                    <div class="orden-acciones">
+                        <button class="btn-ver-orden" data-id="${orden.id}">
+                            <i class="bi bi-eye"></i> Ver mas
+                        </button>
+                        ${btnCopyLink}
+                        <button class="${btnDisenoClass}" data-id="${orden.id}">
+                            ${btnDisenoLabel}
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -1054,6 +1185,33 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
             const id = btn.dataset.id;
             const orden = filtradas.find(o => o.id === id);
             if (orden) abrirModalOrden(orden, esRolProduccion);
+        });
+    });
+
+    // Eventos "Crear orden de diseño"
+    container.querySelectorAll(".btn-crear-diseno").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const orden = filtradas.find(o => o.id === id);
+            if (orden) crearOrdenDiseno(orden);
+        });
+    });
+
+    // Eventos "Copiar link de diseño"
+    container.querySelectorAll(".btn-copiar-link-diseno").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const disenoId = id + "-diseno";
+            const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+            const link = baseUrl + "diseno.html?id=" + disenoId;
+            copyToClipboard(link).then(() => {
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                btn.classList.add("copiado");
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="bi bi-link-45deg"></i> Copiar link';
+                    btn.classList.remove("copiado");
+                }, 2000);
+            });
         });
     });
 }
@@ -1076,41 +1234,471 @@ function abrirModalOrden(orden, esRolProduccion) {
 
     document.getElementById("ordenDetalleItems").innerHTML = itemsHtml || `<tr><td colspan="4">Sin productos</td></tr>`;
 
-    // Boton diseno
-    const btnDiseno = document.getElementById("btnCrearOrdenDiseno");
-    btnDiseno.onclick = () => crearOrdenDiseno(orden);
-
     overlay.classList.add("show");
 }
 
 async function crearOrdenDiseno(orden) {
-    const prodId = orden.id + "-diseno";
-    await setDoc(doc(db, "produccion", prodId), {
-        cotizacionId: orden.cotizacionId || orden.id,
-        numero:       orden.numero,
-        cliente:      orden.cliente,
-        nit:          orden.nit || "",
-        telefono:     orden.telefono || "",
-        tipo:         "diseno",
-        items:        orden.items || [],
-        total:        orden.total || 0,
-        metodoPago:   orden.metodoPago || "",
-        tipoPago:     orden.tipoPago || "completo",
-        montoPagado:  orden.montoPagado || orden.total,
-        comprobante:  orden.comprobante || "",
-        estado:       "en_produccion",
-        fechaEnvio:   new Date().toISOString()
+    // Verificar si ya existe una orden de diseño
+    const disenoId = orden.id + "-diseno";
+    const existente = ordenesDisenoDB[disenoId] || null;
+    abrirVistaDisenoOrden(orden, existente);
+}
+
+// ===== VISTA ORDEN DE DISEÑO (inline) =====
+const IMGBB_KEY = "85c1345ba9104ab223ed72e168bb111d";
+let disenoOrdenActual = null;
+let disenoEditando = null; // null = crear, objeto = editar
+
+function abrirVistaDisenoOrden(orden, existente) {
+    disenoOrdenActual = orden;
+    disenoEditando = existente;
+
+    // Ocultar lista, mostrar vista diseño
+    document.getElementById("ordenesListaView").style.display = "none";
+    document.getElementById("ordenDisenoView").style.display = "block";
+
+    // Llenar info
+    document.getElementById("disenoOrdenNum").textContent = orden.numero;
+    document.getElementById("disenoCliente").textContent = orden.cliente;
+    document.getElementById("disenoTelefono").textContent = orden.telefono || "-";
+    document.getElementById("disenoTipo").textContent = orden.tipo || "-";
+
+    if (existente) {
+        document.getElementById("disenoViewTitle").innerHTML = `<i class="bi bi-pencil"></i> Editar Orden de Diseño - ${orden.numero}`;
+        document.getElementById("btnGuardarDiseno").innerHTML = '<i class="bi bi-check-lg"></i> Guardar cambios y copiar link';
+    } else {
+        document.getElementById("disenoViewTitle").innerHTML = `<i class="bi bi-brush"></i> Orden de Diseño - ${orden.numero}`;
+        document.getElementById("btnGuardarDiseno").innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
+    }
+
+    // Renderizar productos (con imagenes existentes si es edicion)
+    const itemsParaRender = existente ? existente.items : (orden.items || []);
+    renderDisenoProductos(itemsParaRender, !!existente);
+
+    // Boton volver
+    document.getElementById("btnVolverOrdenes").onclick = () => {
+        document.getElementById("ordenDisenoView").style.display = "none";
+        document.getElementById("ordenesListaView").style.display = "block";
+    };
+
+    // Boton guardar
+    document.getElementById("btnGuardarDiseno").onclick = () => guardarOrdenDiseno(orden);
+}
+
+function renderDisenoProductos(items, esEdicion) {
+    const container = document.getElementById("disenoProductosContainer");
+    container.innerHTML = "";
+
+    items.forEach((item, idx) => {
+        const card = document.createElement("div");
+        card.className = "card diseno-producto-card";
+        card.innerHTML = `
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="bi bi-box"></i>
+                    <strong>${item.cantidad}x</strong> ${item.producto}
+                    ${item.terminado ? `<span class="diseno-tag">${item.terminado}</span>` : ""}
+                    ${item.color ? `<span class="diseno-tag">${item.color}</span>` : ""}
+                </span>
+            </div>
+            <div class="card-body padded">
+                <div class="diseno-imagenes" id="disenoImagenes-${idx}"></div>
+                <div class="diseno-upload-row">
+                    <button class="btn-upload-diseno" data-idx="${idx}">
+                        <i class="bi bi-cloud-arrow-up"></i> Subir imagen
+                    </button>
+                    <button class="btn-add-link-diseno" data-idx="${idx}">
+                        <i class="bi bi-link-45deg"></i> Agregar link Pacdora
+                    </button>
+                </div>
+                <input type="file" class="diseno-file-input" data-idx="${idx}" accept="image/*" multiple hidden>
+                <div class="diseno-links-container" id="disenoLinks-${idx}"></div>
+            </div>
+        `;
+        container.appendChild(card);
+
+        // Si es edicion, cargar imagenes existentes
+        if (esEdicion && item.imagenes && item.imagenes.length > 0) {
+            const imgContainer = card.querySelector(`#disenoImagenes-${idx}`);
+            item.imagenes.forEach(img => {
+                const imgItem = document.createElement("div");
+                imgItem.className = "diseno-img-item";
+                imgItem.innerHTML = `
+                    <img src="${img.url}" alt="Diseño" class="diseno-thumb" data-url="${img.url}">
+                    <button class="diseno-img-remove" data-url="${img.url}" data-idx="${idx}">
+                        <i class="bi bi-x"></i>
+                    </button>
+                `;
+                imgContainer.appendChild(imgItem);
+
+                // Click para ver grande
+                imgItem.querySelector(".diseno-thumb").addEventListener("click", () => {
+                    document.getElementById("imgModalDashImg").src = img.url;
+                    document.getElementById("imgModalDash").classList.add("show");
+                });
+
+                // Eliminar
+                imgItem.querySelector(".diseno-img-remove").addEventListener("click", () => {
+                    imgItem.remove();
+                });
+            });
+        }
+
+        // Si es edicion, cargar links existentes
+        if (esEdicion && item.pacdoraLinks && item.pacdoraLinks.length > 0) {
+            const linksContainer = card.querySelector(`#disenoLinks-${idx}`);
+            item.pacdoraLinks.forEach(link => {
+                agregarLinkItem(linksContainer, link);
+            });
+        }
+
+        // Evento subir imagenes
+        const btnUpload = card.querySelector(".btn-upload-diseno");
+        const fileInput = card.querySelector(".diseno-file-input");
+
+        btnUpload.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", (e) => subirImagenesDiseno(e, idx));
+
+        // Evento agregar link
+        const btnAddLink = card.querySelector(".btn-add-link-diseno");
+        btnAddLink.addEventListener("click", () => {
+            const linksContainer = card.querySelector(`#disenoLinks-${idx}`);
+            agregarLinkItem(linksContainer, "");
+        });
+    });
+}
+
+function agregarLinkItem(container, value) {
+    const linkItem = document.createElement("div");
+    linkItem.className = "diseno-link-item";
+    linkItem.innerHTML = `
+        <i class="bi bi-box-seam diseno-link-icon"></i>
+        <input type="url" class="diseno-link-input" placeholder="https://www.pacdora.com/share/..." value="${value}">
+        <button class="diseno-link-preview" title="Previsualizar 3D"><i class="bi bi-eye"></i></button>
+        <button class="diseno-link-remove"><i class="bi bi-x"></i></button>
+    `;
+    container.appendChild(linkItem);
+
+    linkItem.querySelector(".diseno-link-remove").addEventListener("click", () => {
+        linkItem.remove();
     });
 
-    document.getElementById("ordenDetalleOverlay").classList.remove("show");
-    showConfirm(
-        "Orden de diseno creada",
-        `Se creo la orden de diseno para ${orden.numero}.`,
-        () => {}
-    );
-    document.getElementById("confirmYes").textContent = "Entendido";
-    document.getElementById("confirmNo").style.display = "none";
+    linkItem.querySelector(".diseno-link-preview").addEventListener("click", () => {
+        const url = linkItem.querySelector(".diseno-link-input").value.trim();
+        if (url) abrirPacdoraModal(url);
+    });
 }
+
+function abrirPacdoraModal(url) {
+    const modal = document.getElementById("pacdoraModal");
+    const iframe = document.getElementById("pacdoraIframe");
+    const linkExternal = document.getElementById("pacdoraOpenExternal");
+    iframe.src = url;
+    linkExternal.href = url;
+    modal.classList.add("show");
+}
+
+function setupPacdoraModal() {
+    const modal = document.getElementById("pacdoraModal");
+    const btnClose = document.getElementById("pacdoraModalClose");
+    btnClose.addEventListener("click", () => {
+        modal.classList.remove("show");
+        document.getElementById("pacdoraIframe").src = "";
+    });
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+            modal.classList.remove("show");
+            document.getElementById("pacdoraIframe").src = "";
+        }
+    });
+}
+
+async function subirImagenesDiseno(e, productoIdx) {
+    const files = e.target.files;
+    if (!files.length) return;
+
+    const container = document.getElementById(`disenoImagenes-${productoIdx}`);
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const placeholder = document.createElement("div");
+        placeholder.className = "diseno-img-item uploading";
+        placeholder.innerHTML = `<div class="diseno-img-loading"><i class="bi bi-arrow-repeat spin"></i> Subiendo...</div>`;
+        container.appendChild(placeholder);
+
+        try {
+            const formData = new FormData();
+            formData.append("image", file);
+
+            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const url = data.data.url;
+                placeholder.classList.remove("uploading");
+                placeholder.innerHTML = `
+                    <img src="${url}" alt="Diseño" class="diseno-thumb" data-url="${url}">
+                    <button class="diseno-img-remove" data-url="${url}" data-idx="${productoIdx}">
+                        <i class="bi bi-x"></i>
+                    </button>
+                `;
+
+                // Click para ver grande
+                placeholder.querySelector(".diseno-thumb").addEventListener("click", () => {
+                    document.getElementById("imgModalDashImg").src = url;
+                    document.getElementById("imgModalDash").classList.add("show");
+                });
+
+                // Eliminar
+                placeholder.querySelector(".diseno-img-remove").addEventListener("click", () => {
+                    placeholder.remove();
+                });
+            } else {
+                placeholder.innerHTML = `<div class="diseno-img-error"><i class="bi bi-exclamation-triangle"></i> Error</div>`;
+                setTimeout(() => placeholder.remove(), 2000);
+            }
+        } catch (err) {
+            console.error(err);
+            placeholder.innerHTML = `<div class="diseno-img-error"><i class="bi bi-exclamation-triangle"></i> Error</div>`;
+            setTimeout(() => placeholder.remove(), 2000);
+        }
+    }
+
+    e.target.value = "";
+}
+
+async function guardarOrdenDiseno(orden) {
+    const items = disenoEditando ? disenoEditando.items : (orden.items || []);
+    const disenoItems = [];
+
+    items.forEach((item, idx) => {
+        const container = document.getElementById(`disenoImagenes-${idx}`);
+        const imgs = container.querySelectorAll(".diseno-thumb");
+        const imagenes = [];
+        imgs.forEach(img => {
+            imagenes.push({ url: img.dataset.url, estado: "pendiente" });
+        });
+        // Recoger links de Pacdora
+        const linksContainer = document.getElementById(`disenoLinks-${idx}`);
+        const linkInputs = linksContainer.querySelectorAll(".diseno-link-input");
+        const pacdoraLinks = [];
+        linkInputs.forEach(inp => {
+            const val = inp.value.trim();
+            if (val) pacdoraLinks.push(val);
+        });
+        disenoItems.push({
+            producto: item.producto,
+            cantidad: item.cantidad,
+            terminado: item.terminado || "",
+            color: item.color || "",
+            tipo: item.tipo || "",
+            precioUnit: item.precioUnit || 0,
+            precioTotal: item.precioTotal || 0,
+            imagenes: imagenes,
+            pacdoraLinks: pacdoraLinks
+        });
+    });
+
+    // Verificar que al menos un producto tenga imagen
+    const tieneImagenes = disenoItems.some(i => i.imagenes.length > 0);
+    if (!tieneImagenes) {
+        showNotif("Sin diseños", "Sube al menos una imagen de diseño para algun producto.");
+        return;
+    }
+
+    const btnGuardar = document.getElementById("btnGuardarDiseno");
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<span class="spinner-sm"></span> Guardando...';
+
+    try {
+        const disenoId = orden.id + "-diseno";
+        const esEdicion = !!disenoEditando;
+
+        const dataToSave = {
+            ordenId: orden.id,
+            cotizacionId: orden.cotizacionId || orden.id,
+            numero: orden.numero,
+            cliente: orden.cliente,
+            telefono: orden.telefono || "",
+            tipo: orden.tipo,
+            items: disenoItems,
+            estado: "pendiente",
+            fechaCreacion: esEdicion ? (disenoEditando.fechaCreacion || new Date().toISOString()) : new Date().toISOString(),
+            fechaActualizacion: new Date().toISOString()
+        };
+
+        await setDoc(doc(db, "ordenesDiseno", disenoId), dataToSave);
+
+        // Actualizar cache local
+        ordenesDisenoDB[disenoId] = { id: disenoId, ...dataToSave };
+
+        // Generar link
+        const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+        const link = baseUrl + "diseno.html?id=" + disenoId;
+
+        const titulo = esEdicion ? "Orden de diseño actualizada" : "Orden de diseño creada";
+        showLinkModal(
+            titulo,
+            "Comparte este link con el cliente para que apruebe los diseños:",
+            link
+        );
+
+        // Volver a la lista y recargar
+        document.getElementById("ordenDisenoView").style.display = "none";
+        document.getElementById("ordenesListaView").style.display = "block";
+        cargarOrdenes(rol);
+    } catch (err) {
+        console.error("Error guardando orden de diseño:", err);
+        showNotif("Error", "No se pudo guardar la orden de diseño. Intenta de nuevo.");
+    }
+
+    btnGuardar.disabled = false;
+    btnGuardar.innerHTML = disenoEditando
+        ? '<i class="bi bi-check-lg"></i> Guardar cambios y copiar link'
+        : '<i class="bi bi-check-lg"></i> Guardar y generar link';
+}
+// ===== SECCION DISEÑOS (ordenes de diseño con estado) =====
+async function cargarDisenosAprobados(rolUsuario) {
+    const container = document.getElementById("listaDisenosAprobados");
+    if (!container) return;
+
+    try {
+        const snap = await getDocs(collection(db, "ordenesDiseno"));
+        const disenos = [];
+        snap.forEach(d => disenos.push({ id: d.id, ...d.data() }));
+        disenos.sort((a, b) => (b.fechaCreacion || "").localeCompare(a.fechaCreacion || ""));
+
+        // Filtrar por rol: imprenta/digital solo ven su tipo
+        let filtrados = disenos;
+        if (rolUsuario === "imprenta") {
+            filtrados = disenos.filter(d => d.tipo === "imprenta");
+        } else if (rolUsuario === "digital") {
+            filtrados = disenos.filter(d => d.tipo === "digital");
+        }
+
+        if (filtrados.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-brush"></i><p>No hay ordenes de diseño aun</p></div>';
+            return;
+        }
+
+        let html = `
+            <div class="disenos-lista">
+        `;
+
+        filtrados.forEach(diseno => {
+            const fecha = new Date(diseno.fechaCreacion || "");
+            const fechaStr = isNaN(fecha) ? "-" : fecha.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+
+            let estadoBadge = "";
+            if (diseno.estado === "respondida") {
+                // Contar aprobadas y rechazadas
+                let aprobadas = 0, rechazadas = 0, total = 0;
+                (diseno.items || []).forEach(item => {
+                    (item.imagenes || []).forEach(img => {
+                        total++;
+                        if (img.estado === "aprobada") aprobadas++;
+                        if (img.estado === "rechazada") rechazadas++;
+                    });
+                });
+                estadoBadge = `<span class="diseno-estado-badge respondida"><i class="bi bi-check-circle"></i> Respondida (${aprobadas} aprobadas, ${rechazadas} rechazadas)</span>`;
+            } else {
+                estadoBadge = `<span class="diseno-estado-badge pendiente"><i class="bi bi-clock"></i> Pendiente</span>`;
+            }
+
+            html += `
+                <div class="diseno-lista-item" data-id="${diseno.id}">
+                    <div class="diseno-lista-info">
+                        <div class="diseno-lista-top">
+                            <strong>${diseno.numero}</strong>
+                            ${estadoBadge}
+                        </div>
+                        <span class="diseno-lista-sub">${diseno.cliente} &bull; ${diseno.tipo} &bull; ${fechaStr}</span>
+                    </div>
+                    <button class="btn-ver-diseno" data-id="${diseno.id}">
+                        <i class="bi bi-eye"></i> Ver diseños
+                    </button>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        container.innerHTML = html;
+
+        // Eventos
+        container.querySelectorAll(".btn-ver-diseno").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                const diseno = filtrados.find(d => d.id === id);
+                if (diseno) abrirModalVerDisenos(diseno);
+            });
+        });
+
+    } catch (err) {
+        console.error("Error cargando diseños:", err);
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
+    }
+}
+
+function abrirModalVerDisenos(diseno) {
+    const overlay = document.getElementById("ordenDetalleOverlay");
+    document.getElementById("ordenDetalleNumero").textContent = diseno.numero + " - Diseños";
+    document.getElementById("ordenDetalleCliente").textContent = diseno.cliente;
+
+    let html = "";
+    (diseno.items || []).forEach((item, idx) => {
+        html += `<tr><td colspan="4" style="padding:12px 0 6px;font-weight:700;border-bottom:none;"><i class="bi bi-box"></i> ${item.cantidad}x ${item.producto}</td></tr>`;
+
+        (item.imagenes || []).forEach((img, imgIdx) => {
+            let estadoHtml = "";
+            if (img.estado === "aprobada") {
+                estadoHtml = `<span class="diseno-img-estado aprobada"><i class="bi bi-check-circle-fill"></i> Aprobada</span>`;
+            } else if (img.estado === "rechazada") {
+                estadoHtml = `<span class="diseno-img-estado rechazada"><i class="bi bi-x-circle-fill"></i> Rechazada</span>`;
+            } else {
+                estadoHtml = `<span class="diseno-img-estado pendiente"><i class="bi bi-clock"></i> Pendiente</span>`;
+            }
+
+            html += `
+                <tr>
+                    <td style="width:60px;">
+                        <img src="${img.url}" class="diseno-mini-thumb" data-url="${img.url}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;cursor:pointer;">
+                    </td>
+                    <td>Diseño ${imgIdx + 1}</td>
+                    <td>${estadoHtml}</td>
+                    <td></td>
+                </tr>
+            `;
+        });
+
+        // Pacdora links
+        (item.pacdoraLinks || []).forEach((link, lIdx) => {
+            html += `
+                <tr>
+                    <td><i class="bi bi-box-seam" style="color:#6366f1;font-size:18px;"></i></td>
+                    <td colspan="3"><a href="${link}" target="_blank" rel="noopener noreferrer" style="color:#6366f1;font-weight:600;font-size:12px;">Mockup 3D #${lIdx + 1}</a></td>
+                </tr>
+            `;
+        });
+    });
+
+    document.getElementById("ordenDetalleItems").innerHTML = html || `<tr><td colspan="4">Sin diseños</td></tr>`;
+
+    // Click en miniaturas
+    setTimeout(() => {
+        overlay.querySelectorAll(".diseno-mini-thumb").forEach(thumb => {
+            thumb.addEventListener("click", () => {
+                document.getElementById("imgModalDashImg").src = thumb.dataset.url;
+                document.getElementById("imgModalDash").classList.add("show");
+            });
+        });
+    }, 50);
+
+    overlay.classList.add("show");
+}
+
 // ===== MODAL DETALLE ORDEN (para todos los roles) =====
 function setupOrdenDetalleModal() {
     const ordenOverlay = document.getElementById("ordenDetalleOverlay");
