@@ -59,8 +59,8 @@ function renderCotizacion() {
             <td>${tipoBadge}</td>
             <td>${item.producto}</td>
             <td>${item.cantidad}</td>
-            <td>${item.terminado || "-"}</td>
-            <td>${item.color || "-"}</td>
+            <td>${item.terminados ? (Array.isArray(item.terminados) ? (item.terminados.length > 0 ? item.terminados.join(", ") : "-") : item.terminados) : (item.terminado || "-")}</td>
+            <td>${item.colores ? (Array.isArray(item.colores) ? (item.colores.length > 0 ? item.colores.join(", ") : "-") : item.colores) : (item.color || "-")}</td>
             <td>$${formatMoney(item.precioUnit)}</td>
             <td><strong>$${formatMoney(item.precioTotal)}</strong></td>
         `;

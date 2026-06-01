@@ -50,8 +50,16 @@ function renderOrdenDiseno() {
         card.className = "pub-producto-card";
 
         let tagsHtml = "";
-        if (item.terminado) tagsHtml += `<span class="pub-producto-tag">${item.terminado}</span>`;
-        if (item.color) tagsHtml += `<span class="pub-producto-tag">${item.color}</span>`;
+        if (item.terminados && Array.isArray(item.terminados)) {
+            item.terminados.forEach(t => { tagsHtml += `<span class="pub-producto-tag">${t}</span>`; });
+        } else if (item.terminado) {
+            tagsHtml += `<span class="pub-producto-tag">${item.terminado}</span>`;
+        }
+        if (item.colores && Array.isArray(item.colores)) {
+            item.colores.forEach(c => { tagsHtml += `<span class="pub-producto-tag">${c}</span>`; });
+        } else if (item.color) {
+            tagsHtml += `<span class="pub-producto-tag">${item.color}</span>`;
+        }
 
         // Pacdora links
         let pacdoraHtml = "";

@@ -306,11 +306,43 @@
                 <div class="section-header">
                     <h2 class="section-title"><i class="bi bi-brush"></i> Ordenes de Diseño</h2>
                 </div>
-                <div class="card">
-                    <div class="card-body" id="listaDisenosAprobados">
-                        <div class="empty-state">
-                            <i class="bi bi-brush"></i>
-                            <p>Cargando ordenes de diseño...</p>
+
+                <!-- Tabs Digital / Imprenta -->
+                <div class="tab-bar" id="disenosTabBar">
+                    <button class="tab-btn active" data-tab="disenosDigital">
+                        <i class="bi bi-display"></i> Digital
+                    </button>
+                    <button class="tab-btn" data-tab="disenosImprenta">
+                        <i class="bi bi-printer"></i> Imprenta
+                    </button>
+                </div>
+
+                <!-- Tab Diseños Digital -->
+                <div class="tab-content active" id="tab-disenosDigital">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title"><i class="bi bi-display"></i> Diseños Digital</span>
+                        </div>
+                        <div class="card-body" id="listaDisenosDigital">
+                            <div class="empty-state">
+                                <i class="bi bi-brush"></i>
+                                <p>No hay diseños digitales aun</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Diseños Imprenta -->
+                <div class="tab-content" id="tab-disenosImprenta">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title"><i class="bi bi-printer"></i> Diseños Imprenta</span>
+                        </div>
+                        <div class="card-body" id="listaDisenosImprenta">
+                            <div class="empty-state">
+                                <i class="bi bi-brush"></i>
+                                <p>No hay diseños de imprenta aun</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -521,6 +553,12 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-cancel" id="ordenDetalleCancel">Cerrar</button>
+                <button class="btn-copiar-link-modal" id="ordenDetalleCopyLink" style="display:none;">
+                    <i class="bi bi-link-45deg"></i> Copiar link
+                </button>
+                <button class="btn-primary" id="ordenDetalleRedisenar" style="display:none;">
+                    <i class="bi bi-arrow-repeat"></i> Rediseñar
+                </button>
             </div>
         </div>
     </div>
@@ -658,6 +696,31 @@
             <div class="modal-footer">
                 <button class="btn-cancel" id="usuarioCancel">Cancelar</button>
                 <button class="btn-save" id="usuarioSave"><i class="bi bi-check-lg"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL SELECTOR MULTIPLE (Terminados / Colores) ===== -->
+    <div class="modal-overlay" id="multiSelectOverlay">
+        <div class="modal modal-multiselect">
+            <div class="modal-header">
+                <h3 id="multiSelectTitle">Seleccionar</h3>
+                <button class="modal-close" id="multiSelectClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="multiselect-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="multiSelectSearch" placeholder="Buscar...">
+            </div>
+            <div class="multiselect-selected-bar" id="multiSelectSelectedBar">
+                <span class="multiselect-selected-label">Seleccionados:</span>
+                <div class="multiselect-tags" id="multiSelectTags"></div>
+            </div>
+            <div class="multiselect-grid" id="multiSelectGrid">
+                <!-- Cards se generan dinamicamente -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="multiSelectCancel">Cancelar</button>
+                <button class="btn-save" id="multiSelectConfirm"><i class="bi bi-check-lg"></i> Confirmar seleccion</button>
             </div>
         </div>
     </div>

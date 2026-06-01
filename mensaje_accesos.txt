@@ -1,0 +1,13 @@
+Buenas noches, disculpa la hora 😊
+
+Espero que hayas tenido un buen fin de semana. Te mando los accesos al sistema para que puedas probarlo cuando tengas un momento.
+
+Son 3 usuarios, uno por rol:
+
+👑 Admin → admin@traffic.com
+🖥️ Digital → digital@traffic.com
+🖨️ Imprenta → imprenta@traffic.com
+
+Contraseña para los 3: Traffic2026!
+
+Con el administrador puedes crear más usuarios y asignarles el rol que necesites. Cualquier duda me avisas 🙌

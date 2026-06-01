@@ -76,6 +76,7 @@ async function initDashboard(rol, nombre) {
     if (rol === "administrador") {
         await cargarCatalogos();
         setupCotizador();
+        setupMultiSelectModal();
         cargarListaCotizaciones();
         setupUsuarios();
         cargarUsuarios();
@@ -448,7 +449,7 @@ function setupCotizador() {
     });
 
     btnAdd.addEventListener("click", () => {
-        cotItems.push({ producto: "", descripcion: "", cantidad: 1, terminado: "", color: "", precioUnit: 0 });
+        cotItems.push({ producto: "", descripcion: "", cantidad: 1, terminados: [], colores: [], precioUnit: 0 });
         renderCotItems();
     });
 
@@ -475,8 +476,8 @@ function setupCotizador() {
             tipo: item.tipo || (tipo === "ambas" ? "imprenta" : tipo),
             producto: item.producto,
             cantidad: item.cantidad,
-            terminado: item.terminado,
-            color: item.color,
+            terminados: item.terminados || [],
+            colores: item.colores || [],
             precioUnit: item.precioUnit,
             precioTotal: item.cantidad * item.precioUnit
         }));
@@ -511,8 +512,6 @@ function renderCotItems() {
     const tipo = document.getElementById("cotTipo").value;
     const productosI = getProductosImprenta();
     const productosD = getProductosDigital();
-    const terms = getTerminados();
-    const cols  = getColores();
 
     if (cotItems.length === 0) {
         container.innerHTML = '<div class="empty-state" id="cotItemsEmpty"><i class="bi bi-cart"></i><p>Agrega productos a la cotizacion</p></div>';
@@ -542,15 +541,17 @@ function renderCotItems() {
             `<option value="${p.nombre}" data-valor="${p.valor || 0}" ${item.producto === p.nombre ? "selected" : ""}>${p.nombre}</option>`
         ).join("");
 
-        const termOptions = `<option value="">Ninguno</option>` + terms.map(t =>
-            `<option value="${t.nombre}" ${item.terminado === t.nombre ? "selected" : ""}>${t.nombre}</option>`
-        ).join("");
-
-        const colOptions = `<option value="">Ninguno</option>` + cols.map(c =>
-            `<option value="${c.nombre}" ${item.color === c.nombre ? "selected" : ""}>${c.nombre}</option>`
-        ).join("");
-
         const precioTotal = item.cantidad * item.precioUnit;
+
+        // Terminados multi-select button
+        const terminadosArr = item.terminados || [];
+        const terminadosText = terminadosArr.length > 0 ? terminadosArr.join(", ") : "Seleccionar terminados";
+        const terminadosCount = terminadosArr.length > 0 ? `<span class="btn-count">${terminadosArr.length}</span>` : "";
+
+        // Colores multi-select button
+        const coloresArr = item.colores || [];
+        const coloresText = coloresArr.length > 0 ? coloresArr.join(", ") : "Seleccionar colores";
+        const coloresCount = coloresArr.length > 0 ? `<span class="btn-count">${coloresArr.length}</span>` : "";
 
         // Si es ambas, mostrar campo tipo
         const tipoField = tipo === "ambas" ? `
@@ -578,15 +579,19 @@ function renderCotItems() {
             </div>
             <div class="form-field">
                 <label>Terminado</label>
-                <select class="cot-sel-terminado" data-idx="${idx}">
-                    ${termOptions}
-                </select>
+                <button type="button" class="cot-multiselect-btn cot-btn-terminados" data-idx="${idx}">
+                    <i class="bi bi-brush"></i>
+                    <span class="btn-text">${terminadosText}</span>
+                    ${terminadosCount}
+                </button>
             </div>
             <div class="form-field">
                 <label>Color</label>
-                <select class="cot-sel-color" data-idx="${idx}">
-                    ${colOptions}
-                </select>
+                <button type="button" class="cot-multiselect-btn cot-btn-colores" data-idx="${idx}">
+                    <i class="bi bi-palette"></i>
+                    <span class="btn-text">${coloresText}</span>
+                    ${coloresCount}
+                </button>
             </div>
             <div class="form-field">
                 <label>P. Unitario</label>
@@ -633,17 +638,17 @@ function renderCotItems() {
         });
     });
 
-    container.querySelectorAll(".cot-sel-terminado").forEach(sel => {
-        sel.addEventListener("change", (e) => {
-            const idx = parseInt(e.target.dataset.idx);
-            cotItems[idx].terminado = e.target.value;
+    container.querySelectorAll(".cot-btn-terminados").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const idx = parseInt(btn.dataset.idx);
+            openMultiSelectModal("terminados", idx);
         });
     });
 
-    container.querySelectorAll(".cot-sel-color").forEach(sel => {
-        sel.addEventListener("change", (e) => {
-            const idx = parseInt(e.target.dataset.idx);
-            cotItems[idx].color = e.target.value;
+    container.querySelectorAll(".cot-btn-colores").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const idx = parseInt(btn.dataset.idx);
+            openMultiSelectModal("colores", idx);
         });
     });
 
@@ -672,6 +677,147 @@ function renderCotItems() {
 function calcularTotales() {
     const total = cotItems.reduce((sum, item) => sum + (item.cantidad * item.precioUnit), 0);
     document.getElementById("cotTotal").textContent = "$" + formatMoneyLocal(total);
+}
+
+// ===== MODAL MULTISELECT (Terminados / Colores) =====
+let multiSelectType = ""; // "terminados" o "colores"
+let multiSelectIdx = -1;
+let multiSelectSelected = [];
+
+function setupMultiSelectModal() {
+    const overlay = document.getElementById("multiSelectOverlay");
+    const btnClose = document.getElementById("multiSelectClose");
+    const btnCancel = document.getElementById("multiSelectCancel");
+    const btnConfirm = document.getElementById("multiSelectConfirm");
+    const searchInput = document.getElementById("multiSelectSearch");
+
+    btnClose.addEventListener("click", closeMultiSelect);
+    btnCancel.addEventListener("click", closeMultiSelect);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeMultiSelect(); });
+
+    btnConfirm.addEventListener("click", () => {
+        if (multiSelectIdx >= 0 && multiSelectIdx < cotItems.length) {
+            if (multiSelectType === "terminados") {
+                cotItems[multiSelectIdx].terminados = [...multiSelectSelected];
+            } else {
+                cotItems[multiSelectIdx].colores = [...multiSelectSelected];
+            }
+        }
+        closeMultiSelect();
+        renderCotItems();
+    });
+
+    searchInput.addEventListener("input", () => {
+        renderMultiSelectGrid();
+    });
+}
+
+function openMultiSelectModal(type, idx) {
+    multiSelectType = type;
+    multiSelectIdx = idx;
+
+    const title = type === "terminados" ? "Seleccionar Terminados" : "Seleccionar Colores";
+    document.getElementById("multiSelectTitle").textContent = title;
+    document.getElementById("multiSelectSearch").value = "";
+
+    // Cargar seleccion actual
+    if (type === "terminados") {
+        multiSelectSelected = [...(cotItems[idx].terminados || [])];
+    } else {
+        multiSelectSelected = [...(cotItems[idx].colores || [])];
+    }
+
+    renderMultiSelectGrid();
+    renderMultiSelectTags();
+    document.getElementById("multiSelectOverlay").classList.add("show");
+    setTimeout(() => document.getElementById("multiSelectSearch").focus(), 100);
+}
+
+function closeMultiSelect() {
+    document.getElementById("multiSelectOverlay").classList.remove("show");
+    multiSelectType = "";
+    multiSelectIdx = -1;
+    multiSelectSelected = [];
+}
+
+function renderMultiSelectGrid() {
+    const grid = document.getElementById("multiSelectGrid");
+    const search = document.getElementById("multiSelectSearch").value.toLowerCase().trim();
+
+    let items = [];
+    if (multiSelectType === "terminados") {
+        items = getTerminados();
+    } else {
+        items = getColores();
+    }
+
+    // Filtrar por busqueda
+    if (search) {
+        items = items.filter(item => item.nombre.toLowerCase().includes(search));
+    }
+
+    if (items.length === 0) {
+        grid.innerHTML = `<div class="multiselect-empty"><i class="bi bi-search"></i><p>No se encontraron resultados</p></div>`;
+        return;
+    }
+
+    grid.innerHTML = "";
+    items.forEach(item => {
+        const isSelected = multiSelectSelected.includes(item.nombre);
+        const card = document.createElement("div");
+        card.className = "multiselect-card" + (isSelected ? " selected" : "");
+        card.dataset.nombre = item.nombre;
+
+        const icon = multiSelectType === "terminados" ? "bi-brush" : "bi-palette";
+        const valueHtml = item.valor ? `<span class="multiselect-card-value">$${formatMoneyLocal(item.valor)}</span>` : "";
+
+        card.innerHTML = `
+            <i class="bi ${icon} multiselect-card-icon"></i>
+            <span class="multiselect-card-name">${item.nombre}</span>
+            ${valueHtml}
+        `;
+
+        card.addEventListener("click", () => {
+            toggleMultiSelectItem(item.nombre);
+        });
+
+        grid.appendChild(card);
+    });
+}
+
+function toggleMultiSelectItem(nombre) {
+    const idx = multiSelectSelected.indexOf(nombre);
+    if (idx >= 0) {
+        multiSelectSelected.splice(idx, 1);
+    } else {
+        multiSelectSelected.push(nombre);
+    }
+    renderMultiSelectGrid();
+    renderMultiSelectTags();
+}
+
+function renderMultiSelectTags() {
+    const bar = document.getElementById("multiSelectSelectedBar");
+    const container = document.getElementById("multiSelectTags");
+
+    if (multiSelectSelected.length === 0) {
+        bar.classList.remove("has-items");
+        container.innerHTML = "";
+        return;
+    }
+
+    bar.classList.add("has-items");
+    container.innerHTML = "";
+    multiSelectSelected.forEach(nombre => {
+        const tag = document.createElement("span");
+        tag.className = "multiselect-tag";
+        tag.innerHTML = `${nombre} <button class="tag-remove" data-nombre="${nombre}"><i class="bi bi-x"></i></button>`;
+        tag.querySelector(".tag-remove").addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleMultiSelectItem(nombre);
+        });
+        container.appendChild(tag);
+    });
 }
 
 // Escuchar cambio de tipo para refrescar productos
@@ -791,8 +937,8 @@ function abrirModalAcciones(cotId, cotName) {
             tipo:       i.tipo || cot.tipo,
             producto:   i.producto,
             cantidad:   i.cantidad,
-            terminado:  i.terminado || "",
-            color:      i.color || "",
+            terminados: i.terminados || (i.terminado ? [i.terminado] : []),
+            colores:    i.colores || (i.color ? [i.color] : []),
             precioUnit: i.precioUnit
         }));
 
@@ -1223,14 +1369,22 @@ function abrirModalOrden(orden, esRolProduccion) {
     document.getElementById("ordenDetalleNumero").textContent = orden.numero;
     document.getElementById("ordenDetalleCliente").textContent = orden.cliente;
 
-    const itemsHtml = items.map(i => `
+    // Ocultar botones de diseño (solo se muestran en abrirModalVerDisenos)
+    document.getElementById("ordenDetalleCopyLink").style.display = "none";
+    document.getElementById("ordenDetalleRedisenar").style.display = "none";
+
+    const itemsHtml = items.map(i => {
+        const terminadosDisplay = i.terminados ? (Array.isArray(i.terminados) ? (i.terminados.length > 0 ? i.terminados.join(", ") : "-") : i.terminados) : (i.terminado || "-");
+        const coloresDisplay = i.colores ? (Array.isArray(i.colores) ? (i.colores.length > 0 ? i.colores.join(", ") : "-") : i.colores) : (i.color || "-");
+        return `
         <tr>
             <td><strong>${i.cantidad}x</strong></td>
             <td>${i.producto}</td>
-            <td>${i.terminado || "-"}</td>
-            <td>${i.color || "-"}</td>
+            <td>${terminadosDisplay}</td>
+            <td>${coloresDisplay}</td>
         </tr>
-    `).join("");
+    `;
+    }).join("");
 
     document.getElementById("ordenDetalleItems").innerHTML = itemsHtml || `<tr><td colspan="4">Sin productos</td></tr>`;
 
@@ -1297,8 +1451,8 @@ function renderDisenoProductos(items, esEdicion) {
                 <span class="card-title">
                     <i class="bi bi-box"></i>
                     <strong>${item.cantidad}x</strong> ${item.producto}
-                    ${item.terminado ? `<span class="diseno-tag">${item.terminado}</span>` : ""}
-                    ${item.color ? `<span class="diseno-tag">${item.color}</span>` : ""}
+                    ${item.terminados ? (Array.isArray(item.terminados) ? item.terminados.map(t => `<span class="diseno-tag">${t}</span>`).join("") : (item.terminados ? `<span class="diseno-tag">${item.terminados}</span>` : "")) : (item.terminado ? `<span class="diseno-tag">${item.terminado}</span>` : "")}
+                    ${item.colores ? (Array.isArray(item.colores) ? item.colores.map(c => `<span class="diseno-tag">${c}</span>`).join("") : (item.colores ? `<span class="diseno-tag">${item.colores}</span>` : "")) : (item.color ? `<span class="diseno-tag">${item.color}</span>` : "")}
                 </span>
             </div>
             <div class="card-body padded">
@@ -1492,6 +1646,8 @@ async function guardarOrdenDiseno(orden) {
         disenoItems.push({
             producto: item.producto,
             cantidad: item.cantidad,
+            terminados: item.terminados || (item.terminado ? [item.terminado] : []),
+            colores: item.colores || (item.color ? [item.color] : []),
             terminado: item.terminado || "",
             color: item.color || "",
             tipo: item.tipo || "",
@@ -1562,8 +1718,12 @@ async function guardarOrdenDiseno(orden) {
 }
 // ===== SECCION DISEÑOS (ordenes de diseño con estado) =====
 async function cargarDisenosAprobados(rolUsuario) {
-    const container = document.getElementById("listaDisenosAprobados");
-    if (!container) return;
+    // Solo admin usa esta seccion separada
+    if (rolUsuario !== "administrador") return;
+
+    const containerDigital = document.getElementById("listaDisenosDigital");
+    const containerImprenta = document.getElementById("listaDisenosImprenta");
+    if (!containerDigital || !containerImprenta) return;
 
     try {
         const snap = await getDocs(collection(db, "ordenesDiseno"));
@@ -1571,75 +1731,72 @@ async function cargarDisenosAprobados(rolUsuario) {
         snap.forEach(d => disenos.push({ id: d.id, ...d.data() }));
         disenos.sort((a, b) => (b.fechaCreacion || "").localeCompare(a.fechaCreacion || ""));
 
-        // Filtrar por rol: imprenta/digital solo ven su tipo
-        let filtrados = disenos;
-        if (rolUsuario === "imprenta") {
-            filtrados = disenos.filter(d => d.tipo === "imprenta");
-        } else if (rolUsuario === "digital") {
-            filtrados = disenos.filter(d => d.tipo === "digital");
-        }
+        const digitales = disenos.filter(d => d.tipo === "digital");
+        const imprenta = disenos.filter(d => d.tipo === "imprenta");
 
-        if (filtrados.length === 0) {
-            container.innerHTML = '<div class="empty-state"><i class="bi bi-brush"></i><p>No hay ordenes de diseño aun</p></div>';
-            return;
-        }
-
-        let html = `
-            <div class="disenos-lista">
-        `;
-
-        filtrados.forEach(diseno => {
-            const fecha = new Date(diseno.fechaCreacion || "");
-            const fechaStr = isNaN(fecha) ? "-" : fecha.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
-
-            let estadoBadge = "";
-            if (diseno.estado === "respondida") {
-                // Contar aprobadas y rechazadas
-                let aprobadas = 0, rechazadas = 0, total = 0;
-                (diseno.items || []).forEach(item => {
-                    (item.imagenes || []).forEach(img => {
-                        total++;
-                        if (img.estado === "aprobada") aprobadas++;
-                        if (img.estado === "rechazada") rechazadas++;
-                    });
-                });
-                estadoBadge = `<span class="diseno-estado-badge respondida"><i class="bi bi-check-circle"></i> Respondida (${aprobadas} aprobadas, ${rechazadas} rechazadas)</span>`;
-            } else {
-                estadoBadge = `<span class="diseno-estado-badge pendiente"><i class="bi bi-clock"></i> Pendiente</span>`;
-            }
-
-            html += `
-                <div class="diseno-lista-item" data-id="${diseno.id}">
-                    <div class="diseno-lista-info">
-                        <div class="diseno-lista-top">
-                            <strong>${diseno.numero}</strong>
-                            ${estadoBadge}
-                        </div>
-                        <span class="diseno-lista-sub">${diseno.cliente} &bull; ${diseno.tipo} &bull; ${fechaStr}</span>
-                    </div>
-                    <button class="btn-ver-diseno" data-id="${diseno.id}">
-                        <i class="bi bi-eye"></i> Ver diseños
-                    </button>
-                </div>
-            `;
-        });
-
-        html += `</div>`;
-        container.innerHTML = html;
-
-        // Eventos
-        container.querySelectorAll(".btn-ver-diseno").forEach(btn => {
-            btn.addEventListener("click", () => {
-                const id = btn.dataset.id;
-                const diseno = filtrados.find(d => d.id === id);
-                if (diseno) abrirModalVerDisenos(diseno);
-            });
-        });
+        renderDisenosEnContainer(digitales, containerDigital);
+        renderDisenosEnContainer(imprenta, containerImprenta);
 
     } catch (err) {
         console.error("Error cargando diseños:", err);
-        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
+        containerDigital.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
+        containerImprenta.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
     }
+}
+
+function renderDisenosEnContainer(filtrados, container) {
+    if (filtrados.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-brush"></i><p>No hay ordenes de diseño aun</p></div>';
+        return;
+    }
+
+    let html = '<div class="disenos-lista">';
+
+    filtrados.forEach(diseno => {
+        const fecha = new Date(diseno.fechaCreacion || "");
+        const fechaStr = isNaN(fecha) ? "-" : fecha.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+
+        let estadoBadge = "";
+        if (diseno.estado === "respondida") {
+            let aprobadas = 0, rechazadas = 0;
+            (diseno.items || []).forEach(item => {
+                (item.imagenes || []).forEach(img => {
+                    if (img.estado === "aprobada") aprobadas++;
+                    if (img.estado === "rechazada") rechazadas++;
+                });
+            });
+            estadoBadge = `<span class="diseno-estado-badge respondida"><i class="bi bi-check-circle"></i> Respondida (${aprobadas} aprobadas, ${rechazadas} rechazadas)</span>`;
+        } else {
+            estadoBadge = `<span class="diseno-estado-badge pendiente"><i class="bi bi-clock"></i> Pendiente</span>`;
+        }
+
+        html += `
+            <div class="diseno-lista-item" data-id="${diseno.id}">
+                <div class="diseno-lista-info">
+                    <div class="diseno-lista-top">
+                        <strong>${diseno.numero}</strong>
+                        ${estadoBadge}
+                    </div>
+                    <span class="diseno-lista-sub">${diseno.cliente} &bull; ${fechaStr}</span>
+                </div>
+                <button class="btn-ver-diseno" data-id="${diseno.id}">
+                    <i class="bi bi-eye"></i> Ver diseños
+                </button>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Eventos
+    container.querySelectorAll(".btn-ver-diseno").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const diseno = filtrados.find(d => d.id === id);
+            if (diseno) abrirModalVerDisenos(diseno);
+        });
+    });
 }
 
 function abrirModalVerDisenos(diseno) {
@@ -1677,8 +1834,19 @@ function abrirModalVerDisenos(diseno) {
         (item.pacdoraLinks || []).forEach((link, lIdx) => {
             html += `
                 <tr>
-                    <td><i class="bi bi-box-seam" style="color:#6366f1;font-size:18px;"></i></td>
-                    <td colspan="3"><a href="${link}" target="_blank" rel="noopener noreferrer" style="color:#6366f1;font-weight:600;font-size:12px;">Mockup 3D #${lIdx + 1}</a></td>
+                    <td style="width:60px;text-align:center;">
+                        <span class="diseno-pacdora-icon"><i class="bi bi-box-seam"></i></span>
+                    </td>
+                    <td colspan="2">
+                        <button class="btn-pacdora-modal-preview" data-url="${link}">
+                            <i class="bi bi-eye"></i> Ver Mockup 3D ${(item.pacdoraLinks.length > 1) ? "#" + (lIdx + 1) : ""}
+                        </button>
+                    </td>
+                    <td>
+                        <a href="${link}" target="_blank" rel="noopener noreferrer" class="btn-pacdora-external-sm">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </td>
                 </tr>
             `;
         });
@@ -1686,12 +1854,55 @@ function abrirModalVerDisenos(diseno) {
 
     document.getElementById("ordenDetalleItems").innerHTML = html || `<tr><td colspan="4">Sin diseños</td></tr>`;
 
+    // Mostrar botones de copiar link y rediseñar
+    const btnCopyLink = document.getElementById("ordenDetalleCopyLink");
+    const btnRedisenar = document.getElementById("ordenDetalleRedisenar");
+    btnCopyLink.style.display = "inline-flex";
+    btnRedisenar.style.display = "inline-flex";
+
+    // Copiar link
+    const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+    const link = baseUrl + "diseno.html?id=" + diseno.id;
+
+    btnCopyLink.onclick = () => {
+        copyToClipboard(link).then(() => {
+            btnCopyLink.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+            setTimeout(() => {
+                btnCopyLink.innerHTML = '<i class="bi bi-link-45deg"></i> Copiar link';
+            }, 2000);
+        });
+    };
+
+    // Rediseñar: abre la vista de edición de diseño
+    btnRedisenar.onclick = () => {
+        overlay.classList.remove("show");
+        // Buscar la orden original en produccion
+        const ordenId = diseno.ordenId || diseno.id.replace("-diseno", "");
+        // Abrir vista de diseño con los datos existentes para editar
+        const ordenFake = {
+            id: ordenId,
+            numero: diseno.numero,
+            cliente: diseno.cliente,
+            telefono: diseno.telefono || "",
+            tipo: diseno.tipo,
+            items: diseno.items || []
+        };
+        abrirVistaDisenoOrden(ordenFake, diseno);
+    };
+
     // Click en miniaturas
     setTimeout(() => {
         overlay.querySelectorAll(".diseno-mini-thumb").forEach(thumb => {
             thumb.addEventListener("click", () => {
                 document.getElementById("imgModalDashImg").src = thumb.dataset.url;
                 document.getElementById("imgModalDash").classList.add("show");
+            });
+        });
+        // Click en botones Pacdora 3D
+        overlay.querySelectorAll(".btn-pacdora-modal-preview").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const url = btn.dataset.url;
+                if (url) abrirPacdoraModal(url);
             });
         });
     }, 50);
