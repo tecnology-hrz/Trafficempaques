@@ -37,6 +37,14 @@ function renderCotizacion() {
     const tipoLabel = cotizacion.tipo === "ambas" ? "Imprenta y Digital" : (cotizacion.tipo.charAt(0).toUpperCase() + cotizacion.tipo.slice(1));
     document.getElementById("cotTipo").textContent    = tipoLabel;
 
+    // Nuevos campos
+    const elNegocio = document.getElementById("cotNegocio");
+    if (elNegocio) elNegocio.textContent = cotizacion.negocio || "-";
+    const elDireccion = document.getElementById("cotDireccion");
+    if (elDireccion) elDireccion.textContent = cotizacion.direccion || "-";
+    const elCiudad = document.getElementById("cotCiudad");
+    if (elCiudad) elCiudad.textContent = cotizacion.ciudad || "-";
+
     // Fecha
     const fecha = new Date(cotizacion.fechaCreacion);
     const fechaStr = fecha.toLocaleDateString("es-MX", {
@@ -61,6 +69,8 @@ function renderCotizacion() {
             <td>${item.cantidad}</td>
             <td>${item.terminados ? (Array.isArray(item.terminados) ? (item.terminados.length > 0 ? item.terminados.join(", ") : "-") : item.terminados) : (item.terminado || "-")}</td>
             <td>${item.colores ? (Array.isArray(item.colores) ? (item.colores.length > 0 ? item.colores.join(", ") : "-") : item.colores) : (item.color || "-")}</td>
+            <td>${item.materiales ? (Array.isArray(item.materiales) ? (item.materiales.length > 0 ? item.materiales.join(", ") : "-") : item.materiales) : "-"}</td>
+            <td>${item.planchas ? (Array.isArray(item.planchas) ? (item.planchas.length > 0 ? item.planchas.join(", ") : "-") : item.planchas) : "-"}</td>
             <td>$${formatMoney(item.precioUnit)}</td>
             <td><strong>$${formatMoney(item.precioTotal)}</strong></td>
         `;

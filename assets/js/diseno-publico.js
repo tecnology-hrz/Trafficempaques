@@ -60,6 +60,12 @@ function renderOrdenDiseno() {
         } else if (item.color) {
             tagsHtml += `<span class="pub-producto-tag">${item.color}</span>`;
         }
+        if (item.materiales && Array.isArray(item.materiales)) {
+            item.materiales.forEach(m => { tagsHtml += `<span class="pub-producto-tag">${m}</span>`; });
+        }
+        if (item.planchas && Array.isArray(item.planchas)) {
+            item.planchas.forEach(p => { tagsHtml += `<span class="pub-producto-tag">${p}</span>`; });
+        }
 
         // Pacdora links
         let pacdoraHtml = "";

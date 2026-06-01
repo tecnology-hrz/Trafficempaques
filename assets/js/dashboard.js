@@ -2,6 +2,7 @@
 import {
     cargarCatalogos, crearCotizacion, obtenerCotizaciones, eliminarCotizacion,
     getProductosImprenta, getProductosDigital, getTerminados, getColores,
+    getMateriales, getPlanchas,
     getFormatMoney, getParseMoney
 } from "./cotizador.js";
 
@@ -207,6 +208,12 @@ function setupModal() {
     document.getElementById("btnAddColor").addEventListener("click", () => {
         openModal("Agregar Color", "colores", false, "", "");
     });
+    document.getElementById("btnAddMaterial").addEventListener("click", () => {
+        openModal("Agregar Material", "materiales", false, "", "");
+    });
+    document.getElementById("btnAddPlancha").addEventListener("click", () => {
+        openModal("Agregar Plancha", "planchas", false, "", "");
+    });
 
     btnSave.addEventListener("click", async () => {
         const name = inputName.value.trim();
@@ -344,6 +351,8 @@ async function loadConfig() {
     await loadCollection("productosDigital", "listaProductosDigital", true);
     await loadCollection("terminados", "listaTerminados", true);
     await loadCollection("colores", "listaColores", false);
+    await loadCollection("materiales", "listaMateriales", false);
+    await loadCollection("planchas", "listaPlanchas", false);
     setupConfigTabs();
 }
 
@@ -395,7 +404,7 @@ async function loadCollection(collectionName, containerId, showValue) {
 
         container.querySelectorAll(".btn-edit").forEach(btn => {
             btn.addEventListener("click", () => {
-                const titles = { productosImprenta: "Editar Producto Imprenta", productosDigital: "Editar Producto Digital", terminados: "Editar Terminado", colores: "Editar Color" };
+                const titles = { productosImprenta: "Editar Producto Imprenta", productosDigital: "Editar Producto Digital", terminados: "Editar Terminado", colores: "Editar Color", materiales: "Editar Material", planchas: "Editar Plancha" };
                 openModal(titles[btn.dataset.col], btn.dataset.col, btn.dataset.hasvalue === "true", btn.dataset.name, btn.dataset.value, btn.dataset.id);
             });
         });
@@ -428,7 +437,10 @@ function setupCotizador() {
         cotItems = [];
         document.getElementById("cotCliente").value  = "";
         document.getElementById("cotNit").value      = "";
+        document.getElementById("cotNegocio").value  = "";
         document.getElementById("cotTelefono").value = "";
+        document.getElementById("cotDireccion").value = "";
+        document.getElementById("cotCiudad").value   = "";
         document.getElementById("cotTipo").value     = "imprenta";
         // Fecha actual auto
         const hoy = new Date();
@@ -449,14 +461,17 @@ function setupCotizador() {
     });
 
     btnAdd.addEventListener("click", () => {
-        cotItems.push({ producto: "", descripcion: "", cantidad: 1, terminados: [], colores: [], precioUnit: 0 });
+        cotItems.push({ producto: "", descripcion: "", cantidad: 1, terminados: [], colores: [], materiales: [], planchas: [], precioUnit: 0 });
         renderCotItems();
     });
 
     btnGuardar.addEventListener("click", async () => {
         const cliente  = document.getElementById("cotCliente").value.trim();
         const nit      = document.getElementById("cotNit").value.trim();
+        const negocio  = document.getElementById("cotNegocio").value.trim();
         const telefono = document.getElementById("cotTelefono").value.trim();
+        const direccion = document.getElementById("cotDireccion").value.trim();
+        const ciudad   = document.getElementById("cotCiudad").value.trim();
         const tipo     = document.getElementById("cotTipo").value;
         const fechaActual  = document.getElementById("cotFechaActual").value;
         const fechaEntregaRaw = document.getElementById("cotFechaEntrega").value; // yyyy-mm-dd
@@ -478,6 +493,8 @@ function setupCotizador() {
             cantidad: item.cantidad,
             terminados: item.terminados || [],
             colores: item.colores || [],
+            materiales: item.materiales || [],
+            planchas: item.planchas || [],
             precioUnit: item.precioUnit,
             precioTotal: item.cantidad * item.precioUnit
         }));
@@ -489,13 +506,13 @@ function setupCotizador() {
             const ref = doc(db, "cotizaciones", editId);
             const snap = await getDoc(ref);
             const existing = snap.data();
-            await setDoc(ref, { ...existing, cliente, nit, telefono, tipo, items, total, fechaActual, fechaEntrega });
+            await setDoc(ref, { ...existing, cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega });
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
         } else {
             // Crear nueva
-            const result = await crearCotizacion({ cliente, nit, telefono, tipo, items, total, fechaActual, fechaEntrega });
+            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
             const link = baseUrl + "cotizacion.html?id=" + result.id;
             showLinkModal("Cotizacion " + result.numero + " creada", "Comparte este link con el cliente:", link);
@@ -545,13 +562,23 @@ function renderCotItems() {
 
         // Terminados multi-select button
         const terminadosArr = item.terminados || [];
-        const terminadosText = terminadosArr.length > 0 ? terminadosArr.join(", ") : "Seleccionar terminados";
+        const terminadosText = "Seleccionar";
         const terminadosCount = terminadosArr.length > 0 ? `<span class="btn-count">${terminadosArr.length}</span>` : "";
 
         // Colores multi-select button
         const coloresArr = item.colores || [];
-        const coloresText = coloresArr.length > 0 ? coloresArr.join(", ") : "Seleccionar colores";
+        const coloresText = "Seleccionar";
         const coloresCount = coloresArr.length > 0 ? `<span class="btn-count">${coloresArr.length}</span>` : "";
+
+        // Materiales multi-select button
+        const materialesArr = item.materiales || [];
+        const materialesText = "Seleccionar";
+        const materialesCount = materialesArr.length > 0 ? `<span class="btn-count">${materialesArr.length}</span>` : "";
+
+        // Planchas multi-select button
+        const planchasArr = item.planchas || [];
+        const planchasText = "Seleccionar";
+        const planchasCount = planchasArr.length > 0 ? `<span class="btn-count">${planchasArr.length}</span>` : "";
 
         // Si es ambas, mostrar campo tipo
         const tipoField = tipo === "ambas" ? `
@@ -575,7 +602,7 @@ function renderCotItems() {
             </div>
             <div class="form-field">
                 <label>Cantidad</label>
-                <input type="number" class="cot-cantidad" data-idx="${idx}" value="${item.cantidad}" min="1">
+                <input type="text" inputmode="numeric" class="cot-cantidad" data-idx="${idx}" value="${item.cantidad}" placeholder="0">
             </div>
             <div class="form-field">
                 <label>Terminado</label>
@@ -591,6 +618,22 @@ function renderCotItems() {
                     <i class="bi bi-palette"></i>
                     <span class="btn-text">${coloresText}</span>
                     ${coloresCount}
+                </button>
+            </div>
+            <div class="form-field">
+                <label>Material</label>
+                <button type="button" class="cot-multiselect-btn cot-btn-materiales" data-idx="${idx}">
+                    <i class="bi bi-layers"></i>
+                    <span class="btn-text">${materialesText}</span>
+                    ${materialesCount}
+                </button>
+            </div>
+            <div class="form-field">
+                <label>Plancha</label>
+                <button type="button" class="cot-multiselect-btn cot-btn-planchas" data-idx="${idx}">
+                    <i class="bi bi-grid-3x3"></i>
+                    <span class="btn-text">${planchasText}</span>
+                    ${planchasCount}
                 </button>
             </div>
             <div class="form-field">
@@ -633,7 +676,10 @@ function renderCotItems() {
         inp.addEventListener("input", (e) => {
             const idx = parseInt(e.target.dataset.idx);
             cotItems[idx].cantidad = parseInt(e.target.value) || 1;
-            renderCotItems();
+            // Actualizar precio total sin re-renderizar
+            const totalInput = container.querySelectorAll(".cot-precio-total")[idx];
+            const pt = cotItems[idx].cantidad * cotItems[idx].precioUnit;
+            if (totalInput) totalInput.value = "$" + formatMoneyLocal(pt);
             calcularTotales();
         });
     });
@@ -649,6 +695,20 @@ function renderCotItems() {
         btn.addEventListener("click", (e) => {
             const idx = parseInt(btn.dataset.idx);
             openMultiSelectModal("colores", idx);
+        });
+    });
+
+    container.querySelectorAll(".cot-btn-materiales").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const idx = parseInt(btn.dataset.idx);
+            openMultiSelectModal("materiales", idx);
+        });
+    });
+
+    container.querySelectorAll(".cot-btn-planchas").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const idx = parseInt(btn.dataset.idx);
+            openMultiSelectModal("planchas", idx);
         });
     });
 
@@ -697,11 +757,7 @@ function setupMultiSelectModal() {
 
     btnConfirm.addEventListener("click", () => {
         if (multiSelectIdx >= 0 && multiSelectIdx < cotItems.length) {
-            if (multiSelectType === "terminados") {
-                cotItems[multiSelectIdx].terminados = [...multiSelectSelected];
-            } else {
-                cotItems[multiSelectIdx].colores = [...multiSelectSelected];
-            }
+            cotItems[multiSelectIdx][multiSelectType] = [...multiSelectSelected];
         }
         closeMultiSelect();
         renderCotItems();
@@ -716,16 +772,17 @@ function openMultiSelectModal(type, idx) {
     multiSelectType = type;
     multiSelectIdx = idx;
 
-    const title = type === "terminados" ? "Seleccionar Terminados" : "Seleccionar Colores";
-    document.getElementById("multiSelectTitle").textContent = title;
+    const titles = {
+        terminados: "Seleccionar Terminados",
+        colores: "Seleccionar Colores",
+        materiales: "Seleccionar Materiales",
+        planchas: "Seleccionar Planchas"
+    };
+    document.getElementById("multiSelectTitle").textContent = titles[type] || "Seleccionar";
     document.getElementById("multiSelectSearch").value = "";
 
     // Cargar seleccion actual
-    if (type === "terminados") {
-        multiSelectSelected = [...(cotItems[idx].terminados || [])];
-    } else {
-        multiSelectSelected = [...(cotItems[idx].colores || [])];
-    }
+    multiSelectSelected = [...(cotItems[idx][type] || [])];
 
     renderMultiSelectGrid();
     renderMultiSelectTags();
@@ -747,8 +804,12 @@ function renderMultiSelectGrid() {
     let items = [];
     if (multiSelectType === "terminados") {
         items = getTerminados();
-    } else {
+    } else if (multiSelectType === "colores") {
         items = getColores();
+    } else if (multiSelectType === "materiales") {
+        items = getMateriales();
+    } else if (multiSelectType === "planchas") {
+        items = getPlanchas();
     }
 
     // Filtrar por busqueda
@@ -768,7 +829,8 @@ function renderMultiSelectGrid() {
         card.className = "multiselect-card" + (isSelected ? " selected" : "");
         card.dataset.nombre = item.nombre;
 
-        const icon = multiSelectType === "terminados" ? "bi-brush" : "bi-palette";
+        const icons = { terminados: "bi-brush", colores: "bi-palette", materiales: "bi-layers", planchas: "bi-grid-3x3" };
+        const icon = icons[multiSelectType] || "bi-tag";
         const valueHtml = item.valor ? `<span class="multiselect-card-value">$${formatMoneyLocal(item.valor)}</span>` : "";
 
         card.innerHTML = `
@@ -923,7 +985,10 @@ function abrirModalAcciones(cotId, cotName) {
 
         document.getElementById("cotCliente").value  = cot.cliente || "";
         document.getElementById("cotNit").value      = cot.nit || "";
+        document.getElementById("cotNegocio").value  = cot.negocio || "";
         document.getElementById("cotTelefono").value = cot.telefono || "";
+        document.getElementById("cotDireccion").value = cot.direccion || "";
+        document.getElementById("cotCiudad").value   = cot.ciudad || "";
         document.getElementById("cotTipo").value     = cot.tipo || "imprenta";
         document.getElementById("cotFechaActual").value = cot.fechaActual || "";
         if (cot.fechaEntrega) {
@@ -939,6 +1004,8 @@ function abrirModalAcciones(cotId, cotName) {
             cantidad:   i.cantidad,
             terminados: i.terminados || (i.terminado ? [i.terminado] : []),
             colores:    i.colores || (i.color ? [i.color] : []),
+            materiales: i.materiales || [],
+            planchas:   i.planchas || [],
             precioUnit: i.precioUnit
         }));
 
@@ -1376,17 +1443,21 @@ function abrirModalOrden(orden, esRolProduccion) {
     const itemsHtml = items.map(i => {
         const terminadosDisplay = i.terminados ? (Array.isArray(i.terminados) ? (i.terminados.length > 0 ? i.terminados.join(", ") : "-") : i.terminados) : (i.terminado || "-");
         const coloresDisplay = i.colores ? (Array.isArray(i.colores) ? (i.colores.length > 0 ? i.colores.join(", ") : "-") : i.colores) : (i.color || "-");
+        const materialesDisplay = i.materiales ? (Array.isArray(i.materiales) ? (i.materiales.length > 0 ? i.materiales.join(", ") : "-") : i.materiales) : "-";
+        const planchasDisplay = i.planchas ? (Array.isArray(i.planchas) ? (i.planchas.length > 0 ? i.planchas.join(", ") : "-") : i.planchas) : "-";
         return `
         <tr>
             <td><strong>${i.cantidad}x</strong></td>
             <td>${i.producto}</td>
             <td>${terminadosDisplay}</td>
             <td>${coloresDisplay}</td>
+            <td>${materialesDisplay}</td>
+            <td>${planchasDisplay}</td>
         </tr>
     `;
     }).join("");
 
-    document.getElementById("ordenDetalleItems").innerHTML = itemsHtml || `<tr><td colspan="4">Sin productos</td></tr>`;
+    document.getElementById("ordenDetalleItems").innerHTML = itemsHtml || `<tr><td colspan="6">Sin productos</td></tr>`;
 
     overlay.classList.add("show");
 }
@@ -1453,6 +1524,8 @@ function renderDisenoProductos(items, esEdicion) {
                     <strong>${item.cantidad}x</strong> ${item.producto}
                     ${item.terminados ? (Array.isArray(item.terminados) ? item.terminados.map(t => `<span class="diseno-tag">${t}</span>`).join("") : (item.terminados ? `<span class="diseno-tag">${item.terminados}</span>` : "")) : (item.terminado ? `<span class="diseno-tag">${item.terminado}</span>` : "")}
                     ${item.colores ? (Array.isArray(item.colores) ? item.colores.map(c => `<span class="diseno-tag">${c}</span>`).join("") : (item.colores ? `<span class="diseno-tag">${item.colores}</span>` : "")) : (item.color ? `<span class="diseno-tag">${item.color}</span>` : "")}
+                    ${item.materiales ? (Array.isArray(item.materiales) ? item.materiales.map(m => `<span class="diseno-tag">${m}</span>`).join("") : "") : ""}
+                    ${item.planchas ? (Array.isArray(item.planchas) ? item.planchas.map(p => `<span class="diseno-tag">${p}</span>`).join("") : "") : ""}
                 </span>
             </div>
             <div class="card-body padded">
@@ -1648,6 +1721,8 @@ async function guardarOrdenDiseno(orden) {
             cantidad: item.cantidad,
             terminados: item.terminados || (item.terminado ? [item.terminado] : []),
             colores: item.colores || (item.color ? [item.color] : []),
+            materiales: item.materiales || [],
+            planchas: item.planchas || [],
             terminado: item.terminado || "",
             color: item.color || "",
             tipo: item.tipo || "",

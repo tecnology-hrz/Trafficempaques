@@ -115,9 +115,25 @@
                                 </div>
                                 <div class="form-row">
                                     <div class="form-field">
+                                        <label>Nombre del negocio</label>
+                                        <input type="text" id="cotNegocio" placeholder="Nombre del negocio">
+                                    </div>
+                                    <div class="form-field">
                                         <label>Telefono</label>
                                         <input type="text" id="cotTelefono" placeholder="300 000 0000">
                                     </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label>Direccion</label>
+                                        <input type="text" id="cotDireccion" placeholder="Direccion de entrega">
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Ciudad</label>
+                                        <input type="text" id="cotCiudad" placeholder="Ciudad">
+                                    </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-field">
                                         <label>Tipo de cotizacion</label>
                                         <select id="cotTipo">
@@ -126,12 +142,12 @@
                                             <option value="ambas">Imprenta y Digital</option>
                                         </select>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-field">
                                         <label>Fecha actual</label>
                                         <input type="text" id="cotFechaActual" readonly>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-field">
                                         <label>Fecha de entrega</label>
                                         <input type="date" id="cotFechaEntrega">
@@ -383,6 +399,12 @@
                     <button class="config-tab" data-config="colores">
                         <i class="bi bi-palette"></i> Colores
                     </button>
+                    <button class="config-tab" data-config="materiales">
+                        <i class="bi bi-layers"></i> Materiales
+                    </button>
+                    <button class="config-tab" data-config="planchas">
+                        <i class="bi bi-grid-3x3"></i> Planchas
+                    </button>
                 </div>
 
                 <!-- Panel: Productos Imprenta -->
@@ -445,6 +467,38 @@
                         <table class="config-tabla">
                             <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
                             <tbody id="listaColores"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Panel: Materiales -->
+                <div class="config-panel" id="config-materiales">
+                    <div class="config-panel-header">
+                        <h3>Materiales</h3>
+                        <button class="btn-primary btn-sm" id="btnAddMaterial">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="config-tabla-wrap">
+                        <table class="config-tabla">
+                            <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
+                            <tbody id="listaMateriales"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Panel: Planchas -->
+                <div class="config-panel" id="config-planchas">
+                    <div class="config-panel-header">
+                        <h3>Planchas</h3>
+                        <button class="btn-primary btn-sm" id="btnAddPlancha">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="config-tabla-wrap">
+                        <table class="config-tabla">
+                            <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
+                            <tbody id="listaPlanchas"></tbody>
                         </table>
                     </div>
                 </div>
@@ -545,6 +599,8 @@
                                 <th>Producto</th>
                                 <th>Terminado</th>
                                 <th>Color</th>
+                                <th>Material</th>
+                                <th>Plancha</th>
                             </tr>
                         </thead>
                         <tbody id="ordenDetalleItems"></tbody>

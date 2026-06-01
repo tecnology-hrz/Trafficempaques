@@ -16,6 +16,8 @@ let productosImprenta = [];
 let productosDigital  = [];
 let terminados        = [];
 let colores           = [];
+let materiales        = [];
+let planchas          = [];
 
 export async function cargarCatalogos() {
     const snapPI = await getDocs(collection(db, "productosImprenta"));
@@ -33,6 +35,14 @@ export async function cargarCatalogos() {
     const snapC = await getDocs(collection(db, "colores"));
     colores = [];
     snapC.forEach(d => colores.push({ id: d.id, ...d.data() }));
+
+    const snapM = await getDocs(collection(db, "materiales"));
+    materiales = [];
+    snapM.forEach(d => materiales.push({ id: d.id, ...d.data() }));
+
+    const snapP = await getDocs(collection(db, "planchas"));
+    planchas = [];
+    snapP.forEach(d => planchas.push({ id: d.id, ...d.data() }));
 }
 
 // ===== GENERAR NUMERO COTIZACION =====
@@ -51,7 +61,10 @@ export async function crearCotizacion(datos) {
         numero,
         cliente: datos.cliente,
         nit: datos.nit || "",
+        negocio: datos.negocio || "",
         telefono: datos.telefono || "",
+        direccion: datos.direccion || "",
+        ciudad: datos.ciudad || "",
         tipo: datos.tipo,
         items: datos.items,
         total: datos.total,
@@ -59,7 +72,9 @@ export async function crearCotizacion(datos) {
         metodoPago: "",
         comprobante: "",
         fechaCreacion: new Date().toISOString(),
-        fechaAprobacion: ""
+        fechaAprobacion: "",
+        fechaActual: datos.fechaActual || "",
+        fechaEntrega: datos.fechaEntrega || ""
     };
 
     await setDoc(doc(db, "cotizaciones", id), cotizacion);
@@ -101,5 +116,7 @@ export function getProductosImprenta() { return productosImprenta; }
 export function getProductosDigital()  { return productosDigital; }
 export function getTerminados()        { return terminados; }
 export function getColores()           { return colores; }
+export function getMateriales()        { return materiales; }
+export function getPlanchas()          { return planchas; }
 export function getFormatMoney()       { return formatMoney; }
 export function getParseMoney()        { return parseMoney; }

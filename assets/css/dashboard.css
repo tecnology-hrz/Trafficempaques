@@ -756,13 +756,13 @@ body {
     padding: 14px 16px;
     border-bottom: 1px solid #f0f0f0;
     display: grid;
-    grid-template-columns: 1.5fr 0.7fr 1fr 1fr 1fr 1fr auto;
+    grid-template-columns: 1.5fr 0.7fr 1fr 1fr 1fr 1fr 1fr 1fr auto;
     gap: 10px;
     align-items: end;
 }
 
 .cot-item.has-tipo {
-    grid-template-columns: 1fr 1.5fr 0.7fr 1fr 1fr 1fr 1fr auto;
+    grid-template-columns: 0.8fr 1.5fr 0.7fr 1fr 1fr 1fr 1fr 1fr 1fr auto;
 }
 
 .cot-item:last-child { border-bottom: none; }
@@ -2780,11 +2780,15 @@ body {
 }
 
 .multiselect-empty {
-    grid-column: 1 / -1;
+    width: 100%;
     text-align: center;
     padding: 40px 20px;
     color: #bbb;
     font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .multiselect-empty i {
