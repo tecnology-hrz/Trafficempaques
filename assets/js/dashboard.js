@@ -226,9 +226,26 @@ function setupModal() {
         if (currentHasValue) data.valor = parseMoneyLocal(inputVal.value);
 
         await setDoc(doc(db, currentCollection, id), data);
-        closeModal();
+        closeModal(true);
         loadConfig();
         await cargarCatalogos(); // Refrescar catalogos para cotizador
+
+        // Si se estaba agregando desde multiselect, volver al modal multiselect
+        if (multiSelectAddingNew && multiSelectSavedState) {
+            multiSelectAddingNew = false;
+            multiSelectType = multiSelectSavedState.type;
+            multiSelectIdx = multiSelectSavedState.idx;
+            multiSelectSelected = multiSelectSavedState.selected;
+            // Auto-seleccionar el nuevo item
+            if (!multiSelectSelected.includes(name)) {
+                multiSelectSelected.push(name);
+            }
+            multiSelectSavedState = null;
+            document.getElementById("multiSelectSearch").value = "";
+            renderMultiSelectGrid();
+            renderMultiSelectTags();
+            document.getElementById("multiSelectOverlay").classList.add("show");
+        }
     });
 
     btnClose.addEventListener("click", closeModal);
@@ -255,9 +272,22 @@ function openModal(title, collectionName, hasValue, nameVal, valueVal, docId) {
     setTimeout(() => document.getElementById("modalInputName").focus(), 100);
 }
 
-function closeModal() {
+function closeModal(fromSave) {
     document.getElementById("modalOverlay").classList.remove("show");
+    document.getElementById("modalOverlay").style.zIndex = "";
     editingId = null;
+    // Si se cancela el modal mientras se agregaba desde multiselect, volver al multiselect
+    // No hacer esto si se llama desde el save (fromSave=true) porque el save ya lo maneja
+    if (!fromSave && multiSelectAddingNew && multiSelectSavedState) {
+        multiSelectAddingNew = false;
+        multiSelectType = multiSelectSavedState.type;
+        multiSelectIdx = multiSelectSavedState.idx;
+        multiSelectSelected = multiSelectSavedState.selected;
+        multiSelectSavedState = null;
+        renderMultiSelectGrid();
+        renderMultiSelectTags();
+        document.getElementById("multiSelectOverlay").classList.add("show");
+    }
 }
 
 // ===== CONFIRM =====
@@ -745,12 +775,15 @@ function calcularTotales() {
 let multiSelectType = ""; // "terminados" o "colores"
 let multiSelectIdx = -1;
 let multiSelectSelected = [];
+let multiSelectAddingNew = false;
+let multiSelectSavedState = null;
 
 function setupMultiSelectModal() {
     const overlay = document.getElementById("multiSelectOverlay");
     const btnClose = document.getElementById("multiSelectClose");
     const btnCancel = document.getElementById("multiSelectCancel");
     const btnConfirm = document.getElementById("multiSelectConfirm");
+    const btnAddNew = document.getElementById("multiSelectAddNew");
     const searchInput = document.getElementById("multiSelectSearch");
 
     btnClose.addEventListener("click", closeMultiSelect);
@@ -765,9 +798,49 @@ function setupMultiSelectModal() {
         renderCotItems();
     });
 
+    btnAddNew.addEventListener("click", () => {
+        agregarNuevoDesdeMultiSelect();
+    });
+
     searchInput.addEventListener("input", () => {
         renderMultiSelectGrid();
     });
+}
+
+async function agregarNuevoDesdeMultiSelect() {
+    const collectionMap = {
+        terminados: "terminados",
+        colores: "colores",
+        materiales: "materiales",
+        planchas: "planchas"
+    };
+    const col = collectionMap[multiSelectType];
+    if (!col) return;
+
+    // Usar el valor de búsqueda como nombre sugerido
+    const searchVal = document.getElementById("multiSelectSearch").value.trim();
+
+    const titlesMap = {
+        terminados: "Agregar Terminado",
+        colores: "Agregar Color",
+        materiales: "Agregar Material",
+        planchas: "Agregar Plancha"
+    };
+
+    // Guardar estado del multiselect
+    const savedType = multiSelectType;
+    const savedIdx = multiSelectIdx;
+    const savedSelected = [...multiSelectSelected];
+
+    // Marcar que estamos agregando desde multiselect
+    multiSelectAddingNew = true;
+    multiSelectSavedState = { type: savedType, idx: savedIdx, selected: savedSelected };
+
+    // Subir z-index del modal de configuracion para que aparezca encima del multiselect
+    document.getElementById("modalOverlay").style.zIndex = "600";
+
+    // Todos piden nombre y valor
+    openModal(titlesMap[multiSelectType], col, true, searchVal, "0");
 }
 
 function openMultiSelectModal(type, idx) {
