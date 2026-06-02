@@ -166,14 +166,16 @@ function setupTabs() {
 
     allTabBars.forEach(bar => {
         const btns = bar.querySelectorAll(".tab-btn");
+        // Obtener el contenedor padre que agrupa este tab-bar con sus tab-content
+        const parentContainer = bar.parentElement;
         btns.forEach(btn => {
             btn.addEventListener("click", () => {
                 const target = btn.dataset.tab;
                 // Desactivar solo los tabs de este bar
                 btns.forEach(b => b.classList.remove("active"));
                 btn.classList.add("active");
-                // Desactivar todos los tab-content y activar el target
-                document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+                // Desactivar solo los tab-content dentro del mismo contenedor padre
+                parentContainer.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
                 const el = document.getElementById("tab-" + target);
                 if (el) el.classList.add("active");
             });
@@ -1500,10 +1502,27 @@ function abrirVistaDisenoOrden(orden, existente) {
     const itemsParaRender = existente ? existente.items : (orden.items || []);
     renderDisenoProductos(itemsParaRender, !!existente);
 
-    // Boton volver
+    // Boton volver (con confirmacion)
     document.getElementById("btnVolverOrdenes").onclick = () => {
-        document.getElementById("ordenDisenoView").style.display = "none";
-        document.getElementById("ordenesListaView").style.display = "block";
+        showConfirm(
+            "Salir sin guardar",
+            "¿Estas seguro que deseas salir? Los cambios no guardados se perderan.",
+            () => {
+                document.getElementById("ordenDisenoView").style.display = "none";
+                document.getElementById("ordenesListaView").style.display = "block";
+                // Re-activar tab por defecto de ordenes
+                const tabDigital = document.getElementById("tab-digital");
+                if (tabDigital && !tabDigital.classList.contains("active")) {
+                    document.querySelectorAll("#ordenesListaView .tab-content").forEach(c => c.classList.remove("active"));
+                    tabDigital.classList.add("active");
+                    document.querySelectorAll("#ordenesTabBar .tab-btn").forEach(b => b.classList.remove("active"));
+                    const btnDigital = document.querySelector('#ordenesTabBar .tab-btn[data-tab="digital"]');
+                    if (btnDigital) btnDigital.classList.add("active");
+                }
+                cargarOrdenes(rol);
+                cargarDisenosAprobados(rol);
+            }
+        );
     };
 
     // Boton guardar
@@ -1951,6 +1970,8 @@ function abrirModalVerDisenos(diseno) {
     // Rediseñar: abre la vista de edición de diseño
     btnRedisenar.onclick = () => {
         overlay.classList.remove("show");
+        // Activar la seccion de ordenes para que la vista de diseño sea visible
+        activateSection("ordenes");
         // Buscar la orden original en produccion
         const ordenId = diseno.ordenId || diseno.id.replace("-diseno", "");
         // Abrir vista de diseño con los datos existentes para editar
