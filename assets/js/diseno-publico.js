@@ -233,4 +233,22 @@ function abrirPacdoraModal(url) {
     pacdoraModal.classList.add("show");
 }
 
+// ===== MODAL TERMINOS Y CONDICIONES =====
+const terminosModal = document.getElementById("terminosModal");
+const btnTerminosDiseno = document.getElementById("btnTerminosDiseno");
+const terminosModalClose = document.getElementById("terminosModalClose");
+
+btnTerminosDiseno.addEventListener("click", (e) => {
+    e.preventDefault();
+    terminosModal.classList.add("show");
+});
+
+terminosModalClose.addEventListener("click", () => {
+    terminosModal.classList.remove("show");
+});
+
+terminosModal.addEventListener("click", (e) => {
+    if (e.target === terminosModal) terminosModal.classList.remove("show");
+});
+
 cargarOrdenDiseno();

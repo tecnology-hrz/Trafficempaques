@@ -317,4 +317,22 @@ const style = document.createElement("style");
 style.textContent = `.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`;
 document.head.appendChild(style);
 
+// ===== MODAL TERMINOS Y CONDICIONES =====
+const terminosModal = document.getElementById("terminosModal");
+const btnTerminos = document.getElementById("btnTerminosCot");
+const terminosClose = document.getElementById("terminosModalClose");
+
+btnTerminos.addEventListener("click", (e) => {
+    e.preventDefault();
+    terminosModal.classList.add("show");
+});
+
+terminosClose.addEventListener("click", () => {
+    terminosModal.classList.remove("show");
+});
+
+terminosModal.addEventListener("click", (e) => {
+    if (e.target === terminosModal) terminosModal.classList.remove("show");
+});
+
 cargarCotizacion();
