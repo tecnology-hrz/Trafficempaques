@@ -47,15 +47,30 @@ export async function cargarCatalogos() {
 
 // ===== GENERAR NUMERO COTIZACION =====
 async function generarNumeroCotizacion() {
-    const snap = await getDocs(collection(db, "cotizaciones"));
-    const num = snap.size + 1;
-    return "COT-" + String(num).padStart(4, "0");
+    // Usar un contador persistente para nunca reutilizar numeros
+    const contadorRef = doc(db, "config", "contadorCotizaciones");
+    const contadorSnap = await getDoc(contadorRef);
+
+    let siguiente;
+    if (contadorSnap.exists()) {
+        siguiente = (contadorSnap.data().ultimo || 0) + 1;
+    } else {
+        // Primera vez: inicializar basado en cotizaciones existentes para no perder la secuencia
+        const snap = await getDocs(collection(db, "cotizaciones"));
+        siguiente = snap.size + 1;
+    }
+
+    // Guardar el nuevo contador
+    await setDoc(contadorRef, { ultimo: siguiente });
+
+    return "COT-" + String(siguiente).padStart(4, "0");
 }
 
 // ===== CREAR COTIZACION =====
 export async function crearCotizacion(datos) {
     const numero = await generarNumeroCotizacion();
-    const id = numero.toLowerCase();
+    // ID unico: numero + timestamp para evitar colisiones
+    const id = numero.toLowerCase() + "-" + Date.now().toString(36);
 
     const cotizacion = {
         numero,
