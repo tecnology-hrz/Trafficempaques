@@ -1023,6 +1023,27 @@
         </div>
     </div>
 
+    <!-- ===== MODAL SELECTOR PRODUCTO ===== -->
+    <div class="modal-overlay" id="productoSelectOverlay">
+        <div class="modal modal-multiselect">
+            <div class="modal-header">
+                <h3 id="productoSelectTitle">Seleccionar Producto</h3>
+                <button class="modal-close" id="productoSelectClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="multiselect-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="productoSelectSearch" placeholder="Buscar producto...">
+            </div>
+            <div class="multiselect-grid" id="productoSelectGrid">
+                <!-- Cards se generan dinamicamente -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="productoSelectCancel">Cancelar</button>
+                <button class="btn-add-new-multiselect" id="productoSelectAddNew"><i class="bi bi-plus-lg"></i> Agregar nuevo</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== BOTTOM NAV (mobile) ===== -->
     <nav class="bottom-nav">
         <a class="bottom-nav-item active" data-section="cotizador" data-role="administrador,ventas">

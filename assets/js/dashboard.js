@@ -92,6 +92,7 @@ async function initDashboard(rol, nombre) {
         await cargarCatalogos();
         setupCotizador();
         setupMultiSelectModal();
+        setupProductoSelectModal();
         cargarListaCotizaciones();
         setupModalDetalle();
     }
@@ -268,6 +269,19 @@ function setupModal() {
             renderMultiSelectTags();
             document.getElementById("multiSelectOverlay").classList.add("show");
         }
+
+        // Si se estaba agregando desde selector de producto, seleccionar el nuevo producto
+        if (productoSelectAddingNew) {
+            productoSelectAddingNew = false;
+            const valor = currentHasValue ? parseMoneyLocal(inputVal.value) : 0;
+            if (productoSelectSavedIdx >= 0 && productoSelectSavedIdx < cotItems.length) {
+                cotItems[productoSelectSavedIdx].producto = name;
+                cotItems[productoSelectSavedIdx].precioUnit = valor;
+            }
+            productoSelectSavedIdx = -1;
+            renderCotItems();
+            calcularTotales();
+        }
     });
 
     btnClose.addEventListener("click", closeModal);
@@ -309,6 +323,14 @@ function closeModal(fromSave) {
         renderMultiSelectGrid();
         renderMultiSelectTags();
         document.getElementById("multiSelectOverlay").classList.add("show");
+    }
+    // Si se cancela mientras se agregaba desde selector de producto, volver al selector
+    if (!fromSave && productoSelectAddingNew) {
+        productoSelectAddingNew = false;
+        productoSelectIdx = productoSelectSavedIdx;
+        productoSelectSavedIdx = -1;
+        renderProductoSelectGrid();
+        document.getElementById("productoSelectOverlay").classList.add("show");
     }
 }
 
@@ -618,6 +640,10 @@ function renderCotItems() {
 
         const precioTotal = item.cantidad * item.precioUnit;
 
+        // Producto button text
+        const productoText = item.producto || "Seleccionar";
+        const productoIcon = item.producto ? "bi-box-seam" : "bi-box";
+
         // Terminados multi-select button
         const terminadosArr = item.terminados || [];
         const terminadosText = "Seleccionar";
@@ -653,10 +679,10 @@ function renderCotItems() {
             ${tipoField}
             <div class="form-field">
                 <label>Producto</label>
-                <select class="cot-sel-producto" data-idx="${idx}">
-                    <option value="">Seleccionar</option>
-                    ${prodOptions}
-                </select>
+                <button type="button" class="cot-multiselect-btn cot-btn-producto" data-idx="${idx}">
+                    <i class="bi ${productoIcon}"></i>
+                    <span class="btn-text">${productoText}</span>
+                </button>
             </div>
             <div class="form-field">
                 <label>Cantidad</label>
@@ -719,14 +745,10 @@ function renderCotItems() {
         });
     });
 
-    container.querySelectorAll(".cot-sel-producto").forEach(sel => {
-        sel.addEventListener("change", (e) => {
-            const idx = parseInt(e.target.dataset.idx);
-            const opt = e.target.selectedOptions[0];
-            cotItems[idx].producto = e.target.value;
-            cotItems[idx].precioUnit = parseInt(opt?.dataset?.valor) || 0;
-            renderCotItems();
-            calcularTotales();
+    container.querySelectorAll(".cot-btn-producto").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const idx = parseInt(btn.dataset.idx);
+            openProductoSelectModal(idx);
         });
     });
 
@@ -987,6 +1009,120 @@ function renderMultiSelectTags() {
 document.getElementById("cotTipo")?.addEventListener("change", () => {
     renderCotItems();
 });
+
+// ===== MODAL SELECTOR DE PRODUCTO =====
+let productoSelectIdx = -1;
+let productoSelectAddingNew = false;
+let productoSelectSavedIdx = -1;
+
+function setupProductoSelectModal() {
+    const overlay = document.getElementById("productoSelectOverlay");
+    const btnClose = document.getElementById("productoSelectClose");
+    const btnCancel = document.getElementById("productoSelectCancel");
+    const btnAddNew = document.getElementById("productoSelectAddNew");
+    const searchInput = document.getElementById("productoSelectSearch");
+
+    btnClose.addEventListener("click", closeProductoSelect);
+    btnCancel.addEventListener("click", closeProductoSelect);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeProductoSelect(); });
+
+    btnAddNew.addEventListener("click", () => {
+        agregarNuevoProductoDesdeSelect();
+    });
+
+    searchInput.addEventListener("input", () => {
+        renderProductoSelectGrid();
+    });
+}
+
+function openProductoSelectModal(idx) {
+    productoSelectIdx = idx;
+    const tipo = document.getElementById("cotTipo").value;
+    const itemTipo = cotItems[idx].tipo || (tipo === "ambas" ? "imprenta" : tipo);
+    const titulo = itemTipo === "digital" ? "Seleccionar Producto Digital" : "Seleccionar Producto Imprenta";
+    document.getElementById("productoSelectTitle").textContent = titulo;
+    document.getElementById("productoSelectSearch").value = "";
+    renderProductoSelectGrid();
+    document.getElementById("productoSelectOverlay").classList.add("show");
+    setTimeout(() => document.getElementById("productoSelectSearch").focus(), 100);
+}
+
+function closeProductoSelect() {
+    document.getElementById("productoSelectOverlay").classList.remove("show");
+    productoSelectIdx = -1;
+}
+
+function renderProductoSelectGrid() {
+    const grid = document.getElementById("productoSelectGrid");
+    const search = document.getElementById("productoSelectSearch").value.toLowerCase().trim();
+    const tipo = document.getElementById("cotTipo").value;
+    const itemTipo = productoSelectIdx >= 0 ? (cotItems[productoSelectIdx].tipo || (tipo === "ambas" ? "imprenta" : tipo)) : "imprenta";
+
+    let productos = itemTipo === "digital" ? getProductosDigital() : getProductosImprenta();
+
+    if (search) {
+        productos = productos.filter(p => p.nombre.toLowerCase().includes(search));
+    }
+
+    if (productos.length === 0) {
+        grid.innerHTML = `<div class="multiselect-empty"><i class="bi bi-search"></i><p>No se encontraron productos</p></div>`;
+        return;
+    }
+
+    grid.innerHTML = "";
+    const currentProducto = productoSelectIdx >= 0 ? cotItems[productoSelectIdx].producto : "";
+
+    productos.forEach(p => {
+        const isSelected = p.nombre === currentProducto;
+        const card = document.createElement("div");
+        card.className = "multiselect-card" + (isSelected ? " selected" : "");
+        card.dataset.nombre = p.nombre;
+        card.dataset.valor = p.valor || 0;
+
+        card.innerHTML = `
+            <i class="bi bi-box-seam multiselect-card-icon"></i>
+            <span class="multiselect-card-name">${p.nombre}</span>
+            <span class="multiselect-card-value">${formatMoneyLocal(p.valor || 0)}</span>
+        `;
+
+        card.addEventListener("click", () => {
+            selectProducto(p.nombre, p.valor || 0);
+        });
+
+        grid.appendChild(card);
+    });
+}
+
+function selectProducto(nombre, valor) {
+    if (productoSelectIdx >= 0 && productoSelectIdx < cotItems.length) {
+        cotItems[productoSelectIdx].producto = nombre;
+        cotItems[productoSelectIdx].precioUnit = parseInt(valor) || 0;
+    }
+    closeProductoSelect();
+    renderCotItems();
+    calcularTotales();
+}
+
+async function agregarNuevoProductoDesdeSelect() {
+    const tipo = document.getElementById("cotTipo").value;
+    const itemTipo = productoSelectIdx >= 0 ? (cotItems[productoSelectIdx].tipo || (tipo === "ambas" ? "imprenta" : tipo)) : "imprenta";
+    const col = itemTipo === "digital" ? "productosDigital" : "productosImprenta";
+    const titulo = itemTipo === "digital" ? "Agregar Producto Digital" : "Agregar Producto Imprenta";
+
+    const searchVal = document.getElementById("productoSelectSearch").value.trim();
+
+    // Guardar estado
+    productoSelectAddingNew = true;
+    productoSelectSavedIdx = productoSelectIdx;
+
+    // Subir z-index del modal de configuracion
+    document.getElementById("modalOverlay").style.zIndex = "600";
+
+    // Cerrar el modal de producto temporalmente
+    document.getElementById("productoSelectOverlay").classList.remove("show");
+
+    openModal(titulo, col, true, searchVal, "0");
+}
 
 // ===== LISTA COTIZACIONES =====
 async function cargarListaCotizaciones() {
@@ -1308,6 +1444,9 @@ async function cargarOrdenes(rolUsuario) {
             const tipoRol = rolUsuario; // "imprenta" o "digital"
             const misOrdenes = ordenes.filter(o => o.tipo === tipoRol);
 
+            const currentUser = sessionStorage.getItem("userName") || "";
+            const currentEmail = sessionStorage.getItem("userEmail") || "";
+
             // Separar: las que tienen diseño respondido con al menos 1 aprobada
             const pendientes = [];
             const respondidas = [];
@@ -1316,12 +1455,29 @@ async function cargarOrdenes(rolUsuario) {
                 const disenoId = orden.id + "-diseno";
                 const diseno = ordenesDisenoDB[disenoId];
                 if (diseno && diseno.estado === "respondida") {
+                    // Solo mostrar como respondida si fue creada por este usuario (o si no tiene creadoPor = orden antigua)
+                    const sinAsignar = !diseno.creadoPor && !diseno.creadoPorEmail;
+                    const esMio = sinAsignar || diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
+                    if (!esMio) {
+                        // Si no es suyo, la trata como pendiente (no ve el diseño de otro)
+                        pendientes.push(orden);
+                        return;
+                    }
                     // Verificar si tiene al menos 1 imagen aprobada
                     const tieneAprobada = (diseno.items || []).some(item =>
                         (item.imagenes || []).some(img => img.estado === "aprobada")
                     );
                     if (tieneAprobada) {
                         respondidas.push({ orden, diseno });
+                    } else {
+                        pendientes.push(orden);
+                    }
+                } else if (diseno && diseno.estado === "pendiente") {
+                    // Si tiene diseño pendiente de otro usuario, no mostrar opción de editar diseño
+                    const sinAsignar = !diseno.creadoPor && !diseno.creadoPorEmail;
+                    const esMio = sinAsignar || diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
+                    if (!esMio) {
+                        // No incluir en pendientes — otro usuario ya está trabajando en esta orden
                     } else {
                         pendientes.push(orden);
                     }
@@ -1395,8 +1551,28 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Si es admin, filtrar por tipo. Si es rol, ya vienen filtradas.
-    const filtradas = rolUsuario === "administrador" ? ordenes.filter(o => o.tipo === tipo) : ordenes;
+    // Si es admin, filtrar por tipo. Si es ventas, filtrar por tipo y por diseños propios.
+    let filtradas;
+    if (rolUsuario === "administrador") {
+        filtradas = ordenes.filter(o => o.tipo === tipo);
+    } else if (rolUsuario === "ventas") {
+        const currentUser = sessionStorage.getItem("userName") || "";
+        const currentEmail = sessionStorage.getItem("userEmail") || "";
+        filtradas = ordenes.filter(o => {
+            if (o.tipo !== tipo) return false;
+            // Si tiene diseño creado por otro usuario, no mostrarlo
+            const disenoId = o.id + "-diseno";
+            const diseno = ordenesDisenoDB[disenoId];
+            if (diseno && diseno.creadoPor && diseno.creadoPorEmail) {
+                // Tiene dueño asignado, solo mostrar si es mío
+                return diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
+            }
+            // Sin diseño o sin dueño asignado (orden antigua), mostrar a todos
+            return true;
+        });
+    } else {
+        filtradas = ordenes;
+    }
 
     if (filtradas.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="bi bi-inbox"></i><p>No hay ordenes de ${tipo} aun</p></div>`;
@@ -1852,10 +2028,10 @@ async function guardarOrdenDiseno(orden) {
         });
     });
 
-    // Verificar que al menos un producto tenga imagen
-    const tieneImagenes = disenoItems.some(i => i.imagenes.length > 0);
-    if (!tieneImagenes) {
-        showNotif("Sin diseños", "Sube al menos una imagen de diseño para algun producto.");
+    // Verificar que al menos un producto tenga imagen o link de Pacdora
+    const tieneContenido = disenoItems.some(i => i.imagenes.length > 0 || i.pacdoraLinks.length > 0);
+    if (!tieneContenido) {
+        showNotif("Sin diseños", "Sube al menos una imagen o agrega un link de Pacdora para algun producto.");
         return;
     }
 
@@ -1876,6 +2052,8 @@ async function guardarOrdenDiseno(orden) {
             tipo: orden.tipo,
             items: disenoItems,
             estado: "pendiente",
+            creadoPor: sessionStorage.getItem("userName") || "",
+            creadoPorEmail: sessionStorage.getItem("userEmail") || "",
             fechaCreacion: esEdicion ? (disenoEditando.fechaCreacion || new Date().toISOString()) : new Date().toISOString(),
             fechaActualizacion: new Date().toISOString()
         };
@@ -1921,9 +2099,20 @@ async function cargarDisenosAprobados(rolUsuario) {
 
     try {
         const snap = await getDocs(collection(db, "ordenesDiseno"));
-        const disenos = [];
+        let disenos = [];
         snap.forEach(d => disenos.push({ id: d.id, ...d.data() }));
         disenos.sort((a, b) => (b.fechaCreacion || "").localeCompare(a.fechaCreacion || ""));
+
+        // Si no es administrador, filtrar solo las creadas por este usuario
+        if (rolUsuario !== "administrador") {
+            const currentUser = sessionStorage.getItem("userName") || "";
+            const currentEmail = sessionStorage.getItem("userEmail") || "";
+            disenos = disenos.filter(d => {
+                // Órdenes antiguas sin creadoPor se muestran a todos
+                if (!d.creadoPor && !d.creadoPorEmail) return true;
+                return d.creadoPor === currentUser || d.creadoPorEmail === currentEmail;
+            });
+        }
 
         const digitales = disenos.filter(d => d.tipo === "digital");
         const imprenta = disenos.filter(d => d.tipo === "imprenta");
