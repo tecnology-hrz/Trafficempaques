@@ -82,6 +82,8 @@ async function initDashboard(rol, nombre) {
         setupUsuarios();
         cargarUsuarios();
         setupModalDetalle();
+        setupFinanzas();
+        cargarFinanzas();
     }
 
     // Cargar ordenes para todos los roles
@@ -156,7 +158,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", disenos: "Diseños", usuarios: "Usuarios", configuracion: "Configuracion" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", disenos: "Diseños", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -2233,4 +2235,240 @@ async function enviarAProduccion(cot, tipoProd, items) {
 function logout() {
     sessionStorage.clear();
     window.location.href = "index.html";
+}
+
+// ===== SECCION FINANZAS =====
+function setupFinanzas() {
+    const filtroMes = document.getElementById("finanzasFiltroMes");
+    const filtroAnio = document.getElementById("finanzasFiltroAnio");
+
+    // Llenar años disponibles
+    const anioActual = new Date().getFullYear();
+    for (let y = anioActual; y >= anioActual - 3; y--) {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        filtroAnio.appendChild(opt);
+    }
+
+    // Seleccionar mes y año actual por defecto
+    filtroMes.value = new Date().getMonth();
+    filtroAnio.value = anioActual;
+
+    filtroMes.addEventListener("change", cargarFinanzas);
+    filtroAnio.addEventListener("change", cargarFinanzas);
+}
+
+async function cargarFinanzas() {
+    try {
+        const snap = await getDocs(collection(db, "cotizaciones"));
+        const todas = [];
+        snap.forEach(d => todas.push({ id: d.id, ...d.data() }));
+
+        // Filtrar por mes/año
+        const filtroMes = document.getElementById("finanzasFiltroMes").value;
+        const filtroAnio = document.getElementById("finanzasFiltroAnio").value;
+
+        let filtradas = todas.filter(c => c.estado === "aprobada");
+
+        if (filtroMes !== "" || filtroAnio !== "") {
+            filtradas = filtradas.filter(c => {
+                if (!c.fechaAprobacion) return false;
+                const fecha = new Date(c.fechaAprobacion);
+                if (isNaN(fecha)) return false;
+                if (filtroMes !== "" && fecha.getMonth() !== parseInt(filtroMes)) return false;
+                if (filtroAnio !== "" && fecha.getFullYear() !== parseInt(filtroAnio)) return false;
+                return true;
+            });
+        }
+
+        renderFinanzas(filtradas);
+    } catch (err) {
+        console.error("Error cargando finanzas:", err);
+    }
+}
+
+function renderFinanzas(cotizaciones) {
+    const fmtMoney = (v) => "$" + (parseInt(v) || 0).toLocaleString("en-US");
+
+    // Calcular totales
+    let totalIngresos = 0;
+    let totalPagado = 0;
+    let totalPendiente = 0;
+    let totalImprenta = 0;
+    let totalDigital = 0;
+    let countImprenta = 0;
+    let countDigital = 0;
+    const productoIngresos = {};
+
+    cotizaciones.forEach(cot => {
+        const total = parseInt(cot.total) || 0;
+        const pagado = parseInt(cot.montoPagado) || 0;
+        totalIngresos += total;
+        totalPagado += pagado;
+        totalPendiente += (total - pagado);
+
+        // Por tipo
+        if (cot.tipo === "imprenta") {
+            totalImprenta += total;
+            countImprenta++;
+        } else if (cot.tipo === "digital") {
+            totalDigital += total;
+            countDigital++;
+        } else if (cot.tipo === "ambas") {
+            // Separar por items
+            (cot.items || []).forEach(item => {
+                const itemTotal = parseInt(item.precioTotal) || 0;
+                if (item.tipo === "imprenta") {
+                    totalImprenta += itemTotal;
+                } else {
+                    totalDigital += itemTotal;
+                }
+            });
+            countImprenta++;
+            countDigital++;
+        }
+
+        // Por producto
+        (cot.items || []).forEach(item => {
+            const nombre = item.producto || "Sin nombre";
+            const itemTotal = parseInt(item.precioTotal) || 0;
+            if (!productoIngresos[nombre]) {
+                productoIngresos[nombre] = { total: 0, cantidad: 0 };
+            }
+            productoIngresos[nombre].total += itemTotal;
+            productoIngresos[nombre].cantidad += (parseInt(item.cantidad) || 0);
+        });
+    });
+
+    // Resumen general
+    document.getElementById("finanzasTotalIngresos").textContent = fmtMoney(totalIngresos);
+    document.getElementById("finanzasTotalAprobadas").textContent = cotizaciones.length;
+    document.getElementById("finanzasTotalPendiente").textContent = fmtMoney(totalPendiente);
+    document.getElementById("finanzasTotalPagado").textContent = fmtMoney(totalPagado);
+
+    // Por servicio
+    document.getElementById("finanzasImprentaTotal").textContent = fmtMoney(totalImprenta);
+    document.getElementById("finanzasImprentaCount").textContent = countImprenta + " cotizaciones";
+    document.getElementById("finanzasDigitalTotal").textContent = fmtMoney(totalDigital);
+    document.getElementById("finanzasDigitalCount").textContent = countDigital + " cotizaciones";
+
+    // Detalle por servicio - top productos imprenta
+    renderDetalleServicio("finanzasImprentaDetalle", cotizaciones.filter(c => c.tipo === "imprenta" || c.tipo === "ambas"), "imprenta");
+    renderDetalleServicio("finanzasDigitalDetalle", cotizaciones.filter(c => c.tipo === "digital" || c.tipo === "ambas"), "digital");
+
+    // Tabla de pagos
+    renderTablaFinanzas(cotizaciones);
+
+    // Productos
+    renderProductosFinanzas(productoIngresos);
+}
+
+function renderDetalleServicio(containerId, cotizaciones, tipo) {
+    const container = document.getElementById(containerId);
+    const productoMap = {};
+
+    cotizaciones.forEach(cot => {
+        (cot.items || []).forEach(item => {
+            if (tipo === "imprenta" && item.tipo !== "imprenta" && cot.tipo !== "imprenta") return;
+            if (tipo === "digital" && item.tipo !== "digital" && cot.tipo !== "digital") return;
+            const nombre = item.producto || "Otro";
+            const itemTotal = parseInt(item.precioTotal) || 0;
+            if (!productoMap[nombre]) productoMap[nombre] = 0;
+            productoMap[nombre] += itemTotal;
+        });
+    });
+
+    const sorted = Object.entries(productoMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    if (sorted.length === 0) {
+        container.innerHTML = '<span class="finanzas-no-data">Sin datos</span>';
+        return;
+    }
+
+    const maxVal = sorted[0][1];
+    container.innerHTML = sorted.map(([nombre, total]) => {
+        const pct = maxVal > 0 ? Math.round((total / maxVal) * 100) : 0;
+        return `
+            <div class="finanzas-bar-item">
+                <div class="finanzas-bar-label">
+                    <span>${nombre}</span>
+                    <span>$${total.toLocaleString("en-US")}</span>
+                </div>
+                <div class="finanzas-bar-track">
+                    <div class="finanzas-bar-fill" style="width:${pct}%"></div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function renderTablaFinanzas(cotizaciones) {
+    const tbody = document.getElementById("finanzasTablaBody");
+
+    if (cotizaciones.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="tabla-empty">No hay pagos registrados en este periodo</td></tr>';
+        return;
+    }
+
+    // Ordenar por fecha más reciente
+    const sorted = [...cotizaciones].sort((a, b) => (b.fechaAprobacion || "").localeCompare(a.fechaAprobacion || ""));
+
+    tbody.innerHTML = sorted.map(cot => {
+        const total = parseInt(cot.total) || 0;
+        const pagado = parseInt(cot.montoPagado) || 0;
+        const saldo = total - pagado;
+        const fecha = cot.fechaAprobacion ? new Date(cot.fechaAprobacion).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "-";
+        const tipoBadge = cot.tipo === "digital"
+            ? '<span class="finanzas-tipo-badge digital"><i class="bi bi-display"></i> Digital</span>'
+            : cot.tipo === "imprenta"
+                ? '<span class="finanzas-tipo-badge imprenta"><i class="bi bi-printer"></i> Imprenta</span>'
+                : '<span class="finanzas-tipo-badge ambas"><i class="bi bi-layers"></i> Ambas</span>';
+        const metodo = cot.metodoPago || "-";
+        const estadoPago = saldo <= 0
+            ? '<span class="finanzas-estado-badge pagado"><i class="bi bi-check-circle"></i> Pagado</span>'
+            : '<span class="finanzas-estado-badge pendiente"><i class="bi bi-clock"></i> Saldo pendiente</span>';
+
+        return `
+            <tr>
+                <td><strong>${cot.numero}</strong></td>
+                <td>${cot.cliente}</td>
+                <td>${tipoBadge}</td>
+                <td>$${total.toLocaleString("en-US")}</td>
+                <td>$${pagado.toLocaleString("en-US")}</td>
+                <td class="${saldo > 0 ? 'finanzas-saldo-rojo' : ''}">$${saldo.toLocaleString("en-US")}</td>
+                <td>${metodo.charAt(0).toUpperCase() + metodo.slice(1)}</td>
+                <td>${fecha}</td>
+                <td>${estadoPago}</td>
+            </tr>
+        `;
+    }).join("");
+}
+
+function renderProductosFinanzas(productoIngresos) {
+    const container = document.getElementById("finanzasProductosGrid");
+    const sorted = Object.entries(productoIngresos).sort((a, b) => b[1].total - a[1].total);
+
+    if (sorted.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-bar-chart"></i><p>No hay datos de productos</p></div>';
+        return;
+    }
+
+    const maxVal = sorted[0][1].total;
+
+    container.innerHTML = sorted.map(([nombre, data]) => {
+        const pct = maxVal > 0 ? Math.round((data.total / maxVal) * 100) : 0;
+        return `
+            <div class="finanzas-producto-item">
+                <div class="finanzas-producto-info">
+                    <span class="finanzas-producto-nombre">${nombre}</span>
+                    <span class="finanzas-producto-stats">${data.cantidad} unidades</span>
+                </div>
+                <div class="finanzas-producto-bar-wrap">
+                    <div class="finanzas-producto-bar" style="width:${pct}%"></div>
+                </div>
+                <span class="finanzas-producto-total">$${data.total.toLocaleString("en-US")}</span>
+            </div>
+        `;
+    }).join("");
 }

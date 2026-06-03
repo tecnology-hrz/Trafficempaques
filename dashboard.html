@@ -31,6 +31,10 @@
                 <i class="bi bi-people"></i>
                 <span>Usuarios</span>
             </a>
+            <a class="nav-item" data-section="finanzas" data-role="administrador">
+                <i class="bi bi-graph-up-arrow"></i>
+                <span>Finanzas</span>
+            </a>
             <a class="nav-item" data-section="configuracion" data-role="administrador">
                 <i class="bi bi-sliders"></i>
                 <span>Configuracion</span>
@@ -377,6 +381,138 @@
                         <div class="empty-state">
                             <i class="bi bi-people"></i>
                             <p>Cargando usuarios...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== SECCION: FINANZAS (solo admin) ===== -->
+            <div class="section" id="section-finanzas">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-graph-up-arrow"></i> Resumen Financiero</h2>
+                    <div class="finanzas-filtros">
+                        <select id="finanzasFiltroMes" class="finanzas-select">
+                            <option value="">Todos los meses</option>
+                            <option value="0">Enero</option>
+                            <option value="1">Febrero</option>
+                            <option value="2">Marzo</option>
+                            <option value="3">Abril</option>
+                            <option value="4">Mayo</option>
+                            <option value="5">Junio</option>
+                            <option value="6">Julio</option>
+                            <option value="7">Agosto</option>
+                            <option value="8">Septiembre</option>
+                            <option value="9">Octubre</option>
+                            <option value="10">Noviembre</option>
+                            <option value="11">Diciembre</option>
+                        </select>
+                        <select id="finanzasFiltroAnio" class="finanzas-select">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Resumen general -->
+                <div class="finanzas-resumen">
+                    <div class="finanzas-card finanzas-card-total">
+                        <div class="finanzas-card-icon"><i class="bi bi-cash-stack"></i></div>
+                        <div class="finanzas-card-info">
+                            <span class="finanzas-card-label">Ingresos totales</span>
+                            <span class="finanzas-card-value" id="finanzasTotalIngresos">$0</span>
+                        </div>
+                    </div>
+                    <div class="finanzas-card finanzas-card-aprobadas">
+                        <div class="finanzas-card-icon"><i class="bi bi-check-circle"></i></div>
+                        <div class="finanzas-card-info">
+                            <span class="finanzas-card-label">Aprobadas</span>
+                            <span class="finanzas-card-value" id="finanzasTotalAprobadas">0</span>
+                        </div>
+                    </div>
+                    <div class="finanzas-card finanzas-card-pendiente">
+                        <div class="finanzas-card-icon"><i class="bi bi-hourglass-split"></i></div>
+                        <div class="finanzas-card-info">
+                            <span class="finanzas-card-label">Por cobrar</span>
+                            <span class="finanzas-card-value" id="finanzasTotalPendiente">$0</span>
+                        </div>
+                    </div>
+                    <div class="finanzas-card finanzas-card-pagado">
+                        <div class="finanzas-card-icon"><i class="bi bi-wallet2"></i></div>
+                        <div class="finanzas-card-info">
+                            <span class="finanzas-card-label">Recaudado</span>
+                            <span class="finanzas-card-value" id="finanzasTotalPagado">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ingresos por servicio -->
+                <div class="finanzas-section-grid">
+                    <div class="finanzas-servicio-card">
+                        <div class="finanzas-servicio-header">
+                            <div class="finanzas-servicio-icon imprenta"><i class="bi bi-printer"></i></div>
+                            <div class="finanzas-servicio-titulo">
+                                <span class="finanzas-servicio-name">Imprenta</span>
+                                <span class="finanzas-servicio-count" id="finanzasImprentaCount">0 cotizaciones</span>
+                            </div>
+                            <span class="finanzas-servicio-total" id="finanzasImprentaTotal">$0</span>
+                        </div>
+                        <div class="finanzas-servicio-detalle" id="finanzasImprentaDetalle"></div>
+                    </div>
+                    <div class="finanzas-servicio-card">
+                        <div class="finanzas-servicio-header">
+                            <div class="finanzas-servicio-icon digital"><i class="bi bi-display"></i></div>
+                            <div class="finanzas-servicio-titulo">
+                                <span class="finanzas-servicio-name">Digital</span>
+                                <span class="finanzas-servicio-count" id="finanzasDigitalCount">0 cotizaciones</span>
+                            </div>
+                            <span class="finanzas-servicio-total" id="finanzasDigitalTotal">$0</span>
+                        </div>
+                        <div class="finanzas-servicio-detalle" id="finanzasDigitalDetalle"></div>
+                    </div>
+                </div>
+
+                <!-- Detalle de pagos -->
+                <div class="card" style="margin-top:16px;">
+                    <div class="card-header">
+                        <span class="card-title"><i class="bi bi-receipt"></i> Historial de Pagos</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="finanzas-tabla-wrap">
+                            <table class="finanzas-tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Cotizacion</th>
+                                        <th>Cliente</th>
+                                        <th>Tipo</th>
+                                        <th>Total</th>
+                                        <th>Pagado</th>
+                                        <th>Saldo</th>
+                                        <th>Metodo</th>
+                                        <th>Fecha</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="finanzasTablaBody">
+                                    <tr><td colspan="9" class="tabla-empty">Cargando datos...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ingresos por producto -->
+                <div class="finanzas-productos-card" style="margin-top:16px;">
+                    <div class="finanzas-productos-header">
+                        <div class="finanzas-productos-title-wrap">
+                            <div class="finanzas-productos-icon"><i class="bi bi-bar-chart-line"></i></div>
+                            <div>
+                                <h4 class="finanzas-productos-title">Ingresos por Producto</h4>
+                                <span class="finanzas-productos-subtitle">Desglose de ventas por producto</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="finanzas-productos-body">
+                        <div class="finanzas-productos-grid" id="finanzasProductosGrid">
+                            <div class="empty-state"><i class="bi bi-bar-chart"></i><p>Cargando...</p></div>
                         </div>
                     </div>
                 </div>
@@ -799,6 +935,10 @@
         <a class="bottom-nav-item" data-section="usuarios" data-role="administrador">
             <i class="bi bi-people"></i>
             <span>Usuarios</span>
+        </a>
+        <a class="bottom-nav-item" data-section="finanzas" data-role="administrador">
+            <i class="bi bi-graph-up-arrow"></i>
+            <span>Finanzas</span>
         </a>
         <a class="bottom-nav-item" data-section="configuracion" data-role="administrador">
             <i class="bi bi-sliders"></i>
