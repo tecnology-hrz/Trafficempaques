@@ -58,7 +58,7 @@ form.addEventListener("submit", async (e) => {
         }
 
         // Verificar rol valido
-        const rolesValidos = ["administrador", "digital", "imprenta"];
+        const rolesValidos = ["administrador", "digital", "imprenta", "ventas"];
         if (!rolesValidos.includes(userData.rol)) {
             showError("Rol no autorizado.");
             setLoading(false);

@@ -55,11 +55,25 @@ async function initDashboard(rol, nombre) {
         weekday: "short", day: "numeric", month: "short"
     });
 
-    if (rol !== "administrador") {
-        document.querySelectorAll("[data-role='administrador']").forEach(el => {
-            el.style.display = "none";
+    if (rol !== "administrador" && rol !== "ventas") {
+        document.querySelectorAll("[data-role]").forEach(el => {
+            const roles = el.dataset.role.split(",");
+            if (!roles.includes(rol)) {
+                el.style.display = "none";
+            }
         });
         activateSection("ordenes");
+    }
+
+    // Rol ventas: ocultar solo lo que no le corresponde
+    if (rol === "ventas") {
+        document.querySelectorAll("[data-role]").forEach(el => {
+            const roles = el.dataset.role.split(",");
+            if (!roles.includes("ventas")) {
+                el.style.display = "none";
+            }
+        });
+        activateSection("cotizador");
     }
 
     setupOrdenesByRole(rol);
@@ -73,15 +87,19 @@ async function initDashboard(rol, nombre) {
     setupOrdenDetalleModal(); // Modal detalle orden para todos los roles
     setupPacdoraModal(); // Modal Pacdora 3D preview
 
-    // Cotizador (solo admin)
-    if (rol === "administrador") {
+    // Cotizador (admin y ventas)
+    if (rol === "administrador" || rol === "ventas") {
         await cargarCatalogos();
         setupCotizador();
         setupMultiSelectModal();
         cargarListaCotizaciones();
+        setupModalDetalle();
+    }
+
+    // Solo admin
+    if (rol === "administrador") {
         setupUsuarios();
         cargarUsuarios();
-        setupModalDetalle();
         setupFinanzas();
         cargarFinanzas();
         setupClientes();
@@ -1278,8 +1296,8 @@ async function cargarOrdenes(rolUsuario) {
         ordenesDisenoDB = {};
         snapDiseno.forEach(d => { ordenesDisenoDB[d.id] = { id: d.id, ...d.data() }; });
 
-        if (rolUsuario === "administrador") {
-            // Admin ve todo en tabs digital/imprenta
+        if (rolUsuario === "administrador" || rolUsuario === "ventas") {
+            // Admin y ventas ven todo en tabs digital/imprenta
             renderOrdenesPorTipo(ordenes, "digital", "ordenesDigitalLista", rolUsuario);
             renderOrdenesPorTipo(ordenes, "imprenta", "ordenesImprentaLista", rolUsuario);
         } else {
@@ -1891,8 +1909,8 @@ async function guardarOrdenDiseno(orden) {
 }
 // ===== SECCION DISEÑOS (ordenes de diseño con estado) =====
 async function cargarDisenosAprobados(rolUsuario) {
-    // Solo admin usa esta seccion separada
-    if (rolUsuario !== "administrador") return;
+    // Admin y ventas usan esta seccion
+    if (rolUsuario !== "administrador" && rolUsuario !== "ventas") return;
 
     const containerDigital = document.getElementById("listaDisenosDigital");
     const containerImprenta = document.getElementById("listaDisenosImprenta");

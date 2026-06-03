@@ -11,6 +11,7 @@ import { db, doc, setDoc } from "./auth.js";
 
 const usuarios = [
     { id: "admin",    email: "admin@traffic.com",    password: "Traffic2026!", nombre: "Administrador",    rol: "administrador" },
+    { id: "ventas",   email: "ventas@traffic.com",   password: "Traffic2026!", nombre: "Usuario Ventas",   rol: "ventas"        },
     { id: "digital",  email: "digital@traffic.com",  password: "Traffic2026!", nombre: "Usuario Digital",  rol: "digital"       },
     { id: "imprenta", email: "imprenta@traffic.com", password: "Traffic2026!", nombre: "Usuario Imprenta", rol: "imprenta"      }
 ];

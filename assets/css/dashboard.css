@@ -188,6 +188,7 @@ body {
 }
 
 .role-badge.administrador { background: #222; color: #29ABE2; }
+.role-badge.ventas        { background: #ecfdf5; color: #059669; }
 .role-badge.digital       { background: #e8f7fd; color: #1a90c8; }
 .role-badge.imprenta      { background: #f0f0f0; color: #555; }
 
