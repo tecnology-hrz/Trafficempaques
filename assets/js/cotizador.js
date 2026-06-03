@@ -81,6 +81,7 @@ export async function crearCotizacion(datos) {
         direccion: datos.direccion || "",
         ciudad: datos.ciudad || "",
         tipo: datos.tipo,
+        modalidadPago: datos.modalidadPago || "contado",
         items: datos.items,
         total: datos.total,
         estado: "pendiente",

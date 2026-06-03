@@ -503,6 +503,7 @@ function setupCotizador() {
         const yyyy = hoy.getFullYear();
         document.getElementById("cotFechaActual").value  = `${dd}/${mm}/${yyyy}`;
         document.getElementById("cotFechaEntrega").value = "";
+        document.getElementById("cotModalidadPago").value = "contado";
         renderCotItems();
         calcularTotales();
         document.getElementById("cotizadorLista").style.display = "none";
@@ -535,6 +536,7 @@ function setupCotizador() {
             const [y, m, d] = fechaEntregaRaw.split("-");
             fechaEntrega = `${d}/${m}/${y}`;
         }
+        const modalidadPago = document.getElementById("cotModalidadPago").value;
         const editId   = btnGuardar.dataset.editId || null;
 
         if (!cliente) { showNotif("Campo requerido", "Ingresa el nombre del cliente"); return; }
@@ -560,13 +562,13 @@ function setupCotizador() {
             const ref = doc(db, "cotizaciones", editId);
             const snap = await getDoc(ref);
             const existing = snap.data();
-            await setDoc(ref, { ...existing, cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega });
+            await setDoc(ref, { ...existing, cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago });
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
         } else {
             // Crear nueva
-            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega });
+            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago });
             // Guardar cliente en base de datos
             await guardarClienteDesdeCotzacion({ cliente, nit, negocio, telefono, direccion, ciudad });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
@@ -1090,6 +1092,7 @@ function abrirModalAcciones(cotId, cotName) {
         document.getElementById("cotCiudad").value   = cot.ciudad || "";
         document.getElementById("cotTipo").value     = cot.tipo || "imprenta";
         document.getElementById("cotFechaActual").value = cot.fechaActual || "";
+        document.getElementById("cotModalidadPago").value = cot.modalidadPago || "contado";
         if (cot.fechaEntrega) {
             const [d, m, y] = cot.fechaEntrega.split("/");
             document.getElementById("cotFechaEntrega").value = `${y}-${m}-${d}`;

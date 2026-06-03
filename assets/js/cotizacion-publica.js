@@ -80,6 +80,13 @@ function renderCotizacion() {
     // Total
     document.getElementById("cotTotal").textContent = "$" + formatMoney(cotizacion.total);
 
+    // Modalidad de pago: si es credito, ocultar opciones de pago y comprobante
+    const esCredito = cotizacion.modalidadPago === "credito";
+    if (esCredito) {
+        document.getElementById("decisionPago").style.display = "none";
+        document.getElementById("seccionDatosPago").style.display = "none";
+    }
+
     // Estado
     if (cotizacion.estado === "aprobada") {
         mostrarAprobada();
@@ -95,8 +102,12 @@ const btnRechazarCot = document.getElementById("btnRechazarCot");
 btnAprobarCot.addEventListener("click", () => {
     btnAprobarCot.classList.add("selected");
     btnRechazarCot.classList.remove("selected");
-    document.getElementById("decisionPago").style.display = "block";
-    document.getElementById("seccionDatosPago").style.display = "flex";
+    // Si es credito, no mostrar opciones de pago
+    const esCredito = cotizacion && cotizacion.modalidadPago === "credito";
+    if (!esCredito) {
+        document.getElementById("decisionPago").style.display = "block";
+        document.getElementById("seccionDatosPago").style.display = "flex";
+    }
 });
 
 btnRechazarCot.addEventListener("click", () => {
@@ -220,6 +231,7 @@ function checkCanApprove() {
     const tipoPago   = document.querySelector('input[name="tipoPago"]:checked');
     const aprobado   = btnAprobarCot.classList.contains("selected");
     const rechazado  = btnRechazarCot.classList.contains("selected");
+    const esCredito  = cotizacion && cotizacion.modalidadPago === "credito";
 
     // Si es abono, validar monto
     let abonoValido = true;
@@ -232,6 +244,11 @@ function checkCanApprove() {
         btnAprobar.disabled = false;
         btnAprobar.innerHTML = '<i class="bi bi-x-circle"></i> Enviar rechazo';
         btnAprobar.className = "btn-aprobar btn-rechazar-final";
+    } else if (aprobado && esCredito) {
+        // Credito: no requiere metodo de pago ni comprobante
+        btnAprobar.disabled = false;
+        btnAprobar.innerHTML = '<i class="bi bi-check-circle"></i> Aprobar cotizacion';
+        btnAprobar.className = "btn-aprobar";
     } else if (aprobado && metodoPago && comprobanteUrl && abonoValido) {
         btnAprobar.disabled = false;
         btnAprobar.innerHTML = '<i class="bi bi-check-circle"></i> Aprobar y enviar cotizacion';
@@ -267,22 +284,40 @@ btnAprobar.addEventListener("click", async () => {
             });
             mostrarRechazada();
         } else {
-            const metodoPago = document.querySelector('input[name="metodoPago"]:checked').value;
-            const tipoPago   = document.querySelector('input[name="tipoPago"]:checked').value;
-            const montoAbono = tipoPago === "abono"
-                ? (parseInt(montoAbonoInp.value.replace(/,/g, "")) || 0)
-                : data.total;
+            const esCredito = cotizacion && cotizacion.modalidadPago === "credito";
 
-            await setDoc(ref, {
-                ...data,
-                estado: "aprobada",
-                metodoPago: metodoPago,
-                tipoPago: tipoPago, // "completo" o "abono"
-                montoPagado: montoAbono,
-                comprobante: comprobanteUrl,
-                comprobanteNombre: archivoComprobante ? archivoComprobante.name : "",
-                fechaAprobacion: new Date().toISOString()
-            });
+            if (esCredito) {
+                // Credito: aprobar sin metodo de pago ni comprobante
+                await setDoc(ref, {
+                    ...data,
+                    estado: "aprobada",
+                    modalidadPago: "credito",
+                    metodoPago: "",
+                    tipoPago: "",
+                    montoPagado: 0,
+                    comprobante: "",
+                    comprobanteNombre: "",
+                    fechaAprobacion: new Date().toISOString()
+                });
+            } else {
+                // Contado: requiere metodo de pago y comprobante
+                const metodoPago = document.querySelector('input[name="metodoPago"]:checked').value;
+                const tipoPago   = document.querySelector('input[name="tipoPago"]:checked').value;
+                const montoAbono = tipoPago === "abono"
+                    ? (parseInt(montoAbonoInp.value.replace(/,/g, "")) || 0)
+                    : data.total;
+
+                await setDoc(ref, {
+                    ...data,
+                    estado: "aprobada",
+                    metodoPago: metodoPago,
+                    tipoPago: tipoPago,
+                    montoPagado: montoAbono,
+                    comprobante: comprobanteUrl,
+                    comprobanteNombre: archivoComprobante ? archivoComprobante.name : "",
+                    fechaAprobacion: new Date().toISOString()
+                });
+            }
             mostrarAprobada();
         }
     } catch (err) {
