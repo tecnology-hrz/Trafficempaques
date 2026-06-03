@@ -3485,3 +3485,156 @@ body {
         font-size: 18px;
     }
 }
+
+
+/* ===== SECCION CLIENTES ===== */
+.clientes-header-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.clientes-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color 0.2s;
+}
+
+.clientes-search-wrap:focus-within {
+    border-color: #29ABE2;
+}
+
+.clientes-search-wrap i {
+    color: #999;
+    font-size: 14px;
+}
+
+.clientes-search-wrap input {
+    border: none;
+    outline: none;
+    font-size: 13px;
+    color: #333;
+    background: transparent;
+    width: 180px;
+}
+
+.clientes-tabla-wrap {
+    overflow-x: auto;
+}
+
+.clientes-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.clientes-tabla thead th {
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #f0f0f0;
+    white-space: nowrap;
+    background: #fafbfc;
+}
+
+.clientes-tabla tbody td {
+    padding: 14px;
+    border-bottom: 1px solid #f5f5f5;
+    color: #444;
+    font-weight: 500;
+}
+
+.clientes-tabla tbody tr:hover {
+    background: #f8fafb;
+}
+
+.clientes-cot-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #e8f7fd;
+    color: #29ABE2;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.clientes-acciones {
+    display: flex;
+    gap: 6px;
+}
+
+/* Modal cliente */
+.modal-cliente {
+    max-width: 550px;
+    width: 95vw;
+}
+
+.form-grid-modal {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+/* Selector de cliente en cotizador */
+.cliente-selector-row {
+    margin-bottom: 8px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+/* Boton ver comprobante en finanzas */
+.btn-ver-comprobante {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border: 1.5px solid #29ABE2;
+    border-radius: 6px;
+    background: #f0f9ff;
+    color: #29ABE2;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-ver-comprobante:hover {
+    background: #29ABE2;
+    color: #fff;
+}
+
+.finanzas-no-comp {
+    color: #ccc;
+    font-size: 14px;
+}
+
+@media (max-width: 768px) {
+    .clientes-header-actions {
+        flex-direction: column;
+        width: 100%;
+        align-items: stretch;
+    }
+    .clientes-search-wrap {
+        width: 100%;
+    }
+    .clientes-search-wrap input {
+        width: 100%;
+    }
+    .form-grid-modal {
+        grid-template-columns: 1fr;
+    }
+    .clientes-tabla { font-size: 12px; }
+    .clientes-tabla thead th, .clientes-tabla tbody td { padding: 10px 8px; }
+}

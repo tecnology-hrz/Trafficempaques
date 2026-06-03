@@ -31,6 +31,10 @@
                 <i class="bi bi-people"></i>
                 <span>Usuarios</span>
             </a>
+            <a class="nav-item" data-section="clientes" data-role="administrador">
+                <i class="bi bi-person-lines-fill"></i>
+                <span>Clientes</span>
+            </a>
             <a class="nav-item" data-section="finanzas" data-role="administrador">
                 <i class="bi bi-graph-up-arrow"></i>
                 <span>Finanzas</span>
@@ -107,6 +111,15 @@
                                 <span class="card-title"><i class="bi bi-person"></i> Datos del cliente</span>
                             </div>
                             <div class="card-body padded">
+                                <!-- Selector de cliente existente -->
+                                <div class="form-row cliente-selector-row">
+                                    <div class="form-field" style="flex:1;">
+                                        <label>Cliente existente</label>
+                                        <select id="cotClienteSelect">
+                                            <option value="">-- Nuevo cliente --</option>
+                                        </select>
+                                    </div>
+                                </div>
                                 <div class="form-row">
                                     <div class="form-field">
                                         <label>Nombre del cliente</label>
@@ -386,6 +399,44 @@
                 </div>
             </div>
 
+            <!-- ===== SECCION: CLIENTES (solo admin) ===== -->
+            <div class="section" id="section-clientes">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-person-lines-fill"></i> Clientes</h2>
+                    <div class="clientes-header-actions">
+                        <div class="clientes-search-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="clientesBuscar" placeholder="Buscar cliente...">
+                        </div>
+                        <button class="btn-primary" id="btnNuevoCliente">
+                            <i class="bi bi-person-plus"></i> Nuevo cliente
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="clientes-tabla-wrap">
+                            <table class="clientes-tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>NIT / Cedula</th>
+                                        <th>Negocio</th>
+                                        <th>Telefono</th>
+                                        <th>Ciudad</th>
+                                        <th>Cotizaciones</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clientesTablaBody">
+                                    <tr><td colspan="7" class="tabla-empty">Cargando clientes...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ===== SECCION: FINANZAS (solo admin) ===== -->
             <div class="section" id="section-finanzas">
                 <div class="section-header">
@@ -489,10 +540,11 @@
                                         <th>Metodo</th>
                                         <th>Fecha</th>
                                         <th>Estado</th>
+                                        <th>Comprobante</th>
                                     </tr>
                                 </thead>
                                 <tbody id="finanzasTablaBody">
-                                    <tr><td colspan="9" class="tabla-empty">Cargando datos...</td></tr>
+                                    <tr><td colspan="10" class="tabla-empty">Cargando datos...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -892,6 +944,48 @@
         </div>
     </div>
 
+    <!-- ===== MODAL CLIENTE ===== -->
+    <div class="modal-overlay" id="clienteModalOverlay">
+        <div class="modal modal-cliente">
+            <div class="modal-header">
+                <h3 id="clienteModalTitle">Nuevo Cliente</h3>
+                <button class="modal-close" id="clienteModalClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid-modal">
+                    <div class="modal-field">
+                        <label>Nombre *</label>
+                        <input type="text" id="clienteModalNombre" placeholder="Nombre completo">
+                    </div>
+                    <div class="modal-field">
+                        <label>NIT / Cedula</label>
+                        <input type="text" id="clienteModalNit" placeholder="900.000.000-0">
+                    </div>
+                    <div class="modal-field">
+                        <label>Negocio</label>
+                        <input type="text" id="clienteModalNegocio" placeholder="Nombre del negocio">
+                    </div>
+                    <div class="modal-field">
+                        <label>Telefono</label>
+                        <input type="text" id="clienteModalTelefono" placeholder="300 000 0000">
+                    </div>
+                    <div class="modal-field">
+                        <label>Direccion</label>
+                        <input type="text" id="clienteModalDireccion" placeholder="Direccion de entrega">
+                    </div>
+                    <div class="modal-field">
+                        <label>Ciudad</label>
+                        <input type="text" id="clienteModalCiudad" placeholder="Ciudad">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="clienteModalCancel">Cancelar</button>
+                <button class="btn-save" id="clienteModalSave"><i class="bi bi-check-lg"></i> Guardar cliente</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== MODAL SELECTOR MULTIPLE (Terminados / Colores) ===== -->
     <div class="modal-overlay" id="multiSelectOverlay">
         <div class="modal modal-multiselect">
@@ -935,6 +1029,10 @@
         <a class="bottom-nav-item" data-section="usuarios" data-role="administrador">
             <i class="bi bi-people"></i>
             <span>Usuarios</span>
+        </a>
+        <a class="bottom-nav-item" data-section="clientes" data-role="administrador">
+            <i class="bi bi-person-lines-fill"></i>
+            <span>Clientes</span>
         </a>
         <a class="bottom-nav-item" data-section="finanzas" data-role="administrador">
             <i class="bi bi-graph-up-arrow"></i>

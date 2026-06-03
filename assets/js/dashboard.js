@@ -84,6 +84,8 @@ async function initDashboard(rol, nombre) {
         setupModalDetalle();
         setupFinanzas();
         cargarFinanzas();
+        setupClientes();
+        cargarClientes();
     }
 
     // Cargar ordenes para todos los roles
@@ -158,7 +160,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", disenos: "Diseños", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -547,6 +549,8 @@ function setupCotizador() {
         } else {
             // Crear nueva
             const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega });
+            // Guardar cliente en base de datos
+            await guardarClienteDesdeCotzacion({ cliente, nit, negocio, telefono, direccion, ciudad });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
             const link = baseUrl + "cotizacion.html?id=" + result.id;
             showLinkModal("Cotizacion " + result.numero + " creada", "Comparte este link con el cliente:", link);
@@ -2407,7 +2411,7 @@ function renderTablaFinanzas(cotizaciones) {
     const tbody = document.getElementById("finanzasTablaBody");
 
     if (cotizaciones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="tabla-empty">No hay pagos registrados en este periodo</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="tabla-empty">No hay pagos registrados en este periodo</td></tr>';
         return;
     }
 
@@ -2440,9 +2444,19 @@ function renderTablaFinanzas(cotizaciones) {
                 <td>${metodo.charAt(0).toUpperCase() + metodo.slice(1)}</td>
                 <td>${fecha}</td>
                 <td>${estadoPago}</td>
+                <td>${cot.comprobante ? `<button class="btn-ver-comprobante" data-url="${cot.comprobante}"><i class="bi bi-receipt-cutoff"></i> Ver</button>` : '<span class="finanzas-no-comp">\u2014</span>'}</td>
             </tr>
         `;
     }).join("");
+
+    // Eventos de ver comprobante
+    tbody.querySelectorAll(".btn-ver-comprobante").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const url = btn.dataset.url;
+            document.getElementById("imgModalDashImg").src = url;
+            document.getElementById("imgModalDash").classList.add("show");
+        });
+    });
 }
 
 function renderProductosFinanzas(productoIngresos) {
@@ -2471,4 +2485,232 @@ function renderProductosFinanzas(productoIngresos) {
             </div>
         `;
     }).join("");
+}
+
+// ===== SECCION CLIENTES =====
+let clientesDB = [];
+let clienteEditandoId = null;
+
+function setupClientes() {
+    const overlay = document.getElementById("clienteModalOverlay");
+    const btnClose = document.getElementById("clienteModalClose");
+    const btnCancel = document.getElementById("clienteModalCancel");
+    const btnSave = document.getElementById("clienteModalSave");
+    const btnNuevo = document.getElementById("btnNuevoCliente");
+    const buscarInput = document.getElementById("clientesBuscar");
+
+    btnNuevo.addEventListener("click", () => abrirModalCliente());
+    btnClose.addEventListener("click", cerrarModalCliente);
+    btnCancel.addEventListener("click", cerrarModalCliente);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) cerrarModalCliente(); });
+
+    btnSave.addEventListener("click", guardarCliente);
+
+    buscarInput.addEventListener("input", () => {
+        renderTablaClientes(buscarInput.value.trim().toLowerCase());
+    });
+
+    // Selector de cliente en cotizador
+    const selectCliente = document.getElementById("cotClienteSelect");
+    if (selectCliente) {
+        selectCliente.addEventListener("change", () => {
+            const id = selectCliente.value;
+            if (!id) {
+                // Nuevo cliente - limpiar campos
+                document.getElementById("cotCliente").value = "";
+                document.getElementById("cotNit").value = "";
+                document.getElementById("cotNegocio").value = "";
+                document.getElementById("cotTelefono").value = "";
+                document.getElementById("cotDireccion").value = "";
+                document.getElementById("cotCiudad").value = "";
+                return;
+            }
+            const cliente = clientesDB.find(c => c.id === id);
+            if (cliente) {
+                document.getElementById("cotCliente").value = cliente.nombre || "";
+                document.getElementById("cotNit").value = cliente.nit || "";
+                document.getElementById("cotNegocio").value = cliente.negocio || "";
+                document.getElementById("cotTelefono").value = cliente.telefono || "";
+                document.getElementById("cotDireccion").value = cliente.direccion || "";
+                document.getElementById("cotCiudad").value = cliente.ciudad || "";
+            }
+        });
+    }
+}
+
+function abrirModalCliente(cliente) {
+    clienteEditandoId = cliente ? cliente.id : null;
+    document.getElementById("clienteModalTitle").textContent = cliente ? "Editar Cliente" : "Nuevo Cliente";
+    document.getElementById("clienteModalSave").innerHTML = cliente
+        ? '<i class="bi bi-check-lg"></i> Guardar cambios'
+        : '<i class="bi bi-check-lg"></i> Guardar cliente';
+
+    document.getElementById("clienteModalNombre").value = cliente ? cliente.nombre || "" : "";
+    document.getElementById("clienteModalNit").value = cliente ? cliente.nit || "" : "";
+    document.getElementById("clienteModalNegocio").value = cliente ? cliente.negocio || "" : "";
+    document.getElementById("clienteModalTelefono").value = cliente ? cliente.telefono || "" : "";
+    document.getElementById("clienteModalDireccion").value = cliente ? cliente.direccion || "" : "";
+    document.getElementById("clienteModalCiudad").value = cliente ? cliente.ciudad || "" : "";
+
+    document.getElementById("clienteModalOverlay").classList.add("show");
+    setTimeout(() => document.getElementById("clienteModalNombre").focus(), 100);
+}
+
+function cerrarModalCliente() {
+    document.getElementById("clienteModalOverlay").classList.remove("show");
+    clienteEditandoId = null;
+}
+
+async function guardarCliente() {
+    const nombre = document.getElementById("clienteModalNombre").value.trim();
+    if (!nombre) {
+        showNotif("Campo requerido", "El nombre del cliente es obligatorio.");
+        return;
+    }
+
+    const data = {
+        nombre,
+        nit: document.getElementById("clienteModalNit").value.trim(),
+        negocio: document.getElementById("clienteModalNegocio").value.trim(),
+        telefono: document.getElementById("clienteModalTelefono").value.trim(),
+        direccion: document.getElementById("clienteModalDireccion").value.trim(),
+        ciudad: document.getElementById("clienteModalCiudad").value.trim(),
+        fechaCreacion: clienteEditandoId ? undefined : new Date().toISOString()
+    };
+
+    // Remover undefined
+    Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+    const id = clienteEditandoId || nombre.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Date.now().toString(36);
+
+    try {
+        if (clienteEditandoId) {
+            const ref = doc(db, "clientes", id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+                await setDoc(ref, { ...snap.data(), ...data });
+            }
+        } else {
+            data.fechaCreacion = new Date().toISOString();
+            await setDoc(doc(db, "clientes", id), data);
+        }
+        cerrarModalCliente();
+        cargarClientes();
+    } catch (err) {
+        console.error("Error guardando cliente:", err);
+        showNotif("Error", "No se pudo guardar el cliente.");
+    }
+}
+
+async function cargarClientes() {
+    try {
+        const snap = await getDocs(collection(db, "clientes"));
+        clientesDB = [];
+        snap.forEach(d => clientesDB.push({ id: d.id, ...d.data() }));
+        clientesDB.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+        renderTablaClientes("");
+        actualizarSelectClientes();
+    } catch (err) {
+        console.error("Error cargando clientes:", err);
+    }
+}
+
+function actualizarSelectClientes() {
+    const select = document.getElementById("cotClienteSelect");
+    if (!select) return;
+    const valorActual = select.value;
+    select.innerHTML = '<option value="">-- Nuevo cliente --</option>';
+    clientesDB.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.nombre + (c.negocio ? " - " + c.negocio : "");
+        select.appendChild(opt);
+    });
+    select.value = valorActual;
+}
+
+function renderTablaClientes(busqueda) {
+    const tbody = document.getElementById("clientesTablaBody");
+    let filtrados = clientesDB;
+
+    if (busqueda) {
+        filtrados = clientesDB.filter(c =>
+            (c.nombre || "").toLowerCase().includes(busqueda) ||
+            (c.negocio || "").toLowerCase().includes(busqueda) ||
+            (c.nit || "").toLowerCase().includes(busqueda) ||
+            (c.telefono || "").toLowerCase().includes(busqueda) ||
+            (c.ciudad || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    if (filtrados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">No se encontraron clientes</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtrados.map(c => {
+        return `
+            <tr>
+                <td><strong>${c.nombre || "-"}</strong></td>
+                <td>${c.nit || "-"}</td>
+                <td>${c.negocio || "-"}</td>
+                <td>${c.telefono || "-"}</td>
+                <td>${c.ciudad || "-"}</td>
+                <td><span class="clientes-cot-count">${c.cotizaciones || 0}</span></td>
+                <td>
+                    <div class="clientes-acciones">
+                        <button class="btn-icon btn-edit-cliente" data-id="${c.id}"><i class="bi bi-pencil"></i></button>
+                        <button class="btn-icon btn-delete-cliente" data-id="${c.id}" data-nombre="${c.nombre}"><i class="bi bi-trash3"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    // Eventos
+    tbody.querySelectorAll(".btn-edit-cliente").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const cliente = clientesDB.find(c => c.id === btn.dataset.id);
+            if (cliente) abrirModalCliente(cliente);
+        });
+    });
+
+    tbody.querySelectorAll(".btn-delete-cliente").forEach(btn => {
+        btn.addEventListener("click", () => {
+            showConfirm("Eliminar cliente", `¿Eliminar a "${btn.dataset.nombre}"? Esta accion no se puede deshacer.`, async () => {
+                await deleteDoc(doc(db, "clientes", btn.dataset.id));
+                cargarClientes();
+            });
+        });
+    });
+}
+
+// Guardar cliente automaticamente al crear cotizacion
+async function guardarClienteDesdeCotzacion(datos) {
+    if (!datos.cliente) return;
+    // Verificar si ya existe
+    const existe = clientesDB.find(c =>
+        c.nombre.toLowerCase() === datos.cliente.toLowerCase() &&
+        (c.nit || "") === (datos.nit || "")
+    );
+    if (existe) {
+        // Actualizar cotizaciones count
+        const ref = doc(db, "clientes", existe.id);
+        await setDoc(ref, { ...existe, cotizaciones: (existe.cotizaciones || 0) + 1 });
+        return;
+    }
+    // Crear nuevo
+    const id = datos.cliente.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Date.now().toString(36);
+    await setDoc(doc(db, "clientes", id), {
+        nombre: datos.cliente,
+        nit: datos.nit || "",
+        negocio: datos.negocio || "",
+        telefono: datos.telefono || "",
+        direccion: datos.direccion || "",
+        ciudad: datos.ciudad || "",
+        cotizaciones: 1,
+        fechaCreacion: new Date().toISOString()
+    });
+    // Recargar
+    await cargarClientes();
 }
