@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguimiento de Orden - Traffic</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { max-width: 600px; width: 100%; }
+        .logo-wrap { text-align: center; margin-bottom: 24px; }
+        .logo-wrap img { height: 48px; }
+        .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden; }
+        .card-header { background: linear-gradient(135deg, #29ABE2, #1a8fc4); color: #fff; padding: 28px 28px 20px; }
+        .card-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+        .card-header .subtitle { font-size: 14px; opacity: 0.85; }
+        .order-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 28px; border-bottom: 1px solid #f0f0f0; }
+        .order-info-item { }
+        .order-info-item .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .order-info-item .value { font-size: 15px; color: #222; font-weight: 500; margin-top: 2px; }
+        .tracking-section { padding: 28px; }
+        .tracking-section h3 { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .timeline { position: relative; padding-left: 36px; }
+        .timeline::before { content: ''; position: absolute; left: 14px; top: 8px; bottom: 8px; width: 3px; background: #e8e8e8; border-radius: 2px; }
+        .timeline-step { position: relative; padding-bottom: 28px; }
+        .timeline-step:last-child { padding-bottom: 0; }
+        .timeline-dot { position: absolute; left: -36px; top: 2px; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; z-index: 2; border: 3px solid #e8e8e8; background: #fff; color: #ccc; transition: all 0.3s; }
+        .timeline-step.completado .timeline-dot { background: #16a34a; border-color: #16a34a; color: #fff; }
+        .timeline-step.activo .timeline-dot { background: #29ABE2; border-color: #29ABE2; color: #fff; animation: pulse 2s infinite; }
+        .timeline-step.pendiente .timeline-dot { background: #fff; border-color: #e0e0e0; color: #ccc; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(41, 171, 226, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(41, 171, 226, 0); } }
+        .timeline-content { }
+        .timeline-title { font-size: 15px; font-weight: 600; color: #222; }
+        .timeline-step.pendiente .timeline-title { color: #aaa; }
+        .timeline-desc { font-size: 13px; color: #666; margin-top: 3px; }
+        .timeline-step.pendiente .timeline-desc { color: #ccc; }
+        .timeline-date { font-size: 11px; color: #29ABE2; font-weight: 600; margin-top: 4px; }
+        .terminado-banner { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; padding: 20px 28px; text-align: center; margin: 20px 28px 28px; border-radius: 12px; }
+        .terminado-banner i { font-size: 32px; margin-bottom: 8px; display: block; }
+        .terminado-banner h3 { font-size: 18px; margin-bottom: 4px; }
+        .terminado-banner p { font-size: 13px; opacity: 0.9; }
+        .error-state { text-align: center; padding: 60px 20px; }
+        .error-state i { font-size: 48px; color: #ccc; }
+        .error-state h2 { margin-top: 12px; color: #444; font-size: 20px; }
+        .error-state p { color: #888; margin-top: 8px; font-size: 14px; }
+        @media (max-width: 500px) {
+            .order-info { grid-template-columns: 1fr; gap: 10px; }
+            .card-header { padding: 22px 20px 16px; }
+            .tracking-section { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-wrap">
+            <img src="public/img/logo.png" alt="Traffic">
+        </div>
+        <div class="card" id="mainCard">
+            <div class="card-header">
+                <h1 id="ordenNumero">Cargando...</h1>
+                <span class="subtitle" id="ordenSubtitle">Seguimiento de orden</span>
+            </div>
+            <div class="order-info" id="orderInfo">
+                <div class="order-info-item">
+                    <div class="label">Cliente</div>
+                    <div class="value" id="segCliente">-</div>
+                </div>
+                <div class="order-info-item">
+                    <div class="label">Tipo</div>
+                    <div class="value" id="segTipo">-</div>
+                </div>
+                <div class="order-info-item">
+                    <div class="label">Fecha de pedido</div>
+                    <div class="value" id="segFechaPedido">-</div>
+                </div>
+                <div class="order-info-item">
+                    <div class="label">Entrega estimada</div>
+                    <div class="value" id="segFechaEntrega">-</div>
+                </div>
+            </div>
+            <div class="tracking-section">
+                <h3>Estado del pedido</h3>
+                <div class="timeline" id="timeline"></div>
+            </div>
+            <div id="terminadoBanner" style="display:none;"></div>
+        </div>
+    </div>
+    <script type="module" src="assets/js/seguimiento.js"></script>
+</body>
+</html>

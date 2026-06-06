@@ -23,7 +23,11 @@
                 <i class="bi bi-clipboard-check"></i>
                 <span>Ordenes</span>
             </a>
-            <a class="nav-item" data-section="disenos" data-role="administrador,ventas">
+            <a class="nav-item" data-section="seguimiento" data-role="administrador,ordenes">
+                <i class="bi bi-truck"></i>
+                <span>Seguimiento</span>
+            </a>
+            <a class="nav-item" data-section="disenos" data-role="administrador,ventas,ordenes">
                 <i class="bi bi-brush"></i>
                 <span>Diseños</span>
             </a>
@@ -339,6 +343,32 @@
                     </div>
                 </div>
 
+            </div>
+
+            <!-- ===== SECCION: SEGUIMIENTO ===== -->
+            <div class="section" id="section-seguimiento">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-truck"></i> Seguimiento de Ordenes</h2>
+                </div>
+
+                <!-- Filtros -->
+                <div class="seguimiento-filtros">
+                    <button class="seg-filtro-btn active" data-filtro="todos">Todos</button>
+                    <button class="seg-filtro-btn" data-filtro="recibido">Recibidos</button>
+                    <button class="seg-filtro-btn" data-filtro="diseno">En diseño</button>
+                    <button class="seg-filtro-btn" data-filtro="produccion">En producción</button>
+                    <button class="seg-filtro-btn" data-filtro="calidad">Control calidad</button>
+                    <button class="seg-filtro-btn" data-filtro="terminado">Terminados</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body" id="seguimientoLista">
+                        <div class="empty-state">
+                            <i class="bi bi-truck"></i>
+                            <p>Cargando seguimiento...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- ===== SECCION: DISEÑOS (aprobaciones) ===== -->
@@ -1058,7 +1088,11 @@
             <i class="bi bi-clipboard-check"></i>
             <span>Ordenes</span>
         </a>
-        <a class="bottom-nav-item" data-section="disenos" data-role="administrador,ventas">
+        <a class="bottom-nav-item" data-section="seguimiento" data-role="administrador,ordenes">
+            <i class="bi bi-truck"></i>
+            <span>Seguimiento</span>
+        </a>
+        <a class="bottom-nav-item" data-section="disenos" data-role="administrador,ventas,ordenes">
             <i class="bi bi-brush"></i>
             <span>Diseños</span>
         </a>

@@ -3645,3 +3645,226 @@ body {
     .clientes-tabla { font-size: 12px; }
     .clientes-tabla thead th, .clientes-tabla tbody td { padding: 10px 8px; }
 }
+
+/* ===== SEGUIMIENTO ===== */
+.seguimiento-filtros {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.seg-filtro-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1.5px solid #e0e0e0;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.seg-filtro-btn:hover {
+    border-color: #29ABE2;
+    color: #29ABE2;
+}
+
+.seg-filtro-btn.active {
+    background: #29ABE2;
+    border-color: #29ABE2;
+    color: #fff;
+}
+
+.seg-orden-card {
+    background: #fff;
+    border: 1.5px solid #f0f0f0;
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+}
+
+.seg-orden-card:hover {
+    border-color: #29ABE2;
+    box-shadow: 0 2px 12px rgba(41, 171, 226, 0.08);
+}
+
+.seg-orden-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.seg-orden-info {
+    flex: 1;
+}
+
+.seg-orden-numero {
+    font-size: 15px;
+    font-weight: 700;
+    color: #222;
+}
+
+.seg-orden-cliente {
+    font-size: 13px;
+    color: #666;
+    margin-top: 2px;
+}
+
+.seg-estado-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.seg-estado-badge.recibido { background: #f0f9ff; color: #0284c7; }
+.seg-estado-badge.diseno { background: #fdf4ff; color: #a21caf; }
+.seg-estado-badge.produccion { background: #fff7ed; color: #c2410c; }
+.seg-estado-badge.calidad { background: #fefce8; color: #a16207; }
+.seg-estado-badge.terminado { background: #f0fdf4; color: #16a34a; }
+
+.seg-timeline-mini {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 14px;
+}
+
+.seg-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    border: 2.5px solid #e0e0e0;
+    background: #fff;
+    color: #ccc;
+    flex-shrink: 0;
+    transition: all 0.3s;
+}
+
+.seg-step-dot.completado {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #fff;
+}
+
+.seg-step-dot.activo {
+    background: #29ABE2;
+    border-color: #29ABE2;
+    color: #fff;
+}
+
+.seg-step-line {
+    height: 3px;
+    flex: 1;
+    background: #e8e8e8;
+    transition: background 0.3s;
+}
+
+.seg-step-line.completado {
+    background: #16a34a;
+}
+
+.seg-orden-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.seg-btn-avanzar {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: none;
+    background: #29ABE2;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.2s;
+}
+
+.seg-btn-avanzar:hover {
+    background: #1a8fc4;
+}
+
+.seg-btn-avanzar.terminado {
+    background: #16a34a;
+}
+
+.seg-btn-avanzar.terminado:hover {
+    background: #15803d;
+}
+
+.seg-btn-retroceder {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1.5px solid #e0e0e0;
+    background: #fff;
+    color: #666;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.seg-btn-retroceder:hover {
+    border-color: #f87171;
+    color: #dc2626;
+}
+
+.seg-btn-link {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1.5px solid #16a34a;
+    background: #f0fdf4;
+    color: #16a34a;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.seg-btn-link:hover {
+    background: #16a34a;
+    color: #fff;
+}
+
+@media (max-width: 600px) {
+    .seguimiento-filtros {
+        gap: 6px;
+    }
+    .seg-filtro-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    .seg-orden-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .seg-orden-actions {
+        width: 100%;
+    }
+}

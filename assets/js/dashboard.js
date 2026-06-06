@@ -124,6 +124,12 @@ async function initDashboard(rol, nombre) {
         cargarFinanzas();
     }
 
+    // Seguimiento (admin y ordenes)
+    if (rol === "administrador" || rol === "ordenes") {
+        setupSeguimiento();
+        cargarSeguimiento();
+    }
+
     // Cargar ordenes para todos los roles
     cargarOrdenes(rol);
     cargarDisenosAprobados(rol);
@@ -197,7 +203,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -2113,8 +2119,8 @@ async function guardarOrdenDiseno(orden) {
 }
 // ===== SECCION DISEÑOS (ordenes de diseño con estado) =====
 async function cargarDisenosAprobados(rolUsuario) {
-    // Admin y ventas usan esta seccion
-    if (rolUsuario !== "administrador" && rolUsuario !== "ventas") return;
+    // Admin, ventas y ordenes usan esta seccion
+    if (rolUsuario !== "administrador" && rolUsuario !== "ventas" && rolUsuario !== "ordenes") return;
 
     const containerDigital = document.getElementById("listaDisenosDigital");
     const containerImprenta = document.getElementById("listaDisenosImprenta");
@@ -2126,8 +2132,8 @@ async function cargarDisenosAprobados(rolUsuario) {
         snap.forEach(d => disenos.push({ id: d.id, ...d.data() }));
         disenos.sort((a, b) => (b.fechaCreacion || "").localeCompare(a.fechaCreacion || ""));
 
-        // Si no es administrador, filtrar solo las creadas por este usuario
-        if (rolUsuario !== "administrador") {
+        // Si no es administrador ni ordenes, filtrar solo las creadas por este usuario
+        if (rolUsuario !== "administrador" && rolUsuario !== "ordenes") {
             const currentUser = sessionStorage.getItem("userName") || "";
             const currentEmail = sessionStorage.getItem("userEmail") || "";
             disenos = disenos.filter(d => {
@@ -2446,7 +2452,10 @@ async function enviarAProduccion(cot, tipoProd, items) {
         montoPagado:  cot.montoPagado || cot.total,
         comprobante:  cot.comprobante || "",
         estado:       "en_produccion",
+        pasoActual:   "recibido",
+        seguimiento:  { recibido: new Date().toISOString() },
         fechaEnvio:   new Date().toISOString(),
+        fechaEntrega: cot.fechaEntrega || "",
         creadoPor:    cot.creadoPor || sessionStorage.getItem("userName") || "",
         creadoPorEmail: cot.creadoPorEmail || sessionStorage.getItem("userEmail") || ""
     });
@@ -2468,6 +2477,164 @@ async function enviarAProduccion(cot, tipoProd, items) {
 
     // Recargar ordenes
     cargarOrdenes(rol);
+}
+
+// ===== SEGUIMIENTO DE ORDENES =====
+const PASOS_SEGUIMIENTO = [
+    { key: "recibido",    icon: "bi-inbox",         title: "Recibido" },
+    { key: "diseno",      icon: "bi-brush",         title: "Diseño" },
+    { key: "produccion",  icon: "bi-gear",          title: "Producción" },
+    { key: "calidad",     icon: "bi-check2-square", title: "Calidad" },
+    { key: "terminado",   icon: "bi-bag-check",     title: "Terminado" }
+];
+
+let seguimientoFiltro = "todos";
+
+function setupSeguimiento() {
+    const filtros = document.querySelectorAll(".seg-filtro-btn");
+    filtros.forEach(btn => {
+        btn.addEventListener("click", () => {
+            filtros.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            seguimientoFiltro = btn.dataset.filtro;
+            cargarSeguimiento();
+        });
+    });
+}
+
+async function cargarSeguimiento() {
+    const container = document.getElementById("seguimientoLista");
+    if (!container) return;
+
+    try {
+        const snap = await getDocs(collection(db, "produccion"));
+        let ordenes = [];
+        snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
+        ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+
+        // Asignar paso por defecto a órdenes sin seguimiento
+        ordenes.forEach(o => {
+            if (!o.pasoActual) o.pasoActual = "recibido";
+        });
+
+        // Filtrar
+        if (seguimientoFiltro !== "todos") {
+            ordenes = ordenes.filter(o => o.pasoActual === seguimientoFiltro);
+        }
+
+        if (ordenes.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-truck"></i><p>No hay ordenes en este estado</p></div>';
+            return;
+        }
+
+        container.innerHTML = "";
+        ordenes.forEach(orden => {
+            const card = document.createElement("div");
+            card.className = "seg-orden-card";
+
+            const pasoActual = orden.pasoActual || "recibido";
+            const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
+
+            // Mini timeline
+            let timelineHtml = '';
+            PASOS_SEGUIMIENTO.forEach((paso, idx) => {
+                let estado = idx < idxActual ? "completado" : idx === idxActual ? "activo" : "";
+                timelineHtml += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
+                if (idx < PASOS_SEGUIMIENTO.length - 1) {
+                    timelineHtml += `<div class="seg-step-line ${idx < idxActual ? "completado" : ""}"></div>`;
+                }
+            });
+
+            // Estado badge
+            const estadoLabels = { recibido: "Recibido", diseno: "En diseño", produccion: "En producción", calidad: "Control calidad", terminado: "Terminado" };
+            const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", produccion: "bi-gear", calidad: "bi-check2-square", terminado: "bi-bag-check" };
+
+            // Botones de acción (solo admin puede avanzar/retroceder)
+            let actionsHtml = '';
+            if (rol === "administrador") {
+                if (idxActual < PASOS_SEGUIMIENTO.length - 1) {
+                    const siguiente = PASOS_SEGUIMIENTO[idxActual + 1];
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="${siguiente.key}"><i class="bi bi-arrow-right"></i> ${siguiente.title}</button>`;
+                }
+                if (idxActual > 0) {
+                    const anterior = PASOS_SEGUIMIENTO[idxActual - 1];
+                    actionsHtml += `<button class="seg-btn-retroceder" data-id="${orden.id}" data-paso="${anterior.key}"><i class="bi bi-arrow-left"></i> ${anterior.title}</button>`;
+                }
+            }
+            // Link de seguimiento para compartir
+            if (pasoActual === "terminado") {
+                actionsHtml += `<button class="seg-btn-link" data-id="${orden.id}"><i class="bi bi-link-45deg"></i> Copiar link cliente</button>`;
+            }
+
+            const fechaEnvio = orden.fechaEnvio ? new Date(orden.fechaEnvio).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
+
+            card.innerHTML = `
+                <div class="seg-orden-header">
+                    <div class="seg-orden-info">
+                        <div class="seg-orden-numero">${orden.numero} <span style="font-weight:400;color:#888;font-size:12px;">&bull; ${orden.tipo}</span></div>
+                        <div class="seg-orden-cliente">${orden.cliente} &bull; ${fechaEnvio}</div>
+                    </div>
+                    <span class="seg-estado-badge ${pasoActual}"><i class="bi ${estadoIcons[pasoActual]}"></i> ${estadoLabels[pasoActual]}</span>
+                </div>
+                <div class="seg-timeline-mini">${timelineHtml}</div>
+                <div class="seg-orden-actions">${actionsHtml}</div>
+            `;
+
+            container.appendChild(card);
+        });
+
+        // Eventos avanzar
+        container.querySelectorAll(".seg-btn-avanzar").forEach(btn => {
+            btn.addEventListener("click", async () => {
+                const id = btn.dataset.id;
+                const paso = btn.dataset.paso;
+                await actualizarPasoOrden(id, paso);
+            });
+        });
+
+        // Eventos retroceder
+        container.querySelectorAll(".seg-btn-retroceder").forEach(btn => {
+            btn.addEventListener("click", async () => {
+                const id = btn.dataset.id;
+                const paso = btn.dataset.paso;
+                await actualizarPasoOrden(id, paso);
+            });
+        });
+
+        // Eventos copiar link
+        container.querySelectorAll(".seg-btn-link").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+                const link = baseUrl + "seguimiento.html?id=" + id;
+                copyToClipboard(link).then(() => {
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                    setTimeout(() => { btn.innerHTML = '<i class="bi bi-link-45deg"></i> Copiar link cliente'; }, 2000);
+                });
+            });
+        });
+
+    } catch (err) {
+        console.error("Error cargando seguimiento:", err);
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
+    }
+}
+
+async function actualizarPasoOrden(ordenId, nuevoPaso) {
+    try {
+        const ref = doc(db, "produccion", ordenId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+        const seguimiento = data.seguimiento || {};
+        seguimiento[nuevoPaso] = new Date().toISOString();
+
+        await setDoc(ref, { ...data, pasoActual: nuevoPaso, seguimiento });
+        cargarSeguimiento();
+    } catch (err) {
+        console.error("Error actualizando paso:", err);
+    }
 }
 
 // ===== LOGOUT =====
