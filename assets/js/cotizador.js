@@ -90,7 +90,9 @@ export async function crearCotizacion(datos) {
         fechaCreacion: new Date().toISOString(),
         fechaAprobacion: "",
         fechaActual: datos.fechaActual || "",
-        fechaEntrega: datos.fechaEntrega || ""
+        fechaEntrega: datos.fechaEntrega || "",
+        creadoPor: datos.creadoPor || "",
+        creadoPorEmail: datos.creadoPorEmail || ""
     };
 
     await setDoc(doc(db, "cotizaciones", id), cotizacion);
@@ -98,11 +100,17 @@ export async function crearCotizacion(datos) {
 }
 
 // ===== OBTENER COTIZACIONES =====
-export async function obtenerCotizaciones() {
+export async function obtenerCotizaciones(filtroUsuario) {
     const snap = await getDocs(collection(db, "cotizaciones"));
-    const lista = [];
+    let lista = [];
     snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
     lista.sort((a, b) => b.fechaCreacion.localeCompare(a.fechaCreacion));
+    // Filtrar por usuario si se proporciona
+    if (filtroUsuario && filtroUsuario.email) {
+        lista = lista.filter(c =>
+            c.creadoPorEmail === filtroUsuario.email || c.creadoPor === filtroUsuario.nombre
+        );
+    }
     return lista;
 }
 

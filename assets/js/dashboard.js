@@ -55,10 +55,21 @@ async function initDashboard(rol, nombre) {
         weekday: "short", day: "numeric", month: "short"
     });
 
-    if (rol !== "administrador" && rol !== "ventas") {
+    if (rol !== "administrador" && rol !== "ventas" && rol !== "ordenes") {
         document.querySelectorAll("[data-role]").forEach(el => {
             const roles = el.dataset.role.split(",");
             if (!roles.includes(rol)) {
+                el.style.display = "none";
+            }
+        });
+        activateSection("ordenes");
+    }
+
+    // Rol ordenes: solo ve ordenes
+    if (rol === "ordenes") {
+        document.querySelectorAll("[data-role]").forEach(el => {
+            const roles = el.dataset.role.split(",");
+            if (!roles.includes("ordenes")) {
                 el.style.display = "none";
             }
         });
@@ -107,6 +118,12 @@ async function initDashboard(rol, nombre) {
         cargarClientes();
     }
 
+    // Ventas: finanzas propias
+    if (rol === "ventas") {
+        setupFinanzas();
+        cargarFinanzas();
+    }
+
     // Cargar ordenes para todos los roles
     cargarOrdenes(rol);
     cargarDisenosAprobados(rol);
@@ -137,6 +154,7 @@ function setupOrdenesByRole(rol) {
         rolTabBar.style.display = "flex";
         tabPendientes.classList.add("active");
     }
+    // El rol "ordenes" ve ambos tabs igual que admin
 }
 
 // ===== FORMATO MONEDA =====
@@ -590,7 +608,7 @@ function setupCotizador() {
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
         } else {
             // Crear nueva
-            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago });
+            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
             // Guardar cliente en base de datos
             await guardarClienteDesdeCotzacion({ cliente, nit, negocio, telefono, direccion, ciudad });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
@@ -1128,7 +1146,13 @@ async function agregarNuevoProductoDesdeSelect() {
 async function cargarListaCotizaciones() {
     const container = document.getElementById("listaCotizaciones");
     try {
-        const lista = await obtenerCotizaciones();
+        // Si no es admin, filtrar por usuario
+        let lista;
+        if (rol === "administrador") {
+            lista = await obtenerCotizaciones();
+        } else {
+            lista = await obtenerCotizaciones({ email: sessionStorage.getItem("userEmail"), nombre: sessionStorage.getItem("userName") });
+        }
 
         if (lista.length === 0) {
             container.innerHTML = '<div class="empty-state"><i class="bi bi-file-earmark-text"></i><p>No hay cotizaciones creadas</p></div>';
@@ -1435,10 +1459,20 @@ async function cargarOrdenes(rolUsuario) {
         ordenesDisenoDB = {};
         snapDiseno.forEach(d => { ordenesDisenoDB[d.id] = { id: d.id, ...d.data() }; });
 
-        if (rolUsuario === "administrador" || rolUsuario === "ventas") {
-            // Admin y ventas ven todo en tabs digital/imprenta
+        if (rolUsuario === "administrador" || rolUsuario === "ordenes") {
+            // Admin y ordenes ven todo en tabs digital/imprenta
             renderOrdenesPorTipo(ordenes, "digital", "ordenesDigitalLista", rolUsuario);
             renderOrdenesPorTipo(ordenes, "imprenta", "ordenesImprentaLista", rolUsuario);
+        } else if (rolUsuario === "ventas") {
+            // Ventas solo ve sus propias órdenes
+            const currentUser = sessionStorage.getItem("userName") || "";
+            const currentEmail = sessionStorage.getItem("userEmail") || "";
+            const misOrdenes = ordenes.filter(o =>
+                o.creadoPor === currentUser || o.creadoPorEmail === currentEmail ||
+                (!o.creadoPor && !o.creadoPorEmail) // órdenes antiguas sin dueño
+            );
+            renderOrdenesPorTipo(misOrdenes, "digital", "ordenesDigitalLista", rolUsuario);
+            renderOrdenesPorTipo(misOrdenes, "imprenta", "ordenesImprentaLista", rolUsuario);
         } else {
             // Imprenta/Digital: separar en pendientes y con diseño respondido
             const tipoRol = rolUsuario; // "imprenta" o "digital"
@@ -1551,25 +1585,13 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Si es admin, filtrar por tipo. Si es ventas, filtrar por tipo y por diseños propios.
+    // Si es admin u ordenes, filtrar por tipo. Si es ventas, filtrar por tipo y por propiedad.
     let filtradas;
-    if (rolUsuario === "administrador") {
+    if (rolUsuario === "administrador" || rolUsuario === "ordenes") {
         filtradas = ordenes.filter(o => o.tipo === tipo);
     } else if (rolUsuario === "ventas") {
-        const currentUser = sessionStorage.getItem("userName") || "";
-        const currentEmail = sessionStorage.getItem("userEmail") || "";
-        filtradas = ordenes.filter(o => {
-            if (o.tipo !== tipo) return false;
-            // Si tiene diseño creado por otro usuario, no mostrarlo
-            const disenoId = o.id + "-diseno";
-            const diseno = ordenesDisenoDB[disenoId];
-            if (diseno && diseno.creadoPor && diseno.creadoPorEmail) {
-                // Tiene dueño asignado, solo mostrar si es mío
-                return diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
-            }
-            // Sin diseño o sin dueño asignado (orden antigua), mostrar a todos
-            return true;
-        });
+        // Ventas ya recibe solo sus órdenes desde cargarOrdenes, solo filtrar por tipo
+        filtradas = ordenes.filter(o => o.tipo === tipo);
     } else {
         filtradas = ordenes;
     }
@@ -1647,6 +1669,9 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
             ? `<button class="btn-copiar-link-diseno" data-id="${orden.id}"><i class="bi bi-link-45deg"></i> Copiar link</button>`
             : "";
 
+        // El rol "ordenes" solo ve, no crea/edita diseños
+        const btnDisenoHtml = rolUsuario === "ordenes" ? "" : `<button class="${btnDisenoClass}" data-id="${orden.id}">${btnDisenoLabel}</button>`;
+
         html += `
             <tr class="${filaClass}">
                 <td><strong>${orden.numero}</strong> ${disenoEstadoBadge}</td>
@@ -1658,9 +1683,7 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
                             <i class="bi bi-eye"></i> Ver mas
                         </button>
                         ${btnCopyLink}
-                        <button class="${btnDisenoClass}" data-id="${orden.id}">
-                            ${btnDisenoLabel}
-                        </button>
+                        ${btnDisenoHtml}
                     </div>
                 </td>
             </tr>
@@ -2423,7 +2446,9 @@ async function enviarAProduccion(cot, tipoProd, items) {
         montoPagado:  cot.montoPagado || cot.total,
         comprobante:  cot.comprobante || "",
         estado:       "en_produccion",
-        fechaEnvio:   new Date().toISOString()
+        fechaEnvio:   new Date().toISOString(),
+        creadoPor:    cot.creadoPor || sessionStorage.getItem("userName") || "",
+        creadoPorEmail: cot.creadoPorEmail || sessionStorage.getItem("userEmail") || ""
     });
 
     // Actualizar estado de la cotizacion
@@ -2479,11 +2504,21 @@ async function cargarFinanzas() {
         const todas = [];
         snap.forEach(d => todas.push({ id: d.id, ...d.data() }));
 
+        // Si no es admin, filtrar solo las cotizaciones propias
+        let cotizacionesBase = todas;
+        if (rol !== "administrador") {
+            const currentUser = sessionStorage.getItem("userName") || "";
+            const currentEmail = sessionStorage.getItem("userEmail") || "";
+            cotizacionesBase = todas.filter(c =>
+                c.creadoPorEmail === currentEmail || c.creadoPor === currentUser
+            );
+        }
+
         // Filtrar por mes/año
         const filtroMes = document.getElementById("finanzasFiltroMes").value;
         const filtroAnio = document.getElementById("finanzasFiltroAnio").value;
 
-        let filtradas = todas.filter(c => c.estado === "aprobada");
+        let filtradas = cotizacionesBase.filter(c => c.estado === "aprobada");
 
         if (filtroMes !== "" || filtroAnio !== "") {
             filtradas = filtradas.filter(c => {

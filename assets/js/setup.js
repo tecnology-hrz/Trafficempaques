@@ -13,7 +13,8 @@ const usuarios = [
     { id: "admin",    email: "admin@traffic.com",    password: "Traffic2026!", nombre: "Administrador",    rol: "administrador" },
     { id: "ventas",   email: "ventas@traffic.com",   password: "Traffic2026!", nombre: "Usuario Ventas",   rol: "ventas"        },
     { id: "digital",  email: "digital@traffic.com",  password: "Traffic2026!", nombre: "Usuario Digital",  rol: "digital"       },
-    { id: "imprenta", email: "imprenta@traffic.com", password: "Traffic2026!", nombre: "Usuario Imprenta", rol: "imprenta"      }
+    { id: "imprenta", email: "imprenta@traffic.com", password: "Traffic2026!", nombre: "Usuario Imprenta", rol: "imprenta"      },
+    { id: "ordenes",  email: "ordenes@traffic.com",  password: "Traffic2026!", nombre: "Usuario Ordenes",  rol: "ordenes"       }
 ];
 
 document.getElementById("btnSetup").addEventListener("click", async () => {
