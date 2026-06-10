@@ -254,6 +254,13 @@ body {
     color: #bbb;
 }
 
+.dev-credit {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #ccc;
+    letter-spacing: 0.5px;
+}
+
 /* Loader */
 .spinner {
     display: inline-block;
