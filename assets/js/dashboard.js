@@ -108,14 +108,16 @@ async function initDashboard(rol, nombre) {
         setupModalDetalle();
     }
 
+    // Clientes: visible para todos los roles
+    setupClientes();
+    cargarClientes();
+
     // Solo admin
     if (rol === "administrador") {
         setupUsuarios();
         cargarUsuarios();
         setupFinanzas();
         cargarFinanzas();
-        setupClientes();
-        cargarClientes();
     }
 
     // Ventas: finanzas propias
