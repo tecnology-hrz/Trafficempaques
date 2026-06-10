@@ -126,11 +126,9 @@ async function initDashboard(rol, nombre) {
         cargarFinanzas();
     }
 
-    // Seguimiento (admin y ordenes)
-    if (rol === "administrador" || rol === "ordenes") {
-        setupSeguimiento();
-        cargarSeguimiento();
-    }
+    // Seguimiento: visible para todos los roles
+    setupSeguimiento();
+    cargarSeguimiento();
 
     // Cargar ordenes para todos los roles
     cargarOrdenes(rol);
@@ -2551,9 +2549,10 @@ async function cargarSeguimiento() {
             const estadoLabels = { recibido: "Recibido", diseno: "En diseño", produccion: "En producción", calidad: "Control calidad", terminado: "Terminado" };
             const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", produccion: "bi-gear", calidad: "bi-check2-square", terminado: "bi-bag-check" };
 
-            // Botones de acción (solo admin puede avanzar/retroceder)
+            // Botones de acción según rol y paso actual
             let actionsHtml = '';
             if (rol === "administrador") {
+                // Admin: control total, avanzar y retroceder cualquier paso
                 if (idxActual < PASOS_SEGUIMIENTO.length - 1) {
                     const siguiente = PASOS_SEGUIMIENTO[idxActual + 1];
                     actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="${siguiente.key}"><i class="bi bi-arrow-right"></i> ${siguiente.title}</button>`;
@@ -2561,6 +2560,24 @@ async function cargarSeguimiento() {
                 if (idxActual > 0) {
                     const anterior = PASOS_SEGUIMIENTO[idxActual - 1];
                     actionsHtml += `<button class="seg-btn-retroceder" data-id="${orden.id}" data-paso="${anterior.key}"><i class="bi bi-arrow-left"></i> ${anterior.title}</button>`;
+                }
+            } else if (rol === "ventas") {
+                // Ventas: puede avanzar de recibido a diseño
+                if (pasoActual === "recibido") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="diseno"><i class="bi bi-arrow-right"></i> Enviar a Diseño</button>`;
+                }
+            } else if (rol === "digital" || rol === "imprenta") {
+                // Diseño: puede avanzar de diseño a producción
+                if (pasoActual === "diseno") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="produccion"><i class="bi bi-arrow-right"></i> Enviar a Producción</button>`;
+                }
+            } else if (rol === "ordenes") {
+                // Ordenes: puede avanzar de producción a calidad, y de calidad a terminado
+                if (pasoActual === "produccion") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="calidad"><i class="bi bi-arrow-right"></i> Enviar a Calidad</button>`;
+                }
+                if (pasoActual === "calidad") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="terminado"><i class="bi bi-arrow-right"></i> Marcar Terminado</button>`;
                 }
             }
             // Link de seguimiento para compartir
