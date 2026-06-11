@@ -90,6 +90,18 @@
                             <i class="bi bi-plus-lg"></i> Nueva cotizacion
                         </button>
                     </div>
+                    <div class="cotizaciones-filtros">
+                        <div class="input-wrapper filtro-busqueda">
+                            <i class="bi bi-search input-icon"></i>
+                            <input type="text" id="cotizacionesBuscar" placeholder="Buscar por cliente, numero o negocio...">
+                        </div>
+                        <select id="cotizacionesFiltroEstado">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente">Pendiente</option>
+                            <option value="aprobada">Aprobada</option>
+                            <option value="rechazada">Rechazada</option>
+                        </select>
+                    </div>
                     <div class="card">
                         <div class="card-body" id="listaCotizaciones">
                             <div class="empty-state">
@@ -1089,7 +1101,7 @@
             <i class="bi bi-clipboard-check"></i>
             <span>Ordenes</span>
         </a>
-        <a class="bottom-nav-item" data-section="seguimiento" data-role="administrador,ordenes">
+        <a class="bottom-nav-item" data-section="seguimiento">
             <i class="bi bi-truck"></i>
             <span>Seguimiento</span>
         </a>
@@ -1101,7 +1113,7 @@
             <i class="bi bi-people"></i>
             <span>Usuarios</span>
         </a>
-        <a class="bottom-nav-item" data-section="clientes" data-role="administrador">
+        <a class="bottom-nav-item" data-section="clientes">
             <i class="bi bi-person-lines-fill"></i>
             <span>Clientes</span>
         </a>

@@ -533,6 +533,12 @@ function setupCotizador() {
     const btnGuardar = document.getElementById("btnGuardarCotizacion");
     const tipoSelect = document.getElementById("cotTipo");
 
+    // Filtros de cotizaciones
+    const inputBuscar = document.getElementById("cotizacionesBuscar");
+    const selectEstado = document.getElementById("cotizacionesFiltroEstado");
+    if (inputBuscar) inputBuscar.addEventListener("input", () => renderListaCotizaciones());
+    if (selectEstado) selectEstado.addEventListener("change", () => renderListaCotizaciones());
+
     btnNueva.addEventListener("click", () => {
         cotItems = [];
         document.getElementById("cotCliente").value  = "";
@@ -612,6 +618,10 @@ function setupCotizador() {
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
+            // Mostrar link para re-enviar al cliente
+            const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+            const link = baseUrl + "cotizacion.html?id=" + editId;
+            showLinkModal("Cotizacion actualizada", "Comparte este link actualizado con el cliente:", link);
         } else {
             // Crear nueva
             const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
@@ -1149,6 +1159,8 @@ async function agregarNuevoProductoDesdeSelect() {
 }
 
 // ===== LISTA COTIZACIONES =====
+let cotizacionesListaCache = [];
+
 async function cargarListaCotizaciones() {
     const container = document.getElementById("listaCotizaciones");
     try {
@@ -1160,13 +1172,44 @@ async function cargarListaCotizaciones() {
             lista = await obtenerCotizaciones({ email: sessionStorage.getItem("userEmail"), nombre: sessionStorage.getItem("userName") });
         }
 
-        if (lista.length === 0) {
-            container.innerHTML = '<div class="empty-state"><i class="bi bi-file-earmark-text"></i><p>No hay cotizaciones creadas</p></div>';
-            return;
-        }
+        cotizacionesListaCache = lista;
+        renderListaCotizaciones();
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<div class="list-empty"><i class="bi bi-exclamation-triangle"></i> Error al cargar</div>';
+    }
+}
 
-        container.innerHTML = "";
-        lista.forEach(cot => {
+function renderListaCotizaciones() {
+    const container = document.getElementById("listaCotizaciones");
+    const busqueda = (document.getElementById("cotizacionesBuscar")?.value || "").trim().toLowerCase();
+    const filtroEstado = document.getElementById("cotizacionesFiltroEstado")?.value || "";
+
+    let lista = cotizacionesListaCache;
+
+    // Filtrar por búsqueda
+    if (busqueda) {
+        lista = lista.filter(c =>
+            (c.cliente || "").toLowerCase().includes(busqueda) ||
+            (c.numero || "").toLowerCase().includes(busqueda) ||
+            (c.negocio || "").toLowerCase().includes(busqueda) ||
+            (c.nit || "").toLowerCase().includes(busqueda) ||
+            (c.tipo || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    // Filtrar por estado
+    if (filtroEstado) {
+        lista = lista.filter(c => c.estado === filtroEstado);
+    }
+
+    if (lista.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-file-earmark-text"></i><p>No se encontraron cotizaciones</p></div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    lista.forEach(cot => {
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
             const link = baseUrl + "cotizacion.html?id=" + cot.id;
             const fecha = new Date(cot.fechaCreacion);
@@ -1202,42 +1245,37 @@ async function cargarListaCotizaciones() {
                 </div>
             `;
             container.appendChild(item);
-        });
+    });
 
-        // Enviar a produccion
-        container.querySelectorAll(".btn-enviar-prod").forEach(btn => {
-            btn.addEventListener("click", async (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                await abrirDetalleAprobada(id);
+    // Enviar a produccion
+    container.querySelectorAll(".btn-enviar-prod").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            await abrirDetalleAprobada(id);
+        });
+    });
+
+    // Copiar link
+    container.querySelectorAll(".btn-copiar-link").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            copyToClipboard(btn.dataset.link).then(() => {
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                setTimeout(() => { btn.innerHTML = '<i class="bi bi-link-45deg"></i> Copiar link'; }, 2000);
             });
         });
+    });
 
-        // Copiar link
-        container.querySelectorAll(".btn-copiar-link").forEach(btn => {
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                copyToClipboard(btn.dataset.link).then(() => {
-                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
-                    setTimeout(() => { btn.innerHTML = '<i class="bi bi-link-45deg"></i> Copiar link'; }, 2000);
-                });
-            });
+    // Mas acciones - abre modal con editar/eliminar
+    container.querySelectorAll(".btn-mas-acciones").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            abrirModalAcciones(id, name);
         });
-
-        // Mas acciones - abre modal con editar/eliminar
-        container.querySelectorAll(".btn-mas-acciones").forEach(btn => {
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                const name = btn.dataset.name;
-                abrirModalAcciones(id, name);
-            });
-        });
-
-    } catch (err) {
-        console.error(err);
-        container.innerHTML = '<div class="list-empty"><i class="bi bi-exclamation-triangle"></i> Error al cargar</div>';
-    }
+    });
 }
 
 function abrirModalAcciones(cotId, cotName) {
