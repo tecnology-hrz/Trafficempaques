@@ -201,7 +201,10 @@
                         <div class="card">
                             <div class="card-header">
                                 <span class="card-title"><i class="bi bi-list-check"></i> Productos / Servicios</span>
-                                <button class="btn-add" id="btnAddItem"><i class="bi bi-plus-lg"></i></button>
+                                <div class="card-header-actions">
+                                    <button class="btn-add btn-add-temp" id="btnAddTempItem" title="Producto temporal"><i class="bi bi-clock-history"></i></button>
+                                    <button class="btn-add" id="btnAddItem"><i class="bi bi-plus-lg"></i></button>
+                                </div>
                             </div>
                             <div class="card-body" id="cotItemsContainer">
                                 <div class="empty-state" id="cotItemsEmpty">
@@ -1130,6 +1133,38 @@
             <span>Salir</span>
         </a>
     </nav>
+
+    <!-- Modal Producto Temporal -->
+    <div class="modal-overlay" id="tempProductoOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="bi bi-clock-history"></i> Producto temporal</h3>
+                <button class="modal-close" id="tempProductoClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="temp-producto-note"><i class="bi bi-info-circle"></i> Este producto solo se agregara a esta cotizacion. No se guarda en el catalogo.</p>
+                <div class="modal-field">
+                    <label>Nombre del producto</label>
+                    <input type="text" id="tempProductoNombre" placeholder="Ej: Caja de pizza">
+                </div>
+                <div class="modal-field">
+                    <label>Precio unitario</label>
+                    <div class="input-money">
+                        <span class="input-money-prefix">$</span>
+                        <input type="text" id="tempProductoPrecio" placeholder="0" inputmode="numeric">
+                    </div>
+                </div>
+                <div class="modal-field">
+                    <label>Cantidad</label>
+                    <input type="text" id="tempProductoCantidad" value="1" inputmode="numeric">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="tempProductoCancel">Cancelar</button>
+                <button class="btn-save" id="tempProductoAdd"><i class="bi bi-plus-lg"></i> Agregar</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="assets/js/dashboard.js"></script>
 </body>

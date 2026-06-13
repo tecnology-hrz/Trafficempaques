@@ -814,6 +814,7 @@ body {
     grid-template-columns: 2.5fr 0.7fr 1fr 1fr 1fr 1fr 1fr 1fr auto;
     gap: 10px;
     align-items: end;
+    position: relative;
 }
 
 .cot-item.has-tipo {
@@ -3921,4 +3922,54 @@ body {
     .seg-orden-actions {
         width: 100%;
     }
+}
+
+/* ===== CARD HEADER ACTIONS ===== */
+.card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ===== BTN PRODUCTO TEMPORAL ===== */
+.btn-add-temp {
+    background: #f59e0b;
+}
+
+.btn-add-temp:hover {
+    background: #d97706;
+}
+
+/* ===== NOTA PRODUCTO TEMPORAL ===== */
+.temp-producto-note {
+    font-size: 12px;
+    color: #666;
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.temp-producto-note i {
+    color: #f59e0b;
+    font-size: 14px;
+}
+
+/* ===== BADGE TEMPORAL EN ITEM ===== */
+.cot-item-temp-badge {
+    position: absolute;
+    top: 8px;
+    right: 40px;
+    font-size: 10px;
+    background: #fef3c7;
+    color: #92400e;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }

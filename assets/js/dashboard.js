@@ -572,6 +572,12 @@ function setupCotizador() {
         renderCotItems();
     });
 
+    // Producto temporal
+    const btnAddTemp = document.getElementById("btnAddTempItem");
+    btnAddTemp.addEventListener("click", () => {
+        openTempProductoModal();
+    });
+
     btnGuardar.addEventListener("click", async () => {
         const cliente  = document.getElementById("cotCliente").value.trim();
         const nit      = document.getElementById("cotNit").value.trim();
@@ -710,6 +716,7 @@ function renderCotItems() {
         ` : "";
 
         div.innerHTML = `
+            ${item.temporal ? '<span class="cot-item-temp-badge"><i class="bi bi-clock-history"></i> Temporal</span>' : ''}
             ${tipoField}
             <div class="form-field">
                 <label>Producto</label>
@@ -852,6 +859,64 @@ function calcularTotales() {
     const total = cotItems.reduce((sum, item) => sum + (item.cantidad * item.precioUnit), 0);
     document.getElementById("cotTotal").textContent = "$" + formatMoneyLocal(total);
 }
+
+// ===== PRODUCTO TEMPORAL =====
+function openTempProductoModal() {
+    document.getElementById("tempProductoNombre").value = "";
+    document.getElementById("tempProductoPrecio").value = "";
+    document.getElementById("tempProductoCantidad").value = "1";
+    document.getElementById("tempProductoOverlay").classList.add("show");
+    setTimeout(() => document.getElementById("tempProductoNombre").focus(), 100);
+}
+
+function closeTempProductoModal() {
+    document.getElementById("tempProductoOverlay").classList.remove("show");
+}
+
+(function setupTempProductoModal() {
+    const overlay = document.getElementById("tempProductoOverlay");
+    const btnClose = document.getElementById("tempProductoClose");
+    const btnCancel = document.getElementById("tempProductoCancel");
+    const btnAdd = document.getElementById("tempProductoAdd");
+    const inputPrecio = document.getElementById("tempProductoPrecio");
+    const inputCantidad = document.getElementById("tempProductoCantidad");
+
+    if (!overlay) return;
+
+    formatInputMoney(inputPrecio);
+
+    btnClose.addEventListener("click", closeTempProductoModal);
+    btnCancel.addEventListener("click", closeTempProductoModal);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeTempProductoModal(); });
+
+    btnAdd.addEventListener("click", () => {
+        const nombre = document.getElementById("tempProductoNombre").value.trim();
+        const precio = parseMoneyLocal(inputPrecio.value);
+        const cantidad = parseInt(inputCantidad.value) || 1;
+
+        if (!nombre) {
+            document.getElementById("tempProductoNombre").focus();
+            return;
+        }
+
+        const tipo = document.getElementById("cotTipo").value;
+        cotItems.push({
+            producto: nombre,
+            cantidad: cantidad,
+            precioUnit: precio,
+            terminados: [],
+            colores: [],
+            materiales: [],
+            planchas: [],
+            tipo: tipo === "ambas" ? "imprenta" : tipo,
+            temporal: true
+        });
+
+        closeTempProductoModal();
+        renderCotItems();
+        calcularTotales();
+    });
+})();
 
 // ===== MODAL MULTISELECT (Terminados / Colores) =====
 let multiSelectType = ""; // "terminados" o "colores"
