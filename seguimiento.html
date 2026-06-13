@@ -41,6 +41,36 @@
         .terminado-banner i { font-size: 32px; margin-bottom: 8px; display: block; }
         .terminado-banner h3 { font-size: 18px; margin-bottom: 4px; }
         .terminado-banner p { font-size: 13px; opacity: 0.9; }
+
+        /* Sección pago restante */
+        .pago-restante-section { padding: 20px 28px 28px; border-top: 1px solid #f0f0f0; }
+        .pago-restante-card { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 12px; padding: 20px; }
+        .pago-restante-card h3 { font-size: 16px; color: #92400e; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .pago-restante-card .monto-pendiente { font-size: 28px; font-weight: 700; color: #d97706; margin: 8px 0 16px; }
+        .pago-restante-card .pago-info { font-size: 13px; color: #78350f; margin-bottom: 16px; }
+        .pago-metodos { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+        .pago-metodo-btn { padding: 10px 16px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .pago-metodo-btn:hover { border-color: #29ABE2; }
+        .pago-metodo-btn.selected { border-color: #29ABE2; background: #eff6ff; color: #1d4ed8; }
+        .pago-datos-seg { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 16px; display: none; }
+        .pago-datos-seg h4 { font-size: 13px; color: #475569; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .pago-datos-seg .dato { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+        .pago-datos-seg .dato span { font-weight: 600; color: #334155; }
+        .comp-upload-area { margin-bottom: 16px; }
+        .btn-upload-seg { padding: 10px 18px; background: #29ABE2; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s; }
+        .btn-upload-seg:hover { background: #1a8fc4; }
+        .btn-upload-seg:disabled { background: #94a3b8; cursor: not-allowed; }
+        .comp-preview-seg { margin-top: 10px; }
+        .comp-preview-seg img { max-width: 120px; border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer; }
+        .btn-confirmar-pago { width: 100%; padding: 14px; background: #16a34a; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+        .btn-confirmar-pago:hover { background: #15803d; }
+        .btn-confirmar-pago:disabled { background: #94a3b8; cursor: not-allowed; }
+        .pago-completado { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; padding: 20px; border-radius: 12px; text-align: center; }
+        .pago-completado i { font-size: 32px; margin-bottom: 8px; display: block; }
+        .pago-completado h3 { font-size: 16px; margin-bottom: 4px; }
+        .pago-completado p { font-size: 13px; opacity: 0.9; }
+        .spinner-seg { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .error-state { text-align: center; padding: 60px 20px; }
         .error-state i { font-size: 48px; color: #ccc; }
         .error-state h2 { margin-top: 12px; color: #444; font-size: 20px; }
@@ -85,6 +115,7 @@
                 <div class="timeline" id="timeline"></div>
             </div>
             <div id="terminadoBanner" style="display:none;"></div>
+            <div id="pagoRestanteSection" style="display:none;"></div>
         </div>
     </div>
     <script type="module" src="assets/js/seguimiento.js"></script>
