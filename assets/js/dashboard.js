@@ -76,6 +76,12 @@ async function initDashboard(rol, nombre) {
         activateSection("ordenes");
     }
 
+    // Roles de area (guillotina, impresion, troquelado, vasos, empaques): solo ven seguimiento
+    const rolesArea = ["guillotina", "impresion", "troquelado", "vasos", "empaques"];
+    if (rolesArea.includes(rol)) {
+        activateSection("seguimiento");
+    }
+
     // Rol ventas: ocultar solo lo que no le corresponde
     if (rol === "ventas") {
         document.querySelectorAll("[data-role]").forEach(el => {
@@ -151,7 +157,8 @@ function setupOrdenesByRole(rol) {
     const tabPendientes = document.getElementById("tab-pendientes");
     const tabDisenosAprobados = document.getElementById("tab-disenosAprobados");
 
-    if (rol === "digital" || rol === "imprenta") {
+    const rolesArea = ["digital", "imprenta", "diseno", "guillotina", "impresion", "troquelado", "vasos", "empaques"];
+    if (rolesArea.includes(rol)) {
         tabBar.style.display = "none";
         tabDigital.style.display = "none";
         tabDigital.classList.remove("active");
@@ -2586,8 +2593,11 @@ async function enviarAProduccion(cot, tipoProd, items) {
 const PASOS_SEGUIMIENTO = [
     { key: "recibido",    icon: "bi-inbox",         title: "Recibido" },
     { key: "diseno",      icon: "bi-brush",         title: "Diseño" },
-    { key: "produccion",  icon: "bi-gear",          title: "Producción" },
-    { key: "calidad",     icon: "bi-check2-square", title: "Calidad" },
+    { key: "guillotina",  icon: "bi-scissors",      title: "Guillotina" },
+    { key: "impresion",   icon: "bi-printer",       title: "Impresión" },
+    { key: "troquelado",  icon: "bi-hexagon",       title: "Troquelado" },
+    { key: "vasos",       icon: "bi-cup-straw",     title: "Vasos" },
+    { key: "empaques",    icon: "bi-box-seam",      title: "Empaques" },
     { key: "terminado",   icon: "bi-bag-check",     title: "Terminado" }
 ];
 
@@ -2649,8 +2659,8 @@ async function cargarSeguimiento() {
             });
 
             // Estado badge
-            const estadoLabels = { recibido: "Recibido", diseno: "En diseño", produccion: "En producción", calidad: "Control calidad", terminado: "Terminado" };
-            const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", produccion: "bi-gear", calidad: "bi-check2-square", terminado: "bi-bag-check" };
+            const estadoLabels = { recibido: "Recibido", diseno: "En diseño", guillotina: "Guillotina", impresion: "Impresión", troquelado: "Troquelado", vasos: "Vasos", empaques: "Empaques", terminado: "Terminado" };
+            const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", guillotina: "bi-scissors", impresion: "bi-printer", troquelado: "bi-hexagon", vasos: "bi-cup-straw", empaques: "bi-box-seam", terminado: "bi-bag-check" };
 
             // Botones de acción según rol y paso actual
             let actionsHtml = '';
@@ -2669,18 +2679,41 @@ async function cargarSeguimiento() {
                 if (pasoActual === "recibido") {
                     actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="diseno"><i class="bi bi-arrow-right"></i> Enviar a Diseño</button>`;
                 }
-            } else if (rol === "digital" || rol === "imprenta") {
-                // Diseño: puede avanzar de diseño a producción
+            } else if (rol === "diseno" || rol === "digital" || rol === "imprenta") {
+                // Diseño: puede avanzar de diseño a guillotina
                 if (pasoActual === "diseno") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="produccion"><i class="bi bi-arrow-right"></i> Enviar a Producción</button>`;
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="guillotina"><i class="bi bi-arrow-right"></i> Enviar a Guillotina</button>`;
+                }
+            } else if (rol === "guillotina") {
+                // Guillotina: puede avanzar a impresión
+                if (pasoActual === "guillotina") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="impresion"><i class="bi bi-arrow-right"></i> Enviar a Impresión</button>`;
+                }
+            } else if (rol === "impresion") {
+                // Impresión: puede avanzar a troquelado
+                if (pasoActual === "impresion") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="troquelado"><i class="bi bi-arrow-right"></i> Enviar a Troquelado</button>`;
+                }
+            } else if (rol === "troquelado") {
+                // Troquelado: puede avanzar a vasos
+                if (pasoActual === "troquelado") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="vasos"><i class="bi bi-arrow-right"></i> Enviar a Vasos</button>`;
+                }
+            } else if (rol === "vasos") {
+                // Vasos: puede avanzar a empaques
+                if (pasoActual === "vasos") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="empaques"><i class="bi bi-arrow-right"></i> Enviar a Empaques</button>`;
+                }
+            } else if (rol === "empaques") {
+                // Empaques: puede avanzar a terminado
+                if (pasoActual === "empaques") {
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="terminado"><i class="bi bi-arrow-right"></i> Marcar Terminado</button>`;
                 }
             } else if (rol === "ordenes") {
-                // Ordenes: puede avanzar de producción a calidad, y de calidad a terminado
-                if (pasoActual === "produccion") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="calidad"><i class="bi bi-arrow-right"></i> Enviar a Calidad</button>`;
-                }
-                if (pasoActual === "calidad") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="terminado"><i class="bi bi-arrow-right"></i> Marcar Terminado</button>`;
+                // Ordenes: puede avanzar cualquier paso en producción
+                if (idxActual < PASOS_SEGUIMIENTO.length - 1) {
+                    const siguiente = PASOS_SEGUIMIENTO[idxActual + 1];
+                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="${siguiente.key}"><i class="bi bi-arrow-right"></i> ${siguiente.title}</button>`;
                 }
             }
             // Link de seguimiento para compartir

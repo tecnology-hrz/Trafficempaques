@@ -371,9 +371,12 @@
                 <div class="seguimiento-filtros">
                     <button class="seg-filtro-btn active" data-filtro="todos">Todos</button>
                     <button class="seg-filtro-btn" data-filtro="recibido">Recibidos</button>
-                    <button class="seg-filtro-btn" data-filtro="diseno">En diseño</button>
-                    <button class="seg-filtro-btn" data-filtro="produccion">En producción</button>
-                    <button class="seg-filtro-btn" data-filtro="calidad">Control calidad</button>
+                    <button class="seg-filtro-btn" data-filtro="diseno">Diseño</button>
+                    <button class="seg-filtro-btn" data-filtro="guillotina">Guillotina</button>
+                    <button class="seg-filtro-btn" data-filtro="impresion">Impresión</button>
+                    <button class="seg-filtro-btn" data-filtro="troquelado">Troquelado</button>
+                    <button class="seg-filtro-btn" data-filtro="vasos">Vasos</button>
+                    <button class="seg-filtro-btn" data-filtro="empaques">Empaques</button>
                     <button class="seg-filtro-btn" data-filtro="terminado">Terminados</button>
                 </div>
 
@@ -953,7 +956,7 @@
 
     <!-- ===== MODAL USUARIO ===== -->
     <div class="modal-overlay" id="usuarioOverlay">
-        <div class="modal">
+        <div class="modal modal-usuario">
             <div class="modal-header">
                 <h3 id="usuarioModalTitle">Nuevo Usuario</h3>
                 <button class="modal-close" id="usuarioClose"><i class="bi bi-x-lg"></i></button>
@@ -993,6 +996,30 @@
                         <button type="button" class="rol-option" data-rol="ordenes">
                             <i class="bi bi-clipboard-check"></i>
                             <span>Ordenes</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="diseno">
+                            <i class="bi bi-brush"></i>
+                            <span>Diseño</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="guillotina">
+                            <i class="bi bi-scissors"></i>
+                            <span>Guillotina</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="impresion">
+                            <i class="bi bi-printer-fill"></i>
+                            <span>Impresión</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="troquelado">
+                            <i class="bi bi-hexagon"></i>
+                            <span>Troquelado</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="vasos">
+                            <i class="bi bi-cup-straw"></i>
+                            <span>Vasos</span>
+                        </button>
+                        <button type="button" class="rol-option" data-rol="empaques">
+                            <i class="bi bi-box-seam"></i>
+                            <span>Empaques</span>
                         </button>
                     </div>
                     <input type="hidden" id="usuarioRol" value="digital">

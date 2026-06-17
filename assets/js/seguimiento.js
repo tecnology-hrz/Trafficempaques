@@ -15,8 +15,11 @@ if (!ordenId) {
 const PASOS = [
     { key: "recibido",    icon: "bi-inbox",         title: "Pedido recibido",     desc: "Tu orden fue recibida y confirmada" },
     { key: "diseno",      icon: "bi-brush",         title: "En diseño",           desc: "Estamos trabajando en el diseño de tu producto" },
-    { key: "produccion",  icon: "bi-gear",          title: "En producción",       desc: "Tu producto esta siendo fabricado" },
-    { key: "calidad",     icon: "bi-check2-square", title: "Control de calidad",  desc: "Verificando que todo este perfecto" },
+    { key: "guillotina",  icon: "bi-scissors",      title: "Guillotina",          desc: "Tu producto esta en corte de guillotina" },
+    { key: "impresion",   icon: "bi-printer",       title: "Impresión",           desc: "Tu producto esta siendo impreso" },
+    { key: "troquelado",  icon: "bi-hexagon",       title: "Troquelado",          desc: "Tu producto esta en proceso de troquelado" },
+    { key: "vasos",       icon: "bi-cup-straw",     title: "Vasos",               desc: "Tu producto esta en el area de vasos" },
+    { key: "empaques",    icon: "bi-box-seam",      title: "Empaques",            desc: "Tu producto esta siendo empacado" },
     { key: "terminado",   icon: "bi-bag-check",     title: "Terminado",           desc: "Tu pedido esta listo para recoger" }
 ];
 

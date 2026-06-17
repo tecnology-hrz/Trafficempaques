@@ -191,6 +191,13 @@ body {
 .role-badge.ventas        { background: #ecfdf5; color: #059669; }
 .role-badge.digital       { background: #e8f7fd; color: #1a90c8; }
 .role-badge.imprenta      { background: #f0f0f0; color: #555; }
+.role-badge.ordenes       { background: #fff7ed; color: #d97706; }
+.role-badge.diseno        { background: #fdf2f8; color: #db2777; }
+.role-badge.guillotina    { background: #fef3c7; color: #92400e; }
+.role-badge.impresion     { background: #ede9fe; color: #7c3aed; }
+.role-badge.troquelado    { background: #ecfdf5; color: #047857; }
+.role-badge.vasos         { background: #fff1f2; color: #e11d48; }
+.role-badge.empaques      { background: #f0fdf4; color: #166534; }
 
 /* ===== PAGE CONTENT ===== */
 .page-content {
@@ -978,6 +985,14 @@ body {
 .user-item-avatar.administrador { background: #222; color: #29ABE2; }
 .user-item-avatar.digital       { background: #29ABE2; }
 .user-item-avatar.imprenta      { background: #555; }
+.user-item-avatar.ventas        { background: #059669; }
+.user-item-avatar.ordenes       { background: #d97706; }
+.user-item-avatar.diseno        { background: #db2777; }
+.user-item-avatar.guillotina    { background: #92400e; }
+.user-item-avatar.impresion     { background: #7c3aed; }
+.user-item-avatar.troquelado    { background: #047857; }
+.user-item-avatar.vasos         { background: #e11d48; }
+.user-item-avatar.empaques      { background: #166534; }
 
 .user-item-info {
     flex: 1;
@@ -1016,6 +1031,14 @@ body {
 .user-item-role.role-administrador { background: #222; color: #29ABE2; }
 .user-item-role.role-digital       { background: #e8f7fd; color: #1a90c8; }
 .user-item-role.role-imprenta      { background: #f0f0f0; color: #555; }
+.user-item-role.role-ventas        { background: #ecfdf5; color: #059669; }
+.user-item-role.role-ordenes       { background: #fff7ed; color: #d97706; }
+.user-item-role.role-diseno        { background: #fdf2f8; color: #db2777; }
+.user-item-role.role-guillotina    { background: #fef3c7; color: #92400e; }
+.user-item-role.role-impresion     { background: #ede9fe; color: #7c3aed; }
+.user-item-role.role-troquelado    { background: #ecfdf5; color: #047857; }
+.user-item-role.role-vasos         { background: #fff1f2; color: #e11d48; }
+.user-item-role.role-empaques      { background: #f0fdf4; color: #166534; }
 
 .user-item-actions {
     display: flex;
@@ -2244,23 +2267,23 @@ body {
 
 /* ===== ROL SELECTOR (usuarios) ===== */
 .rol-selector {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
 }
 
 .rol-option {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 14px 10px;
+    padding: 12px 8px;
     border: 2px solid #e8eaed;
     border-radius: 10px;
     background: #fafbfc;
     cursor: pointer;
     transition: all 0.2s;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     color: #666;
 }
@@ -2285,6 +2308,10 @@ body {
 
 .rol-option.active i {
     color: #29ABE2;
+}
+
+.modal-usuario {
+    max-width: 520px;
 }
 
 /* ===== CONFIGURACION TABS + TABLAS ===== */
@@ -3704,9 +3731,9 @@ body {
 /* ===== SEGUIMIENTO ===== */
 .seguimiento-filtros {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 16px;
-    overflow-x: auto;
     padding-bottom: 4px;
 }
 
