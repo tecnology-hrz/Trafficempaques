@@ -3709,6 +3709,53 @@ body {
     font-size: 14px;
 }
 
+.finanzas-comprobantes-cell {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.finanzas-metodo-extra {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 2px 6px;
+    background: #ecfdf5;
+    color: #059669;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.finanzas-pagos-filtros {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.finanzas-filtro-pago {
+    padding: 6px 12px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.finanzas-filtro-pago:hover {
+    border-color: #29ABE2;
+    color: #29ABE2;
+}
+
+.finanzas-filtro-pago.active {
+    background: #29ABE2;
+    border-color: #29ABE2;
+    color: #fff;
+}
+
 @media (max-width: 768px) {
     .clientes-header-actions {
         flex-direction: column;

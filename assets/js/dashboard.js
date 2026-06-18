@@ -2818,6 +2818,15 @@ function setupFinanzas() {
 
     filtroMes.addEventListener("change", cargarFinanzas);
     filtroAnio.addEventListener("change", cargarFinanzas);
+
+    // Filtros de estado de pago en la tabla
+    document.querySelectorAll(".finanzas-filtro-pago").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".finanzas-filtro-pago").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            cargarFinanzas();
+        });
+    });
 }
 
 async function cargarFinanzas() {
@@ -2825,6 +2834,54 @@ async function cargarFinanzas() {
         const snap = await getDocs(collection(db, "cotizaciones"));
         const todas = [];
         snap.forEach(d => todas.push({ id: d.id, ...d.data() }));
+
+        // Cruzar con produccion para recuperar pagos restantes antiguos
+        // (cuando se pagaba el saldo restante solo se actualizaba produccion)
+        try {
+            const prodSnap = await getDocs(collection(db, "produccion"));
+            const prodPorCotizacion = {};
+            prodSnap.forEach(d => {
+                const data = d.data();
+                if (data.pagoRestanteCompletado && data.cotizacionId) {
+                    // Si una cotizacion tiene varias producciones (ambas), nos quedamos con la primera con pago restante
+                    if (!prodPorCotizacion[data.cotizacionId]) {
+                        prodPorCotizacion[data.cotizacionId] = data;
+                    }
+                }
+            });
+
+            // Reconciliar y persistir si hace falta
+            for (const cot of todas) {
+                const prod = prodPorCotizacion[cot.id];
+                if (!prod) continue;
+                if (cot.pagoRestanteCompletado) continue; // ya esta sincronizado
+
+                const totalCot = parseInt(cot.total) || 0;
+                cot.montoPagado = totalCot;
+                cot.pagoRestanteCompletado = true;
+                cot.pagoRestanteMetodo = prod.pagoRestanteMetodo || "";
+                cot.pagoRestanteComprobante = prod.pagoRestanteComprobante || "";
+                cot.pagoRestanteFecha = prod.pagoRestanteFecha || "";
+                cot.pagoRestanteMonto = prod.pagoRestanteMonto || 0;
+
+                // Persistir el cambio en cotizaciones para que quede arreglado
+                try {
+                    await setDoc(doc(db, "cotizaciones", cot.id), {
+                        ...cot,
+                        montoPagado: totalCot,
+                        pagoRestanteCompletado: true,
+                        pagoRestanteMetodo: cot.pagoRestanteMetodo,
+                        pagoRestanteComprobante: cot.pagoRestanteComprobante,
+                        pagoRestanteFecha: cot.pagoRestanteFecha,
+                        pagoRestanteMonto: cot.pagoRestanteMonto
+                    });
+                } catch (e) {
+                    console.warn("No se pudo sincronizar cotizacion " + cot.id, e);
+                }
+            }
+        } catch (errProd) {
+            console.warn("No se pudo cruzar con produccion:", errProd);
+        }
 
         // Si no es admin, filtrar solo las cotizaciones propias
         let cotizacionesBase = todas;
@@ -2977,13 +3034,40 @@ function renderDetalleServicio(containerId, cotizaciones, tipo) {
 function renderTablaFinanzas(cotizaciones) {
     const tbody = document.getElementById("finanzasTablaBody");
 
-    if (cotizaciones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="tabla-empty">No hay pagos registrados en este periodo</td></tr>';
+    // Aplicar filtro de estado de pago
+    const filtroPago = document.querySelector(".finanzas-filtro-pago.active")?.dataset.filtroPago || "todos";
+    let cotsFiltradas = cotizaciones;
+    if (filtroPago === "pendientes") {
+        cotsFiltradas = cotizaciones.filter(c => {
+            const total = parseInt(c.total) || 0;
+            const pagado = parseInt(c.montoPagado) || 0;
+            return (total - pagado) > 0;
+        });
+    } else if (filtroPago === "restante") {
+        cotsFiltradas = cotizaciones.filter(c => !!c.pagoRestanteCompletado);
+    } else if (filtroPago === "pagados") {
+        cotsFiltradas = cotizaciones.filter(c => {
+            const total = parseInt(c.total) || 0;
+            const pagado = parseInt(c.montoPagado) || 0;
+            return (total - pagado) <= 0;
+        });
+    } else if (filtroPago === "comp1") {
+        cotsFiltradas = cotizaciones.filter(c => {
+            const tieneInicial = !!c.comprobante;
+            const tieneRestante = !!c.pagoRestanteComprobante;
+            return (tieneInicial ? 1 : 0) + (tieneRestante ? 1 : 0) === 1;
+        });
+    } else if (filtroPago === "comp2") {
+        cotsFiltradas = cotizaciones.filter(c => !!c.comprobante && !!c.pagoRestanteComprobante);
+    }
+
+    if (cotsFiltradas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="tabla-empty">No hay pagos registrados con este filtro</td></tr>';
         return;
     }
 
     // Ordenar por fecha más reciente
-    const sorted = [...cotizaciones].sort((a, b) => (b.fechaAprobacion || "").localeCompare(a.fechaAprobacion || ""));
+    const sorted = [...cotsFiltradas].sort((a, b) => (b.fechaAprobacion || "").localeCompare(a.fechaAprobacion || ""));
 
     tbody.innerHTML = sorted.map(cot => {
         const total = parseInt(cot.total) || 0;
@@ -2996,22 +3080,45 @@ function renderTablaFinanzas(cotizaciones) {
                 ? '<span class="finanzas-tipo-badge imprenta"><i class="bi bi-printer"></i> Imprenta</span>'
                 : '<span class="finanzas-tipo-badge ambas"><i class="bi bi-layers"></i> Ambas</span>';
         const metodo = cot.metodoPago || "-";
+        const tieneRestante = !!cot.pagoRestanteCompletado;
+        const metodoTexto = tieneRestante && cot.pagoRestanteMetodo
+            ? `${metodo.charAt(0).toUpperCase() + metodo.slice(1)} <span class="finanzas-metodo-extra">+ ${cot.pagoRestanteMetodo.charAt(0).toUpperCase() + cot.pagoRestanteMetodo.slice(1)}</span>`
+            : metodo.charAt(0).toUpperCase() + metodo.slice(1);
         const estadoPago = saldo <= 0
-            ? '<span class="finanzas-estado-badge pagado"><i class="bi bi-check-circle"></i> Pagado</span>'
+            ? (tieneRestante
+                ? '<span class="finanzas-estado-badge pagado"><i class="bi bi-check-circle"></i> Pago completado</span>'
+                : '<span class="finanzas-estado-badge pagado"><i class="bi bi-check-circle"></i> Pagado</span>')
             : '<span class="finanzas-estado-badge pendiente"><i class="bi bi-clock"></i> Saldo pendiente</span>';
+
+        // Comprobantes (puede haber dos: inicial y restante)
+        let comprobantesHtml = '';
+        if (cot.comprobante && cot.pagoRestanteComprobante) {
+            comprobantesHtml = `
+                <div class="finanzas-comprobantes-cell">
+                    <button class="btn-ver-comprobante" data-url="${cot.comprobante}" title="Comprobante inicial"><i class="bi bi-receipt-cutoff"></i> 1</button>
+                    <button class="btn-ver-comprobante" data-url="${cot.pagoRestanteComprobante}" title="Comprobante saldo"><i class="bi bi-receipt-cutoff"></i> 2</button>
+                </div>
+            `;
+        } else if (cot.comprobante) {
+            comprobantesHtml = `<button class="btn-ver-comprobante" data-url="${cot.comprobante}"><i class="bi bi-receipt-cutoff"></i> Ver</button>`;
+        } else if (cot.pagoRestanteComprobante) {
+            comprobantesHtml = `<button class="btn-ver-comprobante" data-url="${cot.pagoRestanteComprobante}"><i class="bi bi-receipt-cutoff"></i> Ver</button>`;
+        } else {
+            comprobantesHtml = '<span class="finanzas-no-comp">\u2014</span>';
+        }
 
         return `
             <tr>
                 <td><strong>${cot.numero}</strong></td>
                 <td>${cot.cliente}</td>
                 <td>${tipoBadge}</td>
-                <td>$${total.toLocaleString("en-US")}</td>
-                <td>$${pagado.toLocaleString("en-US")}</td>
-                <td class="${saldo > 0 ? 'finanzas-saldo-rojo' : ''}">$${saldo.toLocaleString("en-US")}</td>
-                <td>${metodo.charAt(0).toUpperCase() + metodo.slice(1)}</td>
+                <td>${total.toLocaleString("en-US")}</td>
+                <td>${pagado.toLocaleString("en-US")}</td>
+                <td class="${saldo > 0 ? 'finanzas-saldo-rojo' : ''}">${saldo.toLocaleString("en-US")}</td>
+                <td>${metodoTexto}</td>
                 <td>${fecha}</td>
                 <td>${estadoPago}</td>
-                <td>${cot.comprobante ? `<button class="btn-ver-comprobante" data-url="${cot.comprobante}"><i class="bi bi-receipt-cutoff"></i> Ver</button>` : '<span class="finanzas-no-comp">\u2014</span>'}</td>
+                <td>${comprobantesHtml}</td>
             </tr>
         `;
     }).join("");

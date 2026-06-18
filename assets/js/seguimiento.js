@@ -283,15 +283,42 @@ function setupPagoRestante(orden, saldoRestante) {
             const snap = await getDoc(ref);
             const data = snap.data();
 
+            const fechaPagoRestante = new Date().toISOString();
+            const nuevoMontoPagado = (parseInt(data.montoPagado) || 0) + saldoRestante;
+
             await setDoc(ref, {
                 ...data,
                 pagoRestanteCompletado: true,
                 pagoRestanteMetodo: metodoSeleccionado,
                 pagoRestanteComprobante: comprobanteRestanteUrl,
-                pagoRestanteFecha: new Date().toISOString(),
+                pagoRestanteFecha: fechaPagoRestante,
                 pagoRestanteMonto: saldoRestante,
-                montoPagado: (parseInt(data.montoPagado) || 0) + saldoRestante
+                montoPagado: nuevoMontoPagado
             });
+
+            // Actualizar tambien la cotizacion para que finanzas refleje el pago completado
+            const cotizacionId = data.cotizacionId;
+            if (cotizacionId) {
+                try {
+                    const cotRef = doc(db, "cotizaciones", cotizacionId);
+                    const cotSnap = await getDoc(cotRef);
+                    if (cotSnap.exists()) {
+                        const cotData = cotSnap.data();
+                        const totalCot = parseInt(cotData.total) || 0;
+                        await setDoc(cotRef, {
+                            ...cotData,
+                            montoPagado: totalCot,
+                            pagoRestanteCompletado: true,
+                            pagoRestanteMetodo: metodoSeleccionado,
+                            pagoRestanteComprobante: comprobanteRestanteUrl,
+                            pagoRestanteFecha: fechaPagoRestante,
+                            pagoRestanteMonto: saldoRestante
+                        });
+                    }
+                } catch (errCot) {
+                    console.warn("No se pudo actualizar la cotizacion:", errCot);
+                }
+            }
 
             // Mostrar confirmación
             const section = document.getElementById("pagoRestanteSection");
