@@ -1,0 +1,375 @@
+/* ===== BOTON VER CATÁLOGO ===== */
+.cot-detalle-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.cot-detalle-header h3 {
+    margin-bottom: 0 !important;
+}
+
+.btn-ver-catalogo {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #29ABE2 0%, #1a7fad 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 2px 10px rgba(41, 171, 226, 0.35);
+    white-space: nowrap;
+}
+
+.btn-ver-catalogo:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(41, 171, 226, 0.45);
+}
+
+.btn-ver-catalogo:active {
+    transform: translateY(0);
+}
+
+/* ===== MODAL CATÁLOGO ===== */
+.catalogo-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 14, 20, 0.85);
+    z-index: 3000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    backdrop-filter: blur(6px);
+}
+
+.catalogo-modal.show {
+    display: flex;
+}
+
+.catalogo-modal-content {
+    background: #fff;
+    width: 100%;
+    max-width: 1100px;
+    height: 92vh;
+    border-radius: 20px 20px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: catalogoSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes catalogoSlideUp {
+    from { transform: translateY(60px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Header del modal */
+.catalogo-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.catalogo-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #222;
+}
+
+.catalogo-modal-title i {
+    color: #29ABE2;
+    font-size: 20px;
+}
+
+.catalogo-modal-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: none;
+    background: #f5f5f5;
+    color: #555;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.catalogo-modal-close:hover {
+    background: #222;
+    color: #fff;
+}
+
+/* Tabs */
+.catalogo-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 14px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
+    background: #fafafa;
+}
+
+.catalogo-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 10px;
+    background: #f0f0f0;
+    color: #555;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.catalogo-tab i { font-size: 14px; }
+
+.catalogo-tab:hover {
+    background: #e2e2e2;
+    color: #333;
+}
+
+.catalogo-tab.active {
+    background: #29ABE2;
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(41, 171, 226, 0.35);
+}
+
+/* Select para móvil */
+.catalogo-select-wrap {
+    display: none;
+    position: relative;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #fafafa;
+}
+
+.catalogo-select {
+    width: 100%;
+    padding: 12px 40px 12px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+    background: #fff;
+    border: 2px solid #e8e8e8;
+    border-radius: 10px;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.catalogo-select:focus {
+    border-color: #29ABE2;
+}
+
+.catalogo-select-icon {
+    position: absolute;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #888;
+    pointer-events: none;
+}
+
+/* Body del catálogo */
+.catalogo-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    scrollbar-width: thin;
+    scrollbar-color: #d0d0d0 transparent;
+}
+
+.catalogo-body::-webkit-scrollbar { width: 6px; }
+.catalogo-body::-webkit-scrollbar-track { background: transparent; }
+.catalogo-body::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 3px; }
+
+/* Grid de imágenes */
+.catalogo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 14px;
+}
+
+.catalogo-item {
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8f9fa;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    aspect-ratio: 1 / 1;
+    position: relative;
+}
+
+.catalogo-item:hover {
+    transform: translateY(-3px) scale(1.02);
+    border-color: #29ABE2;
+    box-shadow: 0 8px 24px rgba(41, 171, 226, 0.2);
+}
+
+.catalogo-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.2s;
+}
+
+.catalogo-item .catalogo-item-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(41, 171, 226, 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.catalogo-item:hover .catalogo-item-overlay {
+    background: rgba(41, 171, 226, 0.12);
+}
+
+.catalogo-item-overlay i {
+    font-size: 28px;
+    color: #fff;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 0.2s, transform 0.2s;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+
+.catalogo-item:hover .catalogo-item-overlay i {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Loading placeholder */
+.catalogo-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #aaa;
+    font-size: 14px;
+    gap: 10px;
+}
+
+/* ===== ZOOM IMAGEN ===== */
+.catalogo-img-zoom {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
+    z-index: 4000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.catalogo-img-zoom.show {
+    display: flex;
+}
+
+.catalogo-img-zoom img {
+    max-width: calc(100vw - 120px);
+    max-height: 88vh;
+    border-radius: 10px;
+    object-fit: contain;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    animation: zoomFadeIn 0.2s ease;
+}
+
+@keyframes zoomFadeIn {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.catalogo-zoom-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    backdrop-filter: blur(10px);
+}
+
+.catalogo-zoom-close:hover { background: rgba(255, 255, 255, 0.28); }
+
+.catalogo-zoom-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    backdrop-filter: blur(10px);
+}
+
+.catalogo-zoom-nav:hover { background: rgba(255, 255, 255, 0.28); }
+.catalogo-zoom-nav.prev { left: 16px; }
+.catalogo-zoom-nav.next { right: 16px; }
+
+/* Responsive */
+@media (max-width: 600px) {
+    .catalogo-modal-content {
+        height: 95vh;
+        border-radius: 16px 16px 0 0;
+    }
+    .catalogo-grid {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 10px;
+    }
+    .catalogo-body { padding: 14px 16px; }
+    .catalogo-modal-header { padding: 14px 16px; }
+
+    /* Ocultar tabs, mostrar select */
+    .catalogo-tabs { display: none; }
+    .catalogo-select-wrap { display: block; }
+
+    .catalogo-zoom-nav { display: none; }
+    .catalogo-img-zoom img { max-width: 95vw; }
+}
