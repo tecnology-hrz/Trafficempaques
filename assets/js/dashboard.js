@@ -2542,6 +2542,41 @@ async function abrirDetalleAprobada(id) {
         acciones.appendChild(btnProd);
     });
 
+    // Productos adicionales para nueva cotización
+    const refContainer = document.getElementById("cotDetalleReferencias");
+    if (refContainer) {
+        const productos = cot.productosAdicionalesCotizar || cot.imagenesReferencia || [];
+        if (productos.length > 0) {
+            refContainer.style.display = "block";
+            const grid = refContainer.querySelector(".detalle-ref-grid");
+            grid.innerHTML = "";
+            productos.forEach(src => {
+                const img = document.createElement("img");
+                img.src = src;
+                img.className = "detalle-ref-img";
+                img.alt = "Producto adicional";
+                img.addEventListener("click", () => {
+                    document.getElementById("imgModalDashImg").src = src;
+                    document.getElementById("imgModalDash").classList.add("show");
+                });
+                grid.appendChild(img);
+            });
+        } else {
+            refContainer.style.display = "none";
+        }
+    }
+
+    // Comentario del cliente
+    const comentarioEl = document.getElementById("cotDetalleComentario");
+    if (comentarioEl) {
+        if (cot.comentarioCliente && cot.comentarioCliente.trim()) {
+            comentarioEl.style.display = "block";
+            comentarioEl.querySelector(".detalle-comentario-text").textContent = cot.comentarioCliente;
+        } else {
+            comentarioEl.style.display = "none";
+        }
+    }
+
     document.getElementById("cotDetalleOverlay").classList.add("show");
 }
 

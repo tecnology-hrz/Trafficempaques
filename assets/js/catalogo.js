@@ -1,3 +1,9 @@
+// Imágenes seleccionadas del catálogo para agregar a la cotización
+let imagenesSeleccionadas = [];
+
+// Callback que se llama cuando cambia la selección (lo implementa cotizacion-publica.js si existe)
+window.onCatalogoSeleccionChange = window.onCatalogoSeleccionChange || null;
+
 // Catálogo de productos - datos de cada categoría
 const CATALOGO = {
     "Comidas Principales": {
@@ -92,12 +98,14 @@ catalogoSelect.addEventListener("change", () => {
     renderCategoria(categoriaActiva);
 });
 
+// Exportar función para obtener imágenes seleccionadas
+window.getCatalogoSeleccionadas = () => [...imagenesSeleccionadas];
+
 // Renderizar grid de imágenes de una categoría
 function renderCategoria(cat) {
     const info = CATALOGO[cat];
     if (!info) return;
 
-    // Construir lista de URLs
     zoomImagenes = [];
     for (let i = 1; i <= info.count; i++) {
         zoomImagenes.push(`${info.basePath}/${i}.png`);
@@ -108,22 +116,85 @@ function renderCategoria(cat) {
 
     zoomImagenes.forEach((src, idx) => {
         const item = document.createElement("div");
-        item.className = "catalogo-item";
+        const seleccionada = imagenesSeleccionadas.includes(src);
+        item.className = "catalogo-item" + (seleccionada ? " seleccionada" : "");
+        item.dataset.src = src;
         item.innerHTML = `
             <img src="${src}" alt="Producto ${idx + 1}" loading="lazy">
-            <div class="catalogo-item-overlay"><i class="bi bi-zoom-in"></i></div>
+            <div class="catalogo-item-overlay">
+                <i class="bi bi-zoom-in catalogo-zoom-icon"></i>
+            </div>
+            ${seleccionada ? '<div class="catalogo-badge-agregada"><i class="bi bi-check-circle-fill"></i> Agregada</div>' : ''}
         `;
         item.addEventListener("click", () => abrirZoom(idx));
         grid.appendChild(item);
     });
 }
 
+function toggleSeleccion(src, itemEl) {
+    const idx = imagenesSeleccionadas.indexOf(src);
+    if (idx === -1) {
+        imagenesSeleccionadas.push(src);
+        if (itemEl && itemEl.classList) {
+            itemEl.classList.add("seleccionada");
+            // Agregar badge si no existe
+            if (!itemEl.querySelector(".catalogo-badge-agregada")) {
+                const badge = document.createElement("div");
+                badge.className = "catalogo-badge-agregada";
+                badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> Agregada';
+                itemEl.appendChild(badge);
+            }
+        }
+    } else {
+        imagenesSeleccionadas.splice(idx, 1);
+        if (itemEl && itemEl.classList) {
+            itemEl.classList.remove("seleccionada");
+            const badge = itemEl.querySelector(".catalogo-badge-agregada");
+            if (badge) badge.remove();
+        }
+    }
+    if (typeof window.onCatalogoSeleccionChange === "function") {
+        window.onCatalogoSeleccionChange(imagenesSeleccionadas);
+    }
+    actualizarContadorCatalogo();
+}
+
+function actualizarContadorCatalogo() {
+    const count = imagenesSeleccionadas.length;
+    const existing = document.getElementById("catalogoSelCount");
+    if (count > 0) {
+        if (!existing) {
+            const badge = document.createElement("span");
+            badge.id = "catalogoSelCount";
+            badge.className = "catalogo-sel-badge";
+            badge.textContent = count;
+            btnVerCatalogo.appendChild(badge);
+        } else {
+            existing.textContent = count;
+        }
+    } else if (existing) {
+        existing.remove();
+    }
+}
+
 // Zoom
 function abrirZoom(idx) {
     zoomIndex = idx;
-    catalogoZoomImg.src = zoomImagenes[idx];
+    const src = zoomImagenes[idx];
+    catalogoZoomImg.src = src;
     catalogoImgZoom.classList.add("show");
     actualizarNavZoom();
+    actualizarBtnZoomAgregar(src);
+}
+
+function actualizarBtnZoomAgregar(src) {
+    const btn = document.getElementById("catalogoZoomBtnAgregar");
+    if (!btn) return;
+    const seleccionada = imagenesSeleccionadas.includes(src);
+    btn.className = "catalogo-zoom-btn-agregar" + (seleccionada ? " agregada" : "");
+    btn.innerHTML = seleccionada
+        ? '<i class="bi bi-check-circle-fill"></i> Agregado para nueva cotización'
+        : '<i class="bi bi-plus-circle"></i> Agregar para nueva cotización';
 }
 
 function cerrarZoom() {
@@ -145,6 +216,7 @@ catalogoZoomPrev.addEventListener("click", () => {
         zoomIndex--;
         catalogoZoomImg.src = zoomImagenes[zoomIndex];
         actualizarNavZoom();
+        actualizarBtnZoomAgregar(zoomImagenes[zoomIndex]);
     }
 });
 
@@ -153,8 +225,22 @@ catalogoZoomNext.addEventListener("click", () => {
         zoomIndex++;
         catalogoZoomImg.src = zoomImagenes[zoomIndex];
         actualizarNavZoom();
+        actualizarBtnZoomAgregar(zoomImagenes[zoomIndex]);
     }
 });
+
+// Botón agregar en el zoom
+const catalogoZoomBtnAgregar = document.getElementById("catalogoZoomBtnAgregar");
+if (catalogoZoomBtnAgregar) {
+    catalogoZoomBtnAgregar.addEventListener("click", () => {
+        const src = zoomImagenes[zoomIndex];
+        // Buscar el itemEl en el grid actual (si existe)
+        const grid = document.getElementById("catalogoGrid");
+        const itemEl = grid ? grid.querySelector(`[data-src="${CSS.escape(src)}"]`) : null;
+        toggleSeleccion(src, itemEl || { classList: { add: ()=>{}, remove: ()=>{} }, querySelector: ()=>null });
+        actualizarBtnZoomAgregar(src);
+    });
+}
 
 // Teclado: flechas y ESC
 document.addEventListener("keydown", (e) => {

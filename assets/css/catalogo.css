@@ -36,6 +36,29 @@
     transform: translateY(0);
 }
 
+/* Badge contador en botón ver catálogo */
+.btn-ver-catalogo {
+    position: relative;
+}
+
+.catalogo-sel-badge {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    background: #22c55e;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    pointer-events: none;
+}
+
 /* ===== MODAL CATÁLOGO ===== */
 .catalogo-modal {
     position: fixed;
@@ -243,7 +266,7 @@
 .catalogo-item .catalogo-item-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(41, 171, 226, 0);
+    background: rgba(10, 20, 40, 0);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -251,21 +274,48 @@
 }
 
 .catalogo-item:hover .catalogo-item-overlay {
-    background: rgba(41, 171, 226, 0.12);
+    background: rgba(10, 20, 40, 0.45);
 }
 
-.catalogo-item-overlay i {
-    font-size: 28px;
+.catalogo-zoom-icon {
+    font-size: 30px;
     color: #fff;
     opacity: 0;
     transform: scale(0.7);
     transition: opacity 0.2s, transform 0.2s;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    pointer-events: none;
 }
 
-.catalogo-item:hover .catalogo-item-overlay i {
+.catalogo-item:hover .catalogo-zoom-icon {
     opacity: 1;
     transform: scale(1);
+}
+
+/* Badge "Agregada" fijo en esquina inferior */
+.catalogo-badge-agregada {
+    position: absolute;
+    bottom: 7px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #22c55e;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    pointer-events: none;
+}
+
+/* Item seleccionado */
+.catalogo-item.seleccionada {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
 }
 
 /* Loading placeholder */
@@ -295,13 +345,23 @@
     display: flex;
 }
 
-.catalogo-img-zoom img {
+/* Wrap imagen + botón */
+.catalogo-zoom-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     max-width: calc(100vw - 120px);
     max-height: 88vh;
-    border-radius: 10px;
-    object-fit: contain;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
     animation: zoomFadeIn 0.2s ease;
+}
+
+.catalogo-zoom-wrap img {
+    max-width: 100%;
+    max-height: calc(88vh - 58px);
+    border-radius: 10px 10px 0 0;
+    object-fit: contain;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    display: block;
 }
 
 @keyframes zoomFadeIn {
@@ -353,6 +413,42 @@
 .catalogo-zoom-nav.prev { left: 16px; }
 .catalogo-zoom-nav.next { right: 16px; }
 
+/* Botón agregar en zoom — pegado debajo de la imagen */
+.catalogo-zoom-btn-agregar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 24px;
+    background: #29ABE2;
+    color: #fff;
+    border: none;
+    border-radius: 0 0 10px 10px;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    transition: background 0.2s;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.catalogo-zoom-btn-agregar i {
+    font-size: 20px;
+}
+
+.catalogo-zoom-btn-agregar:hover {
+    background: #1a8cbf;
+}
+
+.catalogo-zoom-btn-agregar.agregada {
+    background: #22c55e;
+}
+
+.catalogo-zoom-btn-agregar.agregada:hover {
+    background: #16a34a;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .catalogo-modal-content {
@@ -371,5 +467,5 @@
     .catalogo-select-wrap { display: block; }
 
     .catalogo-zoom-nav { display: none; }
-    .catalogo-img-zoom img { max-width: 95vw; }
+    .catalogo-zoom-wrap { max-width: 95vw; }
 }

@@ -104,6 +104,20 @@
             </div>
         </div>
 
+        <!-- Productos adicionales para nueva cotización -->
+        <div class="cot-section cot-referencias" id="seccionReferencias" style="display:none;">
+            <h3><i class="bi bi-plus-square"></i> ¿Quieres cotizar algo más?</h3>
+            <p class="referencias-desc">Selecciona productos del catálogo que te interesen y los incluiremos en una nueva cotización.</p>
+            <div class="referencias-grid" id="referenciasGrid"></div>
+        </div>
+
+        <!-- Comentario del cliente -->
+        <div class="cot-section cot-comentario-section" id="seccionComentario">
+            <h3><i class="bi bi-chat-left-text"></i> Comentario <span class="opcional-tag">opcional</span></h3>
+            <textarea class="cot-comentario-input" id="cotComentario" placeholder="Escribe aquí cualquier comentario, aclaración o solicitud adicional..." rows="3" maxlength="600"></textarea>
+            <div class="cot-comentario-counter"><span id="cotComentarioCount">0</span>/600</div>
+        </div>
+
         <!-- Seccion de decision y pago -->
         <div class="cot-section cot-decision" id="seccionDecision">
             <h3><i class="bi bi-check2-square"></i> Decision y metodo de pago</h3>
@@ -265,6 +279,12 @@
         <img id="imgModalImg" src="" alt="Comprobante">
     </div>
 
+    <!-- Modal ver referencia grande -->
+    <div class="img-modal" id="imgModalRef">
+        <button class="img-modal-close" id="imgModalRefClose"><i class="bi bi-x-lg"></i></button>
+        <img id="imgModalRefImg" src="" alt="Referencia">
+    </div>
+
     <!-- Modal Catálogo -->
     <div class="catalogo-modal" id="catalogoModal">
         <div class="catalogo-modal-content">
@@ -325,7 +345,12 @@
     <div class="catalogo-img-zoom" id="catalogoImgZoom">
         <button class="catalogo-zoom-close" id="catalogoZoomClose"><i class="bi bi-x-lg"></i></button>
         <button class="catalogo-zoom-nav prev" id="catalogoZoomPrev"><i class="bi bi-chevron-left"></i></button>
-        <img id="catalogoZoomImg" src="" alt="Producto">
+        <div class="catalogo-zoom-wrap">
+            <img id="catalogoZoomImg" src="" alt="Producto">
+            <button class="catalogo-zoom-btn-agregar" id="catalogoZoomBtnAgregar">
+                <i class="bi bi-plus-circle"></i> Agregar para nueva cotización
+            </button>
+        </div>
         <button class="catalogo-zoom-nav next" id="catalogoZoomNext"><i class="bi bi-chevron-right"></i></button>
     </div>
 

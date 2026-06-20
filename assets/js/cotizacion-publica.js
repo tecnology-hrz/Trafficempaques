@@ -14,6 +14,59 @@ function formatMoney(value) {
 
 let cotizacion = null;
 
+// ===== PRODUCTOS ADICIONALES PARA NUEVA COTIZACIÓN =====
+const seccionReferencias = document.getElementById("seccionReferencias");
+const referenciasGrid    = document.getElementById("referenciasGrid");
+
+// Escuchar cambios de selección del catálogo
+window.onCatalogoSeleccionChange = (seleccionadas) => {
+    renderReferencias(seleccionadas);
+};
+
+function renderReferencias(seleccionadas) {
+    if (!seleccionadas || seleccionadas.length === 0) {
+        seccionReferencias.style.display = "none";
+        referenciasGrid.innerHTML = "";
+        return;
+    }
+    seccionReferencias.style.display = "block";
+    referenciasGrid.innerHTML = "";
+    seleccionadas.forEach(src => {
+        const item = document.createElement("div");
+        item.className = "referencia-item";
+        item.innerHTML = `
+            <img src="${src}" alt="Producto" loading="lazy">
+            <button class="referencia-remove" title="Quitar"><i class="bi bi-x"></i></button>
+        `;
+        item.querySelector("img").addEventListener("click", () => {
+            document.getElementById("imgModalRefImg").src = src;
+            document.getElementById("imgModalRef").classList.add("show");
+        });
+        item.querySelector(".referencia-remove").addEventListener("click", () => {
+            item.remove();
+            if (referenciasGrid.querySelectorAll(".referencia-item").length === 0) {
+                seccionReferencias.style.display = "none";
+            }
+        });
+        referenciasGrid.appendChild(item);
+    });
+}
+
+// Modal ver producto grande
+const imgModalRef      = document.getElementById("imgModalRef");
+const imgModalRefClose = document.getElementById("imgModalRefClose");
+imgModalRefClose.addEventListener("click", () => imgModalRef.classList.remove("show"));
+imgModalRef.addEventListener("click", (e) => {
+    if (e.target === imgModalRef) imgModalRef.classList.remove("show");
+});
+
+// ===== COMENTARIO =====
+const cotComentario = document.getElementById("cotComentario");
+const cotComentarioCount = document.getElementById("cotComentarioCount");
+cotComentario.addEventListener("input", () => {
+    cotComentarioCount.textContent = cotComentario.value.length;
+});
+
 async function cargarCotizacion() {
     try {
         const docSnap = await getDoc(doc(db, "cotizaciones", cotId));
@@ -280,11 +333,19 @@ btnAprobar.addEventListener("click", async () => {
             await setDoc(ref, {
                 ...data,
                 estado: "rechazada",
+                comentarioCliente: cotComentario.value.trim(),
                 fechaAprobacion: new Date().toISOString()
             });
             mostrarRechazada();
         } else {
             const esCredito = cotizacion && cotizacion.modalidadPago === "credito";
+
+            // Recoger productos adicionales seleccionados del catálogo
+            const productosAdicionales = typeof window.getCatalogoSeleccionadas === "function"
+                ? window.getCatalogoSeleccionadas()
+                : [];
+
+            const comentario = cotComentario.value.trim();
 
             if (esCredito) {
                 // Credito: aprobar sin metodo de pago ni comprobante
@@ -297,6 +358,8 @@ btnAprobar.addEventListener("click", async () => {
                     montoPagado: 0,
                     comprobante: "",
                     comprobanteNombre: "",
+                    productosAdicionalesCotizar: productosAdicionales,
+                    comentarioCliente: comentario,
                     fechaAprobacion: new Date().toISOString()
                 });
             } else {
@@ -315,6 +378,8 @@ btnAprobar.addEventListener("click", async () => {
                     montoPagado: montoAbono,
                     comprobante: comprobanteUrl,
                     comprobanteNombre: archivoComprobante ? archivoComprobante.name : "",
+                    productosAdicionalesCotizar: productosAdicionales,
+                    comentarioCliente: comentario,
                     fechaAprobacion: new Date().toISOString()
                 });
             }
