@@ -5,6 +5,7 @@ import {
     getMateriales, getPlanchas,
     getFormatMoney, getParseMoney
 } from "./cotizador.js";
+import { CATALOGO_DATA } from "./catalogo-data.js";
 
 // Verificar sesion
 const rol    = sessionStorage.getItem("userRol");
@@ -124,6 +125,7 @@ async function initDashboard(rol, nombre) {
         cargarUsuarios();
         setupFinanzas();
         cargarFinanzas();
+        setupCatalogoAdmin();
     }
 
     // Ventas: finanzas propias
@@ -210,7 +212,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -3422,4 +3424,291 @@ async function guardarClienteDesdeCotzacion(datos) {
     });
     // Recargar
     await cargarClientes();
+}
+
+// ===== SECCIÓN CATÁLOGO ADMIN =====
+const IMGBB_KEY_ADMIN = "8813d73253a289aa90712058a3a81bc9";
+
+const CATEGORIAS_CATALOGO = [
+    "Comidas Principales",
+    "Completos y Compartidos",
+    "Street Food",
+    "Snacks y Acompañamientos",
+    "Exhibicion y Servicio",
+    "Vasos",
+    "Otros"
+];
+
+let catAdminActiva = "Comidas Principales";
+let catAdminProductos = {};  // { categoria: [...productos] }
+let catProdEditando = null;  // producto en edición
+
+function setupCatalogoAdmin() {
+    cargarCatalogoAdmin();
+
+    document.getElementById("btnCatAgregarProducto").addEventListener("click", () => {
+        abrirModalCatProducto(null);
+    });
+
+    document.getElementById("catProductoModalClose").addEventListener("click", cerrarModalCatProducto);
+    document.getElementById("catProductoModalCancel").addEventListener("click", cerrarModalCatProducto);
+    document.getElementById("catProductoModal").addEventListener("click", (e) => {
+        if (e.target === document.getElementById("catProductoModal")) cerrarModalCatProducto();
+    });
+
+    document.getElementById("catImgUploadArea").addEventListener("click", () => {
+        document.getElementById("catProdImgInput").click();
+    });
+
+    // Toggle descuento
+    document.getElementById("catProdDescuento").addEventListener("change", (e) => {
+        document.getElementById("catDescuentoPctWrap").style.display = e.target.checked ? "flex" : "none";
+        if (!e.target.checked) document.getElementById("catProdDescuentoPct").value = "";
+    });
+
+    document.getElementById("catProdImgInput").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const preview = document.getElementById("catImgPreview");
+        preview.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i><span>Subiendo...</span>';
+        try {
+            const b64 = await fileToBase64(file);
+            const form = new FormData();
+            form.append("key", IMGBB_KEY_ADMIN);
+            form.append("image", b64.split(",")[1]);
+            const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById("catProdImagenUrl").value = data.data.url;
+                preview.innerHTML = `<img src="${data.data.url}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+            } else {
+                preview.innerHTML = '<i class="bi bi-x-circle" style="color:#ef4444"></i><span>Error al subir</span>';
+            }
+        } catch {
+            preview.innerHTML = '<i class="bi bi-x-circle" style="color:#ef4444"></i><span>Error</span>';
+        }
+    });
+
+    document.getElementById("catProductoModalSave").addEventListener("click", guardarCatProducto);
+}
+
+function fileToBase64(file) {
+    return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function cargarCatalogoAdmin() {
+    catAdminProductos = {};
+    const snap = await getDocs(collection(db, "catalogo"));
+
+    if (snap.empty) {
+        // Primera carga: poblar desde datos locales
+        await poblarCatalogoDesdeLocal();
+        return cargarCatalogoAdmin();
+    }
+
+    snap.forEach(d => {
+        const data = d.data();
+        if (!catAdminProductos[data.categoria]) catAdminProductos[data.categoria] = [];
+        catAdminProductos[data.categoria].push({ firestoreId: d.id, ...data });
+    });
+
+    for (const cat of Object.keys(catAdminProductos)) {
+        catAdminProductos[cat].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    }
+
+    renderCatAdminTabs();
+    renderCatAdminGrid();
+}
+
+async function poblarCatalogoDesdeLocal() {
+    for (const [categoria, info] of Object.entries(CATALOGO_DATA)) {
+        for (const producto of info.productos) {
+            const docId = categoria.replace(/\s+/g, "_") + "_" + producto.id;
+            await setDoc(doc(db, "catalogo", docId), {
+                categoria,
+                icon: info.icon,
+                descripcion: info.descripcion,
+                usos: info.usos,
+                orden: producto.id,
+                nombre: producto.nombre,
+                alto: producto.alto,
+                largo: producto.largo,
+                ancho: producto.ancho,
+                imagen: producto.imagen
+            });
+        }
+    }
+}
+
+function renderCatAdminTabs() {
+    const tabs = document.getElementById("catAdminTabs");
+    if (!tabs) return;
+    tabs.innerHTML = "";
+    CATEGORIAS_CATALOGO.forEach(cat => {
+        const btn = document.createElement("button");
+        btn.className = "cat-admin-tab" + (cat === catAdminActiva ? " active" : "");
+        const info = CATALOGO_DATA[cat] || {};
+        btn.innerHTML = `<i class="bi ${info.icon || 'bi-box'}"></i> ${cat}`;
+        btn.addEventListener("click", () => {
+            catAdminActiva = cat;
+            renderCatAdminTabs();
+            renderCatAdminGrid();
+        });
+        tabs.appendChild(btn);
+    });
+}
+
+function renderCatAdminGrid() {
+    const header = document.getElementById("catAdminCatHeader");
+    const grid = document.getElementById("catAdminGrid");
+    if (!grid) return;
+
+    const info = CATALOGO_DATA[catAdminActiva] || {};
+    if (header) {
+        header.innerHTML = `
+            <p class="cat-admin-desc">${info.descripcion || ""}</p>
+            <p class="cat-admin-usos"><i class="bi bi-lightbulb"></i> ${info.usos || ""}</p>
+        `;
+    }
+
+    const productos = catAdminProductos[catAdminActiva] || [];
+    grid.innerHTML = "";
+
+    productos.forEach(prod => {
+        const card = document.createElement("div");
+        card.className = "cat-admin-card";
+        const medidas = (prod.alto && prod.alto !== "-")
+            ? `<span class="cat-admin-medidas">A: ${prod.alto} · L: ${prod.largo} · An: ${prod.ancho}</span>`
+            : "";
+        const descBadge = prod.descuento
+            ? `<span class="cat-admin-descuento-badge">-${prod.descuentoPct}%</span>`
+            : "";
+        card.innerHTML = `
+            ${descBadge}
+            <img src="${prod.imagen}" alt="${prod.nombre}" class="cat-admin-img">
+            <div class="cat-admin-card-body">
+                <span class="cat-admin-orden">#${prod.orden}</span>
+                <span class="cat-admin-nombre">${prod.nombre}</span>
+                ${medidas}
+            </div>
+            <div class="cat-admin-card-actions">
+                <button class="cat-btn-edit" data-id="${prod.firestoreId}"><i class="bi bi-pencil"></i> Editar</button>
+                <button class="cat-btn-delete" data-id="${prod.firestoreId}"><i class="bi bi-trash"></i> Eliminar</button>
+            </div>
+        `;
+        card.querySelector(".cat-btn-edit").addEventListener("click", () => abrirModalCatProducto(prod));
+        card.querySelector(".cat-btn-delete").addEventListener("click", () => eliminarCatProducto(prod));
+        grid.appendChild(card);
+    });
+
+    if (productos.length === 0) {
+        grid.innerHTML = '<p class="cat-admin-empty">No hay productos en esta categoría.</p>';
+    }
+}
+
+function abrirModalCatProducto(prod) {
+    catProdEditando = prod;
+    const modal = document.getElementById("catProductoModal");
+    document.getElementById("catProductoModalTitle").textContent = prod ? "Editar producto" : "Agregar producto";
+    document.getElementById("catProdFirestoreId").value = prod ? prod.firestoreId : "";
+    document.getElementById("catProdNombre").value = prod ? prod.nombre : "";
+    document.getElementById("catProdAlto").value = prod ? prod.alto : "";
+    document.getElementById("catProdLargo").value = prod ? prod.largo : "";
+    document.getElementById("catProdAncho").value = prod ? prod.ancho : "";
+    document.getElementById("catProdImagenUrl").value = prod ? prod.imagen : "";
+
+    // Descuento
+    const descCheck = document.getElementById("catProdDescuento");
+    const descPct = document.getElementById("catProdDescuentoPct");
+    const descWrap = document.getElementById("catDescuentoPctWrap");
+    if (prod && prod.descuento) {
+        descCheck.checked = true;
+        descPct.value = prod.descuentoPct || "";
+        descWrap.style.display = "flex";
+    } else {
+        descCheck.checked = false;
+        descPct.value = "";
+        descWrap.style.display = "none";
+    }
+
+    const preview = document.getElementById("catImgPreview");
+    if (prod && prod.imagen) {
+        preview.innerHTML = `<img src="${prod.imagen}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+    } else {
+        preview.innerHTML = '<i class="bi bi-cloud-arrow-up"></i><span>Subir imagen</span>';
+    }
+
+    modal.classList.add("show");
+}
+
+function cerrarModalCatProducto() {
+    document.getElementById("catProductoModal").classList.remove("show");
+    catProdEditando = null;
+}
+
+async function guardarCatProducto() {
+    const nombre = document.getElementById("catProdNombre").value.trim();
+    const alto   = document.getElementById("catProdAlto").value.trim() || "-";
+    const largo  = document.getElementById("catProdLargo").value.trim() || "-";
+    const ancho  = document.getElementById("catProdAncho").value.trim() || "-";
+    const imagen = document.getElementById("catProdImagenUrl").value.trim();
+    const descuento = document.getElementById("catProdDescuento").checked;
+    const descuentoPct = descuento ? (parseInt(document.getElementById("catProdDescuentoPct").value) || 0) : 0;
+
+    if (!nombre) { alert("El nombre es obligatorio."); return; }
+    if (!imagen) { alert("Sube una imagen del producto."); return; }
+    if (descuento && descuentoPct <= 0) { alert("Indica el porcentaje de descuento."); return; }
+
+    const btn = document.getElementById("catProductoModalSave");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+    try {
+        const cat = catAdminActiva;
+        const info = CATALOGO_DATA[cat] || {};
+        const existentes = catAdminProductos[cat] || [];
+
+        let firestoreId = catProdEditando ? catProdEditando.firestoreId : null;
+        let orden = catProdEditando ? catProdEditando.orden : (existentes.length > 0 ? Math.max(...existentes.map(p => p.orden || 0)) + 1 : 1);
+
+        if (!firestoreId) {
+            firestoreId = cat.replace(/\s+/g, "_") + "_" + orden + "_" + Date.now().toString(36);
+        }
+
+        await setDoc(doc(db, "catalogo", firestoreId), {
+            categoria: cat,
+            icon: info.icon || "bi-box",
+            descripcion: info.descripcion || "",
+            usos: info.usos || "",
+            orden,
+            nombre,
+            alto,
+            largo,
+            ancho,
+            imagen,
+            descuento,
+            descuentoPct
+        });
+
+        cerrarModalCatProducto();
+        await cargarCatalogoAdmin();
+    } catch (err) {
+        console.error(err);
+        alert("Error al guardar.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar';
+    }
+}
+
+async function eliminarCatProducto(prod) {
+    showConfirm("Eliminar producto", `¿Eliminar "${prod.nombre}" del catálogo?`, async () => {
+        await deleteDoc(doc(db, "catalogo", prod.firestoreId));
+        await cargarCatalogoAdmin();
+    });
 }

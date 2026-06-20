@@ -292,6 +292,22 @@
     transform: scale(1);
 }
 
+/* Badge descuento en catálogo público */
+.catalogo-descuento-badge {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(239,68,68,0.4);
+    letter-spacing: -0.3px;
+}
+
 /* Badge "Agregada" fijo en esquina inferior */
 .catalogo-badge-agregada {
     position: absolute;
@@ -413,9 +429,34 @@
 .catalogo-zoom-nav.prev { left: 16px; }
 .catalogo-zoom-nav.next { right: 16px; }
 
-/* Botón agregar en zoom — pegado debajo de la imagen */
-.catalogo-zoom-btn-agregar {
+/* Info nombre + medidas en zoom */
+.catalogo-zoom-info {
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    padding: 8px 16px;
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.zoom-nombre {
+    font-size: 13px;
+    font-weight: 700;
+    color: #29ABE2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.zoom-medidas {
+    font-size: 11px;
+    color: #ccc;
+    text-align: center;
+}
+
+/* Botón agregar en zoom — pegado debajo de la imagen */
+.catalogo-zoom-btn-agregar {    display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;

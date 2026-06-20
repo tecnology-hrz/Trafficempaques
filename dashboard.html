@@ -48,6 +48,10 @@
                 <i class="bi bi-sliders"></i>
                 <span>Configuracion</span>
             </a>
+            <a class="nav-item" data-section="catalogo-admin" data-role="administrador">
+                <i class="bi bi-grid-3x3-gap"></i>
+                <span>Catálogo</span>
+            </a>
         </nav>
         <div class="sidebar-footer">
             <div class="user-info">
@@ -757,6 +761,19 @@
 
             </div>
 
+            <!-- ===== SECCION: CATÁLOGO (solo admin) ===== -->
+            <div class="section" id="section-catalogo-admin">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-grid-3x3-gap"></i> Catálogo de Productos</h2>
+                    <button class="btn-primary" id="btnCatAgregarProducto">
+                        <i class="bi bi-plus-lg"></i> Agregar producto
+                    </button>
+                </div>
+                <div class="cat-admin-tabs" id="catAdminTabs"></div>
+                <div class="cat-admin-cat-header" id="catAdminCatHeader"></div>
+                <div class="cat-admin-grid" id="catAdminGrid"></div>
+            </div>
+
         </div>
     </div>
 
@@ -1142,6 +1159,70 @@
         </div>
     </div>
 
+    <!-- ===== SECCIÓN CATÁLOGO ADMIN ===== -->
+
+    <!-- Modal agregar/editar producto catálogo -->
+    <div class="modal-overlay" id="catProductoModal">
+        <div class="modal modal-cat-producto">
+            <div class="modal-header">
+                <h3 id="catProductoModalTitle">Agregar producto</h3>
+                <button class="modal-close" id="catProductoModalClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="catProdFirestoreId">
+                <div class="cat-modal-layout">
+                    <div class="cat-modal-left">
+                        <div class="cat-img-upload-area" id="catImgUploadArea">
+                            <input type="file" id="catProdImgInput" accept="image/*" hidden>
+                            <div class="cat-img-preview" id="catImgPreview">
+                                <i class="bi bi-cloud-arrow-up"></i>
+                                <span>Subir imagen</span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="catProdImagenUrl">
+                    </div>
+                    <div class="cat-modal-right">
+                        <div class="form-group">
+                            <label>Nombre del producto</label>
+                            <input type="text" class="form-input" id="catProdNombre" placeholder="Ej: Caja Hamburguesa Grande">
+                        </div>
+                        <div class="form-group-row">
+                            <div class="form-group">
+                                <label>Alto</label>
+                                <input type="text" class="form-input" id="catProdAlto" placeholder="10 cm">
+                            </div>
+                            <div class="form-group">
+                                <label>Largo</label>
+                                <input type="text" class="form-input" id="catProdLargo" placeholder="14 cm">
+                            </div>
+                            <div class="form-group">
+                                <label>Ancho</label>
+                                <input type="text" class="form-input" id="catProdAncho" placeholder="13.3 cm">
+                            </div>
+                        </div>
+                        <div class="form-group cat-descuento-row">
+                            <label class="cat-descuento-toggle">
+                                <input type="checkbox" id="catProdDescuento">
+                                <span class="cat-toggle-slider"></span>
+                                <span class="cat-toggle-label">En descuento</span>
+                            </label>
+                            <div class="cat-descuento-pct" id="catDescuentoPctWrap" style="display:none;">
+                                <input type="number" class="form-input" id="catProdDescuentoPct" min="1" max="99" placeholder="%" style="width:70px;">
+                                <span class="cat-pct-suffix">% OFF</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="catProductoModalCancel">Cancelar</button>
+                <button class="btn-save" id="catProductoModalSave">
+                    <i class="bi bi-check-lg"></i> Guardar producto
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== BOTTOM NAV (mobile) ===== -->
     <nav class="bottom-nav">
         <a class="bottom-nav-item active" data-section="cotizador" data-role="administrador,ventas">
@@ -1175,6 +1256,10 @@
         <a class="bottom-nav-item" data-section="configuracion" data-role="administrador">
             <i class="bi bi-sliders"></i>
             <span>Config</span>
+        </a>
+        <a class="bottom-nav-item" data-section="catalogo-admin" data-role="administrador">
+            <i class="bi bi-grid-3x3-gap"></i>
+            <span>Catálogo</span>
         </a>
         <a class="bottom-nav-item" id="btnLogoutMobile">
             <i class="bi bi-box-arrow-left"></i>
