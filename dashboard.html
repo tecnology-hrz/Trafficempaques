@@ -224,6 +224,17 @@
                             </div>
                         </div>
 
+                        <!-- Notas internas -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title"><i class="bi bi-sticky"></i> Notas / Observaciones</span>
+                                <span class="card-subtitle">Visible solo para ti, no se muestra al cliente</span>
+                            </div>
+                            <div class="card-body">
+                                <textarea class="cot-notas-input" id="cotNotas" placeholder="Escribe aquí notas internas, instrucciones especiales o cualquier observación..." rows="3" maxlength="1000"></textarea>
+                            </div>
+                        </div>
+
                         <!-- Boton guardar -->
                         <button class="btn-primary btn-full" id="btnGuardarCotizacion">
                             <i class="bi bi-check-lg"></i> Guardar y generar link
@@ -857,6 +868,12 @@
                 <div class="detalle-comentario" id="cotDetalleComentario" style="display:none;">
                     <h4><i class="bi bi-chat-left-text"></i> Comentario del cliente</h4>
                     <p class="detalle-comentario-text"></p>
+                </div>
+
+                <!-- Notas internas del vendedor -->
+                <div class="detalle-notas" id="cotDetalleNotas" style="display:none;">
+                    <h4><i class="bi bi-sticky"></i> Notas internas</h4>
+                    <p class="detalle-notas-text"></p>
                 </div>
             </div>
         </div>

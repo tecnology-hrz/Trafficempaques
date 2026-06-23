@@ -561,6 +561,7 @@ function setupCotizador() {
         document.getElementById("cotDireccion").value = "";
         document.getElementById("cotCiudad").value   = "";
         document.getElementById("cotTipo").value     = "imprenta";
+        document.getElementById("cotNotas").value    = "";
         // Fecha actual auto
         const hoy = new Date();
         const dd = String(hoy.getDate()).padStart(2, "0");
@@ -633,7 +634,8 @@ function setupCotizador() {
             const ref = doc(db, "cotizaciones", editId);
             const snap = await getDoc(ref);
             const existing = snap.data();
-            await setDoc(ref, { ...existing, cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago });
+            const notas = document.getElementById("cotNotas").value.trim();
+            await setDoc(ref, { ...existing, cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas });
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
@@ -643,7 +645,8 @@ function setupCotizador() {
             showLinkModal("Cotizacion actualizada", "Comparte este link actualizado con el cliente:", link);
         } else {
             // Crear nueva
-            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
+            const notas = document.getElementById("cotNotas").value.trim();
+            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
             // Guardar cliente en base de datos
             await guardarClienteDesdeCotzacion({ cliente, nit, negocio, telefono, direccion, ciudad });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
@@ -1395,6 +1398,9 @@ function abrirModalAcciones(cotId, cotName) {
 
         renderCotItems();
         calcularTotales();
+
+        // Cargar notas
+        document.getElementById("cotNotas").value = cot.notas || "";
 
         const btnGuardar = document.getElementById("btnGuardarCotizacion");
         btnGuardar.dataset.editId = cotId;
@@ -2580,6 +2586,17 @@ async function abrirDetalleAprobada(id) {
             comentarioEl.querySelector(".detalle-comentario-text").textContent = cot.comentarioCliente;
         } else {
             comentarioEl.style.display = "none";
+        }
+    }
+
+    // Notas internas del vendedor
+    const notasEl = document.getElementById("cotDetalleNotas");
+    if (notasEl) {
+        if (cot.notas && cot.notas.trim()) {
+            notasEl.style.display = "block";
+            notasEl.querySelector(".detalle-notas-text").textContent = cot.notas;
+        } else {
+            notasEl.style.display = "none";
         }
     }
 

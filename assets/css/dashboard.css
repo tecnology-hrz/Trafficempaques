@@ -4462,3 +4462,56 @@ body {
     font-weight: 800;
     color: #ef4444;
 }
+
+/* ===== NOTAS COTIZACIÓN ===== */
+.cot-notas-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #222;
+    resize: vertical;
+    min-height: 70px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.cot-notas-input:focus { border-color: #29ABE2; }
+
+.card-subtitle {
+    font-size: 11px;
+    color: #999;
+    font-weight: 500;
+}
+
+/* Notas en detalle */
+.detalle-notas {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 2px dashed #e8e8e8;
+}
+
+.detalle-notas h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #444;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.detalle-notas h4 i { color: #f59e0b; }
+
+.detalle-notas-text {
+    font-size: 13px;
+    color: #555;
+    background: #fffbeb;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 3px solid #f59e0b;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}

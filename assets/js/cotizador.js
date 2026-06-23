@@ -87,6 +87,8 @@ export async function crearCotizacion(datos) {
         estado: "pendiente",
         metodoPago: "",
         comprobante: "",
+        notas: datos.notas || "",
+        comentarioCliente: "",
         fechaCreacion: new Date().toISOString(),
         fechaAprobacion: "",
         fechaActual: datos.fechaActual || "",
