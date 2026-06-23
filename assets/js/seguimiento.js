@@ -12,7 +12,7 @@ if (!ordenId) {
         </div>`;
 }
 
-const PASOS = [
+const PASOS_IMPRENTA = [
     { key: "recibido",    icon: "bi-inbox",         title: "Pedido recibido",     desc: "Tu orden fue recibida y confirmada" },
     { key: "diseno",      icon: "bi-brush",         title: "En diseño",           desc: "Estamos trabajando en el diseño de tu producto" },
     { key: "guillotina",  icon: "bi-scissors",      title: "Guillotina",          desc: "Tu producto esta en corte de guillotina" },
@@ -21,6 +21,15 @@ const PASOS = [
     { key: "vasos",       icon: "bi-cup-straw",     title: "Vasos",               desc: "Tu producto esta en el area de vasos" },
     { key: "empaques",    icon: "bi-box-seam",      title: "Empaques",            desc: "Tu producto esta siendo empacado" },
     { key: "terminado",   icon: "bi-bag-check",     title: "Terminado",           desc: "Tu pedido esta listo para recoger" }
+];
+
+const PASOS_DIGITAL = [
+    { key: "recibido",    icon: "bi-inbox",         title: "Pedido recibido",     desc: "Tu orden fue recibida y confirmada" },
+    { key: "diseno",      icon: "bi-brush",         title: "En diseño",           desc: "Estamos creando el diseño digital" },
+    { key: "revision",    icon: "bi-eye",           title: "Revisión",            desc: "El diseño esta en revision para aprobacion" },
+    { key: "ajustes",     icon: "bi-pencil-square", title: "Ajustes",             desc: "Realizando ajustes solicitados" },
+    { key: "entrega",     icon: "bi-send",          title: "Entrega",             desc: "Archivos listos para entrega" },
+    { key: "terminado",   icon: "bi-bag-check",     title: "Terminado",           desc: "Tu pedido digital fue entregado" }
 ];
 
 const IMGBB_KEY = "85c1345ba9104ab223ed72e168bb111d";
@@ -62,7 +71,15 @@ function renderSeguimiento(orden) {
     document.getElementById("ordenNumero").textContent = orden.numero || "Orden";
     document.getElementById("ordenSubtitle").textContent = "Seguimiento de tu pedido";
     document.getElementById("segCliente").textContent = orden.cliente || "-";
-    document.getElementById("segTipo").textContent = (orden.tipo || "-").charAt(0).toUpperCase() + (orden.tipo || "").slice(1);
+
+    const tipoText = orden.tipo === "digital" ? "Digital" : "Imprenta";
+    document.getElementById("segTipo").textContent = tipoText;
+
+    // Badge tipo
+    const tipoEl = document.getElementById("segTipo");
+    if (tipoEl) {
+        tipoEl.className = "seg-tipo-badge " + (orden.tipo || "imprenta");
+    }
 
     // Fecha pedido
     if (orden.fechaEnvio) {
@@ -74,6 +91,9 @@ function renderSeguimiento(orden) {
     if (orden.fechaEntrega) {
         document.getElementById("segFechaEntrega").textContent = orden.fechaEntrega;
     }
+
+    // Seleccionar pasos según tipo de orden
+    const PASOS = orden.tipo === "digital" ? PASOS_DIGITAL : PASOS_IMPRENTA;
 
     // Determinar paso actual
     const seguimiento = orden.seguimiento || {};

@@ -1,4 +1,5 @@
 ﻿import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "./auth.js";
+import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
     cargarCatalogos, crearCotizacion, obtenerCotizaciones, eliminarCotizacion,
     getProductosImprenta, getProductosDigital, getTerminados, getColores,
@@ -141,6 +142,9 @@ async function initDashboard(rol, nombre) {
     // Cargar ordenes para todos los roles
     cargarOrdenes(rol);
     cargarDisenosAprobados(rol);
+
+    // Iniciar sistema de notificaciones
+    setupNotificaciones();
 
     document.getElementById("btnLogout").addEventListener("click", () => {
         showConfirm("Cerrar sesion", "Estas seguro que deseas cerrar sesion?", logout);
@@ -2627,7 +2631,7 @@ async function enviarAProduccion(cot, tipoProd, items) {
 }
 
 // ===== SEGUIMIENTO DE ORDENES =====
-const PASOS_SEGUIMIENTO = [
+const PASOS_IMPRENTA_SEG = [
     { key: "recibido",    icon: "bi-inbox",         title: "Recibido" },
     { key: "diseno",      icon: "bi-brush",         title: "Diseño" },
     { key: "guillotina",  icon: "bi-scissors",      title: "Guillotina" },
@@ -2637,6 +2641,19 @@ const PASOS_SEGUIMIENTO = [
     { key: "empaques",    icon: "bi-box-seam",      title: "Empaques" },
     { key: "terminado",   icon: "bi-bag-check",     title: "Terminado" }
 ];
+
+const PASOS_DIGITAL_SEG = [
+    { key: "recibido",    icon: "bi-inbox",         title: "Recibido" },
+    { key: "diseno",      icon: "bi-brush",         title: "Diseño" },
+    { key: "revision",    icon: "bi-eye",           title: "Revisión" },
+    { key: "ajustes",     icon: "bi-pencil-square", title: "Ajustes" },
+    { key: "entrega",     icon: "bi-send",          title: "Entrega" },
+    { key: "terminado",   icon: "bi-bag-check",     title: "Terminado" }
+];
+
+function getPasosOrden(orden) {
+    return orden.tipo === "digital" ? PASOS_DIGITAL_SEG : PASOS_IMPRENTA_SEG;
+}
 
 let seguimientoFiltro = "todos";
 
@@ -2683,6 +2700,7 @@ async function cargarSeguimiento() {
             card.className = "seg-orden-card";
 
             const pasoActual = orden.pasoActual || "recibido";
+            const PASOS_SEGUIMIENTO = getPasosOrden(orden);
             const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
 
             // Mini timeline
@@ -2696,8 +2714,8 @@ async function cargarSeguimiento() {
             });
 
             // Estado badge
-            const estadoLabels = { recibido: "Recibido", diseno: "En diseño", guillotina: "Guillotina", impresion: "Impresión", troquelado: "Troquelado", vasos: "Vasos", empaques: "Empaques", terminado: "Terminado" };
-            const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", guillotina: "bi-scissors", impresion: "bi-printer", troquelado: "bi-hexagon", vasos: "bi-cup-straw", empaques: "bi-box-seam", terminado: "bi-bag-check" };
+            const estadoLabels = { recibido: "Recibido", diseno: "En diseño", guillotina: "Guillotina", impresion: "Impresión", troquelado: "Troquelado", vasos: "Vasos", empaques: "Empaques", terminado: "Terminado", revision: "Revisión", ajustes: "Ajustes", entrega: "Entrega" };
+            const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", guillotina: "bi-scissors", impresion: "bi-printer", troquelado: "bi-hexagon", vasos: "bi-cup-straw", empaques: "bi-box-seam", terminado: "bi-bag-check", revision: "bi-eye", ajustes: "bi-pencil-square", entrega: "bi-send" };
 
             // Botones de acción según rol y paso actual
             let actionsHtml = '';
@@ -3710,5 +3728,140 @@ async function eliminarCatProducto(prod) {
     showConfirm("Eliminar producto", `¿Eliminar "${prod.nombre}" del catálogo?`, async () => {
         await deleteDoc(doc(db, "catalogo", prod.firestoreId));
         await cargarCatalogoAdmin();
+    });
+}
+
+// ===== SISTEMA DE NOTIFICACIONES EN TIEMPO REAL =====
+let notifCotizacionesCount = null; // null = no inicializado
+let notifOrdenesEstado = null;
+let audioCtx = null;
+
+// Desbloquear audio con la primera interacción del usuario
+function unlockAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+    }
+}
+document.addEventListener("click", unlockAudio, { once: false });
+document.addEventListener("keydown", unlockAudio, { once: false });
+
+function playNotifSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+
+        // Primer beep
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.type = "sine";
+        osc1.frequency.value = 880;
+        gain1.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc1.start(audioCtx.currentTime);
+        osc1.stop(audioCtx.currentTime + 0.4);
+
+        // Segundo beep
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.type = "sine";
+        osc2.frequency.value = 1200;
+        gain2.gain.setValueAtTime(0.4, audioCtx.currentTime + 0.25);
+        gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.65);
+        osc2.start(audioCtx.currentTime + 0.25);
+        osc2.stop(audioCtx.currentTime + 0.65);
+
+        console.log("[NOTIF] Sonido reproducido");
+    } catch (e) {
+        console.warn("[NOTIF] Error audio:", e);
+    }
+}
+
+function showNotifToast(message) {
+    let container = document.getElementById("notifToastContainer");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "notifToastContainer";
+        container.style.cssText = "position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;";
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement("div");
+    toast.style.cssText = "background:#222;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.25);display:flex;align-items:center;gap:10px;animation:slideInRight 0.3s ease;pointer-events:auto;max-width:320px;";
+    toast.innerHTML = `<i class="bi bi-bell-fill" style="color:#29ABE2;font-size:16px;"></i><span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transition = "opacity 0.3s";
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+function setupNotificaciones() {
+    // Animación CSS
+    const styleNotif = document.createElement("style");
+    styleNotif.textContent = `@keyframes slideInRight{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}`;
+    document.head.appendChild(styleNotif);
+
+    console.log("[NOTIF] Sistema de notificaciones iniciado");
+
+    // Listener en tiempo real para cotizaciones
+    onSnapshot(collection(db, "cotizaciones"), (snapshot) => {
+        let cotAprobadas = 0;
+        snapshot.forEach(d => {
+            if (d.data().estado === "aprobada") cotAprobadas++;
+        });
+
+        console.log("[NOTIF] Cotizaciones aprobadas:", cotAprobadas, "| anterior:", notifCotizacionesCount);
+
+        if (notifCotizacionesCount !== null && cotAprobadas > notifCotizacionesCount) {
+            const diff = cotAprobadas - notifCotizacionesCount;
+            playNotifSound();
+            showNotifToast(`${diff} nueva${diff > 1 ? "s" : ""} cotización${diff > 1 ? "es" : ""} aprobada${diff > 1 ? "s" : ""}`);
+            if (typeof cargarListaCotizaciones === "function") cargarListaCotizaciones();
+        }
+        notifCotizacionesCount = cotAprobadas;
+    });
+
+    // Listener en tiempo real para producción
+    onSnapshot(collection(db, "produccion"), (snapshot) => {
+        let nuevoEstado = {};
+        snapshot.forEach(d => {
+            nuevoEstado[d.id] = d.data().pasoActual || "recibido";
+        });
+
+        console.log("[NOTIF] Producción actualizada, órdenes:", Object.keys(nuevoEstado).length);
+
+        if (notifOrdenesEstado !== null) {
+            let hayNueva = false;
+            let hayCambio = false;
+
+            for (const id of Object.keys(nuevoEstado)) {
+                if (!notifOrdenesEstado[id]) { hayNueva = true; break; }
+            }
+            if (!hayNueva) {
+                for (const id of Object.keys(nuevoEstado)) {
+                    if (notifOrdenesEstado[id] && notifOrdenesEstado[id] !== nuevoEstado[id]) { hayCambio = true; break; }
+                }
+            }
+
+            if (hayNueva) {
+                playNotifSound();
+                showNotifToast("Nueva orden en producción");
+                cargarSeguimiento();
+            } else if (hayCambio) {
+                playNotifSound();
+                showNotifToast("Una orden cambió de estado");
+                cargarSeguimiento();
+            }
+        }
+        notifOrdenesEstado = nuevoEstado;
     });
 }
