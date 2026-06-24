@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="public/img/favicon.ico">
+    <title>Entrega - Traffic</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { max-width: 500px; width: 100%; }
+        .logo-wrap { text-align: center; margin-bottom: 24px; }
+        .logo-wrap img { height: 48px; }
+        .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden; }
+        .card-header { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; padding: 24px 24px 18px; }
+        .card-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+        .card-header .subtitle { font-size: 13px; opacity: 0.9; }
+
+        .cliente-info { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }
+        .cliente-info h3 { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .info-item .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .info-item .value { font-size: 14px; color: #222; font-weight: 500; margin-top: 2px; word-break: break-word; }
+
+        .ubicacion-section { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }
+        .ubicacion-section h3 { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+        .direccion-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+        .direccion-box p { font-size: 14px; color: #334155; font-weight: 500; }
+        .ubicacion-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn-maps { flex: 1; min-width: 140px; padding: 12px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; text-decoration: none; }
+        .btn-maps-abrir { background: #16a34a; color: #fff; }
+        .btn-maps-abrir:hover { background: #15803d; }
+        .btn-maps-copiar { background: #e2e8f0; color: #334155; }
+        .btn-maps-copiar:hover { background: #cbd5e1; }
+
+        .mapa-embed { margin-top: 12px; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+        .mapa-embed iframe { width: 100%; height: 200px; border: none; }
+
+        .evidencia-section { padding: 24px; }
+        .evidencia-section h3 { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+        .evidencia-section .desc { font-size: 13px; color: #888; margin-bottom: 16px; }
+
+        .upload-area { border: 2px dashed #d1d5db; border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; }
+        .upload-area:hover { border-color: #f59e0b; background: #fffbeb; }
+        .upload-area.has-image { border-color: #16a34a; background: #f0fdf4; }
+        .upload-area i { font-size: 36px; color: #9ca3af; display: block; margin-bottom: 8px; }
+        .upload-area.has-image i { color: #16a34a; }
+        .upload-area p { font-size: 13px; color: #6b7280; }
+        .upload-area .preview-img { max-width: 100%; max-height: 200px; border-radius: 8px; margin-top: 12px; }
+
+        .btn-enviar-evidencia { width: 100%; padding: 14px; background: #f59e0b; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+        .btn-enviar-evidencia:hover { background: #d97706; }
+        .btn-enviar-evidencia:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        .completado-banner { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; padding: 24px; text-align: center; margin: 20px 24px 24px; border-radius: 12px; }
+        .completado-banner i { font-size: 36px; margin-bottom: 8px; display: block; }
+        .completado-banner h3 { font-size: 18px; margin-bottom: 4px; }
+        .completado-banner p { font-size: 13px; opacity: 0.9; }
+
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error-state { text-align: center; padding: 60px 20px; }
+        .error-state i { font-size: 48px; color: #ccc; }
+        .error-state h2 { margin-top: 12px; color: #444; font-size: 20px; }
+        .error-state p { color: #888; margin-top: 8px; font-size: 14px; }
+
+        .ya-entregado { padding: 24px; }
+        .ya-entregado .evidencia-preview { margin-top: 12px; text-align: center; }
+        .ya-entregado .evidencia-preview img { max-width: 100%; max-height: 300px; border-radius: 10px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-wrap">
+            <img src="public/img/logo.png" alt="Traffic">
+        </div>
+        <div class="card" id="mainCard">
+            <div class="card-header">
+                <h1><i class="bi bi-truck"></i> Entrega a domicilio</h1>
+                <div class="subtitle" id="ordenInfo">Cargando...</div>
+            </div>
+            <div id="contenido">
+                <div style="text-align:center;padding:40px;">
+                    <span class="spinner" style="width:24px;height:24px;border-color:rgba(0,0,0,0.1);border-top-color:#f59e0b;"></span>
+                    <p style="margin-top:12px;color:#888;font-size:13px;">Cargando informacion...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="inputEvidencia" accept="image/*" capture="environment" style="display:none;">
+
+    <script type="module">
+        import { db, doc, getDoc, setDoc } from "./assets/js/auth.js";
+
+        const params = new URLSearchParams(window.location.search);
+        const ordenId = params.get("id");
+        const IMGBB_KEY = "85c1345ba9104ab223ed72e168bb111d";
+
+        if (!ordenId) {
+            document.getElementById("mainCard").innerHTML = `
+                <div class="error-state">
+                    <i class="bi bi-exclamation-circle"></i>
+                    <h2>Link no valido</h2>
+                    <p>Este link de entrega no es valido o ha expirado.</p>
+                </div>`;
+        } else {
+            cargarOrden();
+        }
+
+        async function cargarOrden() {
+            try {
+                const docSnap = await getDoc(doc(db, "produccion", ordenId));
+                if (!docSnap.exists()) {
+                    document.getElementById("mainCard").innerHTML = `
+                        <div class="error-state">
+                            <i class="bi bi-exclamation-circle"></i>
+                            <h2>Orden no encontrada</h2>
+                            <p>Esta orden no existe o fue eliminada.</p>
+                        </div>`;
+                    return;
+                }
+
+                const orden = { id: docSnap.id, ...docSnap.data() };
+
+                // Si no tiene negocio, buscarlo de la cotización
+                if (!orden.negocio && orden.cotizacionId) {
+                    try {
+                        const cotSnap = await getDoc(doc(db, "cotizaciones", orden.cotizacionId));
+                        if (cotSnap.exists()) {
+                            const cotData = cotSnap.data();
+                            orden.negocio = cotData.negocio || "";
+                            if (!orden.telefono) orden.telefono = cotData.telefono || "";
+                            if (!orden.direccion) orden.direccion = cotData.direccion || "";
+                        }
+                    } catch (e) { /* ignorar */ }
+                }
+
+                renderOrden(orden);
+            } catch (err) {
+                console.error(err);
+                document.getElementById("mainCard").innerHTML = `
+                    <div class="error-state">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <h2>Error</h2>
+                        <p>No se pudo cargar la informacion de entrega.</p>
+                    </div>`;
+            }
+        }
+
+        function renderOrden(orden) {
+            const nombreDisplay = orden.negocio || orden.cliente || "Cliente";
+            document.getElementById("ordenInfo").textContent = `Orden ${orden.numero || ""} • ${nombreDisplay}`;
+
+            const contenido = document.getElementById("contenido");
+
+            // Si ya fue entregado y tiene evidencia
+            if (orden.entregaCompletada) {
+                contenido.innerHTML = `
+                    <div class="cliente-info">
+                        <h3>Informacion del cliente</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="label">Cliente</div>
+                                <div class="value">${orden.cliente || "-"}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="label">Negocio</div>
+                                <div class="value">${orden.negocio || "-"}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="label">Telefono</div>
+                                <div class="value">${orden.telefono || "-"}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="label">Orden</div>
+                                <div class="value">${orden.numero || "-"}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="completado-banner">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <h3>Entrega completada</h3>
+                        <p>Esta entrega ya fue marcada como completada.</p>
+                        ${orden.entregaEvidenciaUrl ? `<img src="${orden.entregaEvidenciaUrl}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:12px;border:2px solid rgba(255,255,255,0.3);">` : ''}
+                    </div>
+                `;
+                return;
+            }
+
+            // Verificar que sea domicilio
+            if (orden.metodoEntrega !== "domicilio") {
+                contenido.innerHTML = `
+                    <div class="error-state" style="padding:40px 20px;">
+                        <i class="bi bi-shop"></i>
+                        <h2>Recoger en punto</h2>
+                        <p>Este pedido es para recoger en punto, no requiere entrega a domicilio.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Construir la tarjeta del repartidor
+            const direccion = orden.entregaDireccion || orden.direccion || "Sin direccion registrada";
+            const tieneUbicacion = orden.entregaUbicacionUrl || (orden.entregaLat && orden.entregaLng);
+            const mapsUrl = orden.entregaUbicacionUrl || (orden.entregaLat ? `https://www.google.com/maps?q=${orden.entregaLat},${orden.entregaLng}` : "");
+
+            let mapaHtml = "";
+            if (orden.entregaLat && orden.entregaLng) {
+                mapaHtml = `
+                    <div class="mapa-embed">
+                        <iframe src="https://maps.google.com/maps?q=${orden.entregaLat},${orden.entregaLng}&z=16&output=embed" allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+
+            contenido.innerHTML = `
+                <!-- Info del cliente -->
+                <div class="cliente-info">
+                    <h3>Informacion del cliente</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="label">Cliente</div>
+                            <div class="value">${orden.cliente || "-"}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="label">Negocio</div>
+                            <div class="value">${orden.negocio || "-"}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="label">Telefono</div>
+                            <div class="value">${orden.telefono || "-"}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="label">Orden</div>
+                            <div class="value">${orden.numero || "-"}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ubicación -->
+                <div class="ubicacion-section">
+                    <h3><i class="bi bi-geo-alt-fill"></i> Ubicacion de entrega</h3>
+                    <div class="direccion-box">
+                        <p>${direccion}</p>
+                    </div>
+                    ${tieneUbicacion ? `
+                    <div class="ubicacion-actions">
+                        <a href="${mapsUrl}" target="_blank" class="btn-maps btn-maps-abrir">
+                            <i class="bi bi-geo-alt-fill"></i> Abrir en Maps
+                        </a>
+                        <button class="btn-maps btn-maps-copiar" id="btnCopiarUbicacion">
+                            <i class="bi bi-clipboard"></i> Copiar
+                        </button>
+                    </div>
+                    ${mapaHtml}
+                    ` : `
+                    <p style="font-size:12px;color:#888;">No se compartio ubicacion GPS, usa la direccion escrita.</p>
+                    `}
+                </div>
+
+                <!-- Evidencia de entrega -->
+                <div class="evidencia-section">
+                    <h3><i class="bi bi-camera-fill"></i> Evidencia de entrega</h3>
+                    <p class="desc">Sube una foto como prueba de que el pedido fue entregado.</p>
+
+                    <div class="upload-area" id="uploadArea">
+                        <i class="bi bi-camera"></i>
+                        <p>Toca para tomar foto o seleccionar imagen</p>
+                    </div>
+
+                    <button class="btn-enviar-evidencia" id="btnEnviarEvidencia" disabled>
+                        <i class="bi bi-check-circle"></i> Confirmar entrega
+                    </button>
+                </div>
+            `;
+
+            setupEventos(orden, mapsUrl);
+        }
+
+        function setupEventos(orden, mapsUrl) {
+            // Copiar ubicación
+            const btnCopiar = document.getElementById("btnCopiarUbicacion");
+            if (btnCopiar) {
+                btnCopiar.addEventListener("click", () => {
+                    const texto = mapsUrl || orden.entregaDireccion || "";
+                    navigator.clipboard.writeText(texto).then(() => {
+                        btnCopiar.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                        setTimeout(() => { btnCopiar.innerHTML = '<i class="bi bi-clipboard"></i> Copiar'; }, 2000);
+                    }).catch(() => {
+                        // Fallback
+                        const ta = document.createElement("textarea");
+                        ta.value = texto;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                        btnCopiar.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                        setTimeout(() => { btnCopiar.innerHTML = '<i class="bi bi-clipboard"></i> Copiar'; }, 2000);
+                    });
+                });
+            }
+
+            // Upload de evidencia
+            const uploadArea = document.getElementById("uploadArea");
+            const inputEvidencia = document.getElementById("inputEvidencia");
+            const btnEnviar = document.getElementById("btnEnviarEvidencia");
+            let archivoEvidencia = null;
+
+            uploadArea.addEventListener("click", () => inputEvidencia.click());
+
+            inputEvidencia.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                archivoEvidencia = file;
+
+                // Preview
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    uploadArea.classList.add("has-image");
+                    uploadArea.innerHTML = `
+                        <i class="bi bi-check-circle-fill"></i>
+                        <p>Imagen seleccionada</p>
+                        <img src="${ev.target.result}" class="preview-img" alt="Preview">
+                    `;
+                    btnEnviar.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Enviar evidencia
+            btnEnviar.addEventListener("click", async () => {
+                if (!archivoEvidencia) return;
+                btnEnviar.disabled = true;
+                btnEnviar.innerHTML = '<span class="spinner"></span> Subiendo imagen...';
+
+                try {
+                    // Subir a IMGBB
+                    const formData = new FormData();
+                    formData.append("image", archivoEvidencia);
+
+                    const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
+                        method: "POST",
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (!data.success) {
+                        throw new Error("Error al subir imagen");
+                    }
+
+                    const imageUrl = data.data.url;
+
+                    // Guardar en Firestore
+                    btnEnviar.innerHTML = '<span class="spinner"></span> Guardando...';
+                    const ref = doc(db, "produccion", orden.id);
+                    const snap = await getDoc(ref);
+                    if (snap.exists()) {
+                        const ordenData = snap.data();
+                        await setDoc(ref, {
+                            ...ordenData,
+                            entregaCompletada: true,
+                            entregaCompletadaFecha: new Date().toISOString(),
+                            entregaEvidenciaUrl: imageUrl
+                        });
+                    }
+
+                    // Mostrar confirmación
+                    document.getElementById("contenido").innerHTML = `
+                        <div class="completado-banner" style="margin:24px;">
+                            <i class="bi bi-check-circle-fill"></i>
+                            <h3>¡Entrega confirmada!</h3>
+                            <p>La evidencia fue enviada correctamente. Gracias.</p>
+                            <img src="${imageUrl}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:12px;border:2px solid rgba(255,255,255,0.3);">
+                        </div>
+                    `;
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al enviar evidencia. Intenta de nuevo.");
+                    btnEnviar.disabled = false;
+                    btnEnviar.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar entrega';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
