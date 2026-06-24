@@ -28,6 +28,10 @@
                 <i class="bi bi-truck"></i>
                 <span>Seguimiento</span>
             </a>
+            <a class="nav-item" data-section="remision" data-role="administrador,ventas,ordenes">
+                <i class="bi bi-geo-alt"></i>
+                <span>Remision</span>
+            </a>
             <a class="nav-item" data-section="disenos" data-role="administrador,ventas,ordenes">
                 <i class="bi bi-brush"></i>
                 <span>Diseños</span>
@@ -400,6 +404,31 @@
                         <div class="empty-state">
                             <i class="bi bi-truck"></i>
                             <p>Cargando seguimiento...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== SECCION: REMISION ===== -->
+            <div class="section" id="section-remision">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-geo-alt"></i> Remision - Entregas</h2>
+                </div>
+
+                <!-- Filtros Remisión -->
+                <div class="seguimiento-filtros">
+                    <button class="rem-filtro-btn active" data-filtro="todos">Todos</button>
+                    <button class="rem-filtro-btn" data-filtro="pendiente">Pendientes</button>
+                    <button class="rem-filtro-btn" data-filtro="recoger">Recoger</button>
+                    <button class="rem-filtro-btn" data-filtro="domicilio">Domicilio</button>
+                    <button class="rem-filtro-btn" data-filtro="entregado">Entregados</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body" id="remisionLista">
+                        <div class="empty-state">
+                            <i class="bi bi-geo-alt"></i>
+                            <p>Cargando remisiones...</p>
                         </div>
                     </div>
                 </div>
@@ -1253,6 +1282,10 @@
         <a class="bottom-nav-item" data-section="seguimiento">
             <i class="bi bi-truck"></i>
             <span>Seguimiento</span>
+        </a>
+        <a class="bottom-nav-item" data-section="remision" data-role="administrador,ventas,ordenes">
+            <i class="bi bi-geo-alt"></i>
+            <span>Remision</span>
         </a>
         <a class="bottom-nav-item" data-section="disenos" data-role="administrador,ventas,ordenes">
             <i class="bi bi-brush"></i>

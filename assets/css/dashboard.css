@@ -3854,6 +3854,7 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
+    white-space: nowrap;
 }
 
 .seg-estado-badge.recibido { background: #f0f9ff; color: #0284c7; }
@@ -3861,6 +3862,11 @@ body {
 .seg-estado-badge.produccion { background: #fff7ed; color: #c2410c; }
 .seg-estado-badge.calidad { background: #fefce8; color: #a16207; }
 .seg-estado-badge.terminado { background: #f0fdf4; color: #16a34a; }
+.seg-estado-badge.impresion { background: #fff7ed; color: #c2410c; }
+.seg-estado-badge.guillotina { background: #fef3c7; color: #92400e; }
+.seg-estado-badge.troquelado { background: #ede9fe; color: #6d28d9; }
+.seg-estado-badge.vasos { background: #ecfdf5; color: #047857; }
+.seg-estado-badge.empaques { background: #fef9c3; color: #854d0e; }
 
 .seg-timeline-mini {
     display: flex;
@@ -4514,4 +4520,36 @@ body {
     border-left: 3px solid #f59e0b;
     white-space: pre-wrap;
     line-height: 1.5;
+}
+
+/* ===== REMISION ===== */
+.rem-filtro-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1.5px solid #e0e0e0;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.rem-filtro-btn:hover {
+    border-color: #29ABE2;
+    color: #29ABE2;
+}
+
+.rem-filtro-btn.active {
+    background: #29ABE2;
+    border-color: #29ABE2;
+    color: #fff;
+}
+
+@media (max-width: 600px) {
+    .rem-filtro-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
 }

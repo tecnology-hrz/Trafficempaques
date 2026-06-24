@@ -139,6 +139,12 @@ async function initDashboard(rol, nombre) {
     setupSeguimiento();
     cargarSeguimiento();
 
+    // Remision: admin, ventas, ordenes
+    if (rol === "administrador" || rol === "ventas" || rol === "ordenes") {
+        setupRemision();
+        cargarRemision();
+    }
+
     // Cargar ordenes para todos los roles
     cargarOrdenes(rol);
     cargarDisenosAprobados(rol);
@@ -2610,8 +2616,11 @@ async function enviarAProduccion(cot, tipoProd, items) {
         cotizacionId: cot.id,
         numero:       cot.numero,
         cliente:      cot.cliente,
+        negocio:      cot.negocio || "",
         nit:          cot.nit || "",
         telefono:     cot.telefono || "",
+        direccion:    cot.direccion || "",
+        ciudad:       cot.ciudad || "",
         tipo:         tipoProd,
         items:        items,
         total:        items.reduce((s, i) => s + (i.precioTotal || 0), 0),
@@ -2695,6 +2704,17 @@ async function cargarSeguimiento() {
         let ordenes = [];
         snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
         ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+
+        // Para ordenes sin negocio, buscarlo de la cotización
+        const cotSnap = await getDocs(collection(db, "cotizaciones"));
+        const cotizaciones = {};
+        cotSnap.forEach(d => { cotizaciones[d.id] = d.data(); });
+
+        ordenes.forEach(o => {
+            if (!o.negocio && o.cotizacionId && cotizaciones[o.cotizacionId]) {
+                o.negocio = cotizaciones[o.cotizacionId].negocio || "";
+            }
+        });
 
         // Asignar paso por defecto a órdenes sin seguimiento
         ordenes.forEach(o => {
@@ -2794,12 +2814,13 @@ async function cargarSeguimiento() {
             }
 
             const fechaEnvio = orden.fechaEnvio ? new Date(orden.fechaEnvio).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
+            const nombreSeg = orden.negocio || orden.cliente;
 
             card.innerHTML = `
                 <div class="seg-orden-header">
                     <div class="seg-orden-info">
                         <div class="seg-orden-numero">${orden.numero} <span style="font-weight:400;color:#888;font-size:12px;">&bull; ${orden.tipo}</span></div>
-                        <div class="seg-orden-cliente">${orden.cliente} &bull; ${fechaEnvio}</div>
+                        <div class="seg-orden-cliente">${nombreSeg} &bull; ${fechaEnvio}</div>
                     </div>
                     <span class="seg-estado-badge ${pasoActual}"><i class="bi ${estadoIcons[pasoActual]}"></i> ${estadoLabels[pasoActual]}</span>
                 </div>
@@ -3881,4 +3902,171 @@ function setupNotificaciones() {
         }
         notifOrdenesEstado = nuevoEstado;
     });
+}
+
+// ===== REMISION (Entregas) =====
+let remisionFiltro = "todos";
+
+function setupRemision() {
+    const filtros = document.querySelectorAll(".rem-filtro-btn");
+    filtros.forEach(btn => {
+        btn.addEventListener("click", () => {
+            filtros.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            remisionFiltro = btn.dataset.filtro;
+            cargarRemision();
+        });
+    });
+}
+
+async function cargarRemision() {
+    const container = document.getElementById("remisionLista");
+    if (!container) return;
+
+    try {
+        const snap = await getDocs(collection(db, "produccion"));
+        let ordenes = [];
+        snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
+
+        // Para ordenes sin negocio, buscarlo de la cotización
+        const cotSnap = await getDocs(collection(db, "cotizaciones"));
+        const cotizaciones = {};
+        cotSnap.forEach(d => { cotizaciones[d.id] = d.data(); });
+
+        ordenes.forEach(o => {
+            if (!o.negocio && o.cotizacionId && cotizaciones[o.cotizacionId]) {
+                o.negocio = cotizaciones[o.cotizacionId].negocio || "";
+            }
+        });
+
+        // Solo ordenes terminadas
+        ordenes = ordenes.filter(o => o.pasoActual === "terminado");
+        ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+
+        // Filtrar según tab
+        if (remisionFiltro === "pendiente") {
+            ordenes = ordenes.filter(o => !o.metodoEntrega);
+        } else if (remisionFiltro === "recoger") {
+            ordenes = ordenes.filter(o => o.metodoEntrega === "recoger" && !o.entregaCompletada);
+        } else if (remisionFiltro === "domicilio") {
+            ordenes = ordenes.filter(o => o.metodoEntrega === "domicilio" && !o.entregaCompletada);
+        } else if (remisionFiltro === "entregado") {
+            ordenes = ordenes.filter(o => o.entregaCompletada);
+        }
+
+        if (ordenes.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-geo-alt"></i><p>No hay ordenes en este estado</p></div>';
+            return;
+        }
+
+        container.innerHTML = "";
+        ordenes.forEach(orden => {
+            const card = document.createElement("div");
+            card.className = "seg-orden-card";
+
+            // Determinar estado de remisión
+            let estadoBadge = "";
+            if (orden.entregaCompletada) {
+                estadoBadge = '<span class="seg-estado-badge terminado"><i class="bi bi-check-circle"></i> Entregado</span>';
+            } else if (!orden.metodoEntrega) {
+                estadoBadge = '<span class="seg-estado-badge recibido"><i class="bi bi-clock"></i> Esperando cliente</span>';
+            } else if (orden.metodoEntrega === "recoger") {
+                estadoBadge = '<span class="seg-estado-badge diseno"><i class="bi bi-shop"></i> Recoger en punto</span>';
+            } else if (orden.metodoEntrega === "domicilio") {
+                estadoBadge = '<span class="seg-estado-badge impresion"><i class="bi bi-geo-alt"></i> Domicilio</span>';
+            }
+
+            // Nombre a mostrar: negocio si existe, si no cliente
+            const nombreDisplay = orden.negocio || orden.cliente;
+
+            // Acciones
+            let actionsHtml = '';
+            if (!orden.entregaCompletada) {
+                if (orden.metodoEntrega === "domicilio" && orden.entregaUbicacionUrl) {
+                    actionsHtml += `<a href="${orden.entregaUbicacionUrl}" target="_blank" class="seg-btn-avanzar" style="text-decoration:none;"><i class="bi bi-geo-alt-fill"></i> Ver ubicacion</a>`;
+                    actionsHtml += `<button class="seg-btn-link" data-copy-url="${orden.entregaUbicacionUrl}"><i class="bi bi-clipboard"></i> Copiar link Maps</button>`;
+                }
+                if (orden.metodoEntrega) {
+                    actionsHtml += `<button class="seg-btn-avanzar rem-btn-completar" data-id="${orden.id}"><i class="bi bi-check-lg"></i> Marcar entregado</button>`;
+                }
+            }
+            // Botón eliminar siempre visible
+            actionsHtml += `<button class="seg-btn-retroceder rem-btn-eliminar" data-id="${orden.id}"><i class="bi bi-trash"></i> Eliminar</button>`;
+
+            // Info de dirección
+            let direccionHtml = '';
+            if (orden.metodoEntrega === "domicilio") {
+                direccionHtml = `<div style="font-size:12px;color:#666;margin-top:4px;">📍 ${orden.entregaDireccion || 'Sin direccion'}</div>`;
+            }
+
+            const fechaEnvio = orden.fechaEnvio ? new Date(orden.fechaEnvio).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
+
+            card.innerHTML = `
+                <div class="seg-orden-header">
+                    <div class="seg-orden-info">
+                        <div class="seg-orden-numero">${orden.numero} <span style="font-weight:400;color:#888;font-size:12px;">&bull; ${orden.tipo}</span></div>
+                        <div class="seg-orden-cliente">${nombreDisplay} &bull; ${fechaEnvio}</div>
+                        ${direccionHtml}
+                    </div>
+                    ${estadoBadge}
+                </div>
+                <div class="seg-orden-actions">${actionsHtml}</div>
+            `;
+
+            container.appendChild(card);
+        });
+
+        // Evento: copiar link maps
+        container.querySelectorAll("[data-copy-url]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const url = btn.dataset.copyUrl;
+                copyToClipboard(url).then(() => {
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                    setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar link Maps'; }, 2000);
+                });
+            });
+        });
+
+        // Evento: marcar entregado
+        container.querySelectorAll(".rem-btn-completar").forEach(btn => {
+            btn.addEventListener("click", async () => {
+                const id = btn.dataset.id;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Guardando...';
+                try {
+                    const ref = doc(db, "produccion", id);
+                    const snap = await getDoc(ref);
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        await setDoc(ref, { ...data, entregaCompletada: true, entregaCompletadaFecha: new Date().toISOString() });
+                    }
+                    cargarRemision();
+                } catch (err) {
+                    console.error("Error marcando entregado:", err);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Marcar entregado';
+                }
+            });
+        });
+
+        // Evento: eliminar remisión
+        container.querySelectorAll(".rem-btn-eliminar").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                showConfirm("Eliminar remision", "¿Seguro que deseas eliminar esta orden de remision? Se eliminara de produccion.", async () => {
+                    try {
+                        await deleteDoc(doc(db, "produccion", id));
+                        cargarRemision();
+                        cargarSeguimiento();
+                    } catch (err) {
+                        console.error("Error eliminando remision:", err);
+                    }
+                });
+            });
+        });
+
+    } catch (err) {
+        console.error("Error cargando remision:", err);
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
+    }
 }

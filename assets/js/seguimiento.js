@@ -55,6 +55,17 @@ async function cargarSeguimiento() {
         }
 
         const orden = { id: docSnap.id, ...docSnap.data() };
+
+        // Si no tiene negocio, buscarlo de la cotización
+        if (!orden.negocio && orden.cotizacionId) {
+            try {
+                const cotSnap = await getDoc(doc(db, "cotizaciones", orden.cotizacionId));
+                if (cotSnap.exists()) {
+                    orden.negocio = cotSnap.data().negocio || "";
+                }
+            } catch (e) { /* ignorar */ }
+        }
+
         renderSeguimiento(orden);
     } catch (err) {
         console.error(err);
@@ -70,7 +81,10 @@ async function cargarSeguimiento() {
 function renderSeguimiento(orden) {
     document.getElementById("ordenNumero").textContent = orden.numero || "Orden";
     document.getElementById("ordenSubtitle").textContent = "Seguimiento de tu pedido";
-    document.getElementById("segCliente").textContent = orden.cliente || "-";
+
+    // Mostrar negocio si existe, si no el cliente
+    const nombreDisplay = orden.negocio || orden.cliente || "-";
+    document.getElementById("segCliente").textContent = nombreDisplay;
 
     const tipoText = orden.tipo === "digital" ? "Digital" : "Imprenta";
     document.getElementById("segTipo").textContent = tipoText;
@@ -136,13 +150,211 @@ function renderSeguimiento(orden) {
             <div class="terminado-banner">
                 <i class="bi bi-check-circle-fill"></i>
                 <h3>¡Tu pedido esta listo!</h3>
-                <p>Ya puedes pasar a recoger tu orden. Gracias por tu confianza.</p>
+                <p>Selecciona como deseas recibir tu pedido.</p>
             </div>
         `;
+
+        // Mostrar opciones de entrega
+        renderEntregaOpciones(orden);
 
         // Verificar si tiene saldo pendiente
         renderPagoRestante(orden);
     }
+}
+
+function renderEntregaOpciones(orden) {
+    const section = document.getElementById("entregaSection");
+
+    // Si ya eligió método de entrega, mostrar confirmación
+    if (orden.metodoEntrega) {
+        section.style.display = "block";
+        const esDomicilio = orden.metodoEntrega === "domicilio";
+        section.innerHTML = `
+            <div class="entrega-section">
+                <div class="entrega-confirmada">
+                    <i class="bi ${esDomicilio ? 'bi-geo-alt-fill' : 'bi-shop'}"></i>
+                    <h3>${esDomicilio ? 'Domicilio confirmado' : 'Recoger en punto'}</h3>
+                    <p>${esDomicilio ? 'Tu pedido sera enviado a la direccion proporcionada.' : 'Puedes pasar a recoger tu pedido en nuestro punto de entrega.'}</p>
+                    ${esDomicilio && orden.entregaDireccion ? `<p style="margin-top:8px;font-weight:600;">📍 ${orden.entregaDireccion}</p>` : ''}
+                    ${esDomicilio && orden.entregaUbicacionUrl ? `<div class="mapa-preview" style="margin-top:12px;"><a href="${orden.entregaUbicacionUrl}" target="_blank" style="color:#fff;text-decoration:underline;font-size:12px;">Ver en Google Maps</a></div>` : ''}
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    section.style.display = "block";
+    section.innerHTML = `
+        <div class="entrega-section">
+            <div class="entrega-card">
+                <h3><i class="bi bi-box2-heart"></i> ¿Como deseas recibir tu pedido?</h3>
+                <p>Selecciona si prefieres recogerlo en nuestro punto o recibirlo a domicilio.</p>
+
+                <div class="entrega-opciones">
+                    <div class="entrega-opcion" data-metodo="recoger">
+                        <i class="bi bi-shop"></i>
+                        <div class="opcion-titulo">Recoger en punto</div>
+                        <div class="opcion-desc">Paso por el directamente</div>
+                    </div>
+                    <div class="entrega-opcion" data-metodo="domicilio">
+                        <i class="bi bi-geo-alt"></i>
+                        <div class="opcion-titulo">Domicilio</div>
+                        <div class="opcion-desc">Enviar a mi direccion</div>
+                    </div>
+                </div>
+
+                <div class="entrega-ubicacion" id="entregaUbicacion">
+                    <label>Direccion de entrega</label>
+                    <input type="text" id="entregaDireccion" placeholder="Escribe tu direccion completa...">
+                    <button class="btn-ubicacion" id="btnCompartirUbicacion">
+                        <i class="bi bi-geo-alt-fill"></i> Compartir mi ubicacion actual
+                    </button>
+                    <div id="mapaPreview" style="margin-top:10px;"></div>
+                </div>
+
+                <button class="btn-confirmar-entrega" id="btnConfirmarEntrega" disabled>
+                    <i class="bi bi-check-circle"></i> Confirmar metodo de entrega
+                </button>
+            </div>
+        </div>
+    `;
+
+    setupEntregaOpciones(orden);
+}
+
+function setupEntregaOpciones(orden) {
+    let metodoSeleccionado = "";
+    let ubicacionLat = null;
+    let ubicacionLng = null;
+    let ubicacionUrl = "";
+
+    const opciones = document.querySelectorAll(".entrega-opcion");
+    const ubicacionSection = document.getElementById("entregaUbicacion");
+    const btnConfirmar = document.getElementById("btnConfirmarEntrega");
+
+    opciones.forEach(op => {
+        op.addEventListener("click", () => {
+            opciones.forEach(o => o.classList.remove("selected"));
+            op.classList.add("selected");
+            metodoSeleccionado = op.dataset.metodo;
+
+            if (metodoSeleccionado === "domicilio") {
+                ubicacionSection.classList.add("visible");
+            } else {
+                ubicacionSection.classList.remove("visible");
+            }
+            validarEntrega();
+        });
+    });
+
+    // Compartir ubicación
+    const btnUbicacion = document.getElementById("btnCompartirUbicacion");
+    btnUbicacion.addEventListener("click", () => {
+        if (!navigator.geolocation) {
+            alert("Tu navegador no soporta geolocalizacion.");
+            return;
+        }
+        btnUbicacion.disabled = true;
+        btnUbicacion.innerHTML = '<span class="spinner-seg"></span> Obteniendo ubicacion...';
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                ubicacionLat = pos.coords.latitude;
+                ubicacionLng = pos.coords.longitude;
+                ubicacionUrl = `https://www.google.com/maps?q=${ubicacionLat},${ubicacionLng}`;
+
+                btnUbicacion.innerHTML = '<i class="bi bi-check-circle"></i> Ubicacion obtenida';
+                btnUbicacion.style.background = "#16a34a";
+
+                // Mostrar preview del mapa
+                const preview = document.getElementById("mapaPreview");
+                preview.innerHTML = `
+                    <div class="mapa-preview">
+                        <iframe src="https://maps.google.com/maps?q=${ubicacionLat},${ubicacionLng}&z=16&output=embed"></iframe>
+                    </div>
+                    <p style="font-size:11px;color:#666;margin-top:6px;">📍 Lat: ${ubicacionLat.toFixed(6)}, Lng: ${ubicacionLng.toFixed(6)}</p>
+                `;
+
+                // Auto-fill dirección si está vacía
+                const inputDireccion = document.getElementById("entregaDireccion");
+                if (!inputDireccion.value) {
+                    inputDireccion.value = `Lat: ${ubicacionLat.toFixed(6)}, Lng: ${ubicacionLng.toFixed(6)}`;
+                }
+
+                validarEntrega();
+            },
+            (err) => {
+                console.error(err);
+                btnUbicacion.disabled = false;
+                btnUbicacion.innerHTML = '<i class="bi bi-geo-alt-fill"></i> Compartir mi ubicacion actual';
+                alert("No se pudo obtener tu ubicacion. Asegurate de permitir el acceso a la ubicacion.");
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+
+    // Validar
+    function validarEntrega() {
+        if (metodoSeleccionado === "recoger") {
+            btnConfirmar.disabled = false;
+        } else if (metodoSeleccionado === "domicilio") {
+            const direccion = document.getElementById("entregaDireccion").value.trim();
+            btnConfirmar.disabled = !direccion;
+        } else {
+            btnConfirmar.disabled = true;
+        }
+    }
+
+    // Input dirección valida en tiempo real
+    const inputDireccion = document.getElementById("entregaDireccion");
+    inputDireccion.addEventListener("input", validarEntrega);
+
+    // Confirmar
+    btnConfirmar.addEventListener("click", async () => {
+        btnConfirmar.disabled = true;
+        btnConfirmar.innerHTML = '<span class="spinner-seg"></span> Guardando...';
+
+        try {
+            const ref = doc(db, "produccion", orden.id);
+            const snap = await getDoc(ref);
+            const data = snap.data();
+
+            const entregaData = {
+                metodoEntrega: metodoSeleccionado,
+                entregaFecha: new Date().toISOString()
+            };
+
+            if (metodoSeleccionado === "domicilio") {
+                entregaData.entregaDireccion = document.getElementById("entregaDireccion").value.trim();
+                if (ubicacionLat && ubicacionLng) {
+                    entregaData.entregaLat = ubicacionLat;
+                    entregaData.entregaLng = ubicacionLng;
+                    entregaData.entregaUbicacionUrl = ubicacionUrl;
+                }
+            }
+
+            await setDoc(ref, { ...data, ...entregaData });
+
+            // Mostrar confirmación
+            const section = document.getElementById("entregaSection");
+            const esDomicilio = metodoSeleccionado === "domicilio";
+            section.innerHTML = `
+                <div class="entrega-section">
+                    <div class="entrega-confirmada">
+                        <i class="bi ${esDomicilio ? 'bi-geo-alt-fill' : 'bi-shop'}"></i>
+                        <h3>${esDomicilio ? '¡Domicilio confirmado!' : '¡Recoger en punto confirmado!'}</h3>
+                        <p>${esDomicilio ? 'Tu pedido sera enviado a la direccion proporcionada.' : 'Ya puedes pasar a recoger tu pedido en nuestro punto.'}</p>
+                        ${esDomicilio && entregaData.entregaDireccion ? `<p style="margin-top:8px;font-weight:600;">📍 ${entregaData.entregaDireccion}</p>` : ''}
+                    </div>
+                </div>
+            `;
+        } catch (err) {
+            console.error(err);
+            alert("Error al guardar. Intenta de nuevo.");
+            btnConfirmar.disabled = false;
+            btnConfirmar.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar metodo de entrega';
+        }
+    });
 }
 
 function renderPagoRestante(orden) {
