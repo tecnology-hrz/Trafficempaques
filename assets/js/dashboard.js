@@ -558,6 +558,16 @@ function setupCotizador() {
     if (inputBuscar) inputBuscar.addEventListener("input", () => renderListaCotizaciones());
     if (selectEstado) selectEstado.addEventListener("change", () => renderListaCotizaciones());
 
+    // Filtros de ordenes
+    const inputOrdenesBuscar = document.getElementById("ordenesBuscar");
+    if (inputOrdenesBuscar) inputOrdenesBuscar.addEventListener("input", () => renderOrdenesConFiltro(ordenesRolCache || rol));
+
+    // Filtros de diseños
+    const inputDisenosBuscar = document.getElementById("disenosBuscar");
+    const selectDisenosEstado = document.getElementById("disenosFiltroEstado");
+    if (inputDisenosBuscar) inputDisenosBuscar.addEventListener("input", () => renderDisenosFiltrados());
+    if (selectDisenosEstado) selectDisenosEstado.addEventListener("change", () => renderDisenosFiltrados());
+
     btnNueva.addEventListener("click", () => {
         cotItems = [];
         document.getElementById("cotCliente").value  = "";
@@ -1579,6 +1589,8 @@ async function cargarUsuarios() {
 
 // ===== ORDENES (cotizaciones aprobadas) =====
 let ordenesDisenoDB = {}; // Cache de ordenes de diseño existentes
+let ordenesCache = []; // Cache de ordenes para filtrado
+let ordenesRolCache = ""; // Rol usado al cargar
 
 async function cargarOrdenes(rolUsuario) {
     try {
@@ -1593,72 +1605,71 @@ async function cargarOrdenes(rolUsuario) {
         ordenesDisenoDB = {};
         snapDiseno.forEach(d => { ordenesDisenoDB[d.id] = { id: d.id, ...d.data() }; });
 
-        if (rolUsuario === "administrador" || rolUsuario === "ordenes") {
-            // Admin y ordenes ven todo en tabs digital/imprenta
-            renderOrdenesPorTipo(ordenes, "digital", "ordenesDigitalLista", rolUsuario);
-            renderOrdenesPorTipo(ordenes, "imprenta", "ordenesImprentaLista", rolUsuario);
-        } else if (rolUsuario === "ventas") {
-            // Ventas solo ve sus propias órdenes
-            const currentUser = sessionStorage.getItem("userName") || "";
-            const currentEmail = sessionStorage.getItem("userEmail") || "";
-            const misOrdenes = ordenes.filter(o =>
-                o.creadoPor === currentUser || o.creadoPorEmail === currentEmail ||
-                (!o.creadoPor && !o.creadoPorEmail) // órdenes antiguas sin dueño
-            );
-            renderOrdenesPorTipo(misOrdenes, "digital", "ordenesDigitalLista", rolUsuario);
-            renderOrdenesPorTipo(misOrdenes, "imprenta", "ordenesImprentaLista", rolUsuario);
-        } else {
-            // Imprenta/Digital: separar en pendientes y con diseño respondido
-            const tipoRol = rolUsuario; // "imprenta" o "digital"
-            const misOrdenes = ordenes.filter(o => o.tipo === tipoRol);
-
-            const currentUser = sessionStorage.getItem("userName") || "";
-            const currentEmail = sessionStorage.getItem("userEmail") || "";
-
-            // Separar: las que tienen diseño respondido con al menos 1 aprobada
-            const pendientes = [];
-            const respondidas = [];
-
-            misOrdenes.forEach(orden => {
-                const disenoId = orden.id + "-diseno";
-                const diseno = ordenesDisenoDB[disenoId];
-                if (diseno && diseno.estado === "respondida") {
-                    // Solo mostrar como respondida si fue creada por este usuario (o si no tiene creadoPor = orden antigua)
-                    const sinAsignar = !diseno.creadoPor && !diseno.creadoPorEmail;
-                    const esMio = sinAsignar || diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
-                    if (!esMio) {
-                        // Si no es suyo, la trata como pendiente (no ve el diseño de otro)
-                        pendientes.push(orden);
-                        return;
-                    }
-                    // Verificar si tiene al menos 1 imagen aprobada
-                    const tieneAprobada = (diseno.items || []).some(item =>
-                        (item.imagenes || []).some(img => img.estado === "aprobada")
-                    );
-                    if (tieneAprobada) {
-                        respondidas.push({ orden, diseno });
-                    } else {
-                        pendientes.push(orden);
-                    }
-                } else if (diseno && diseno.estado === "pendiente") {
-                    // Si tiene diseño pendiente de otro usuario, no mostrar opción de editar diseño
-                    const sinAsignar = !diseno.creadoPor && !diseno.creadoPorEmail;
-                    const esMio = sinAsignar || diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
-                    if (!esMio) {
-                        // No incluir en pendientes — otro usuario ya está trabajando en esta orden
-                    } else {
-                        pendientes.push(orden);
-                    }
-                } else {
-                    pendientes.push(orden);
-                }
-            });
-
-            renderOrdenesPorTipo(pendientes, tipoRol, "ordenesPendientesLista", rolUsuario);
-            renderDisenosRespondidos(respondidas, "ordenesDisenosLista", rolUsuario);
-        }
+        ordenesCache = ordenes;
+        ordenesRolCache = rolUsuario;
+        renderOrdenesConFiltro(rolUsuario);
     } catch (err) {
         console.error("Error al cargar ordenes:", err);
+    }
+}
+
+function renderOrdenesConFiltro(rolUsuario) {
+    const busqueda = (document.getElementById("ordenesBuscar")?.value || "").trim().toLowerCase();
+    let ordenes = ordenesCache;
+
+    // Filtrar por búsqueda
+    if (busqueda) {
+        ordenes = ordenes.filter(o =>
+            (o.cliente || "").toLowerCase().includes(busqueda) ||
+            (o.numero || "").toLowerCase().includes(busqueda) ||
+            (o.negocio || "").toLowerCase().includes(busqueda) ||
+            (o.tipo || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    if (rolUsuario === "administrador" || rolUsuario === "ordenes") {
+        renderOrdenesPorTipo(ordenes, "digital", "ordenesDigitalLista", rolUsuario);
+        renderOrdenesPorTipo(ordenes, "imprenta", "ordenesImprentaLista", rolUsuario);
+    } else if (rolUsuario === "ventas") {
+        const currentUser = sessionStorage.getItem("userName") || "";
+        const currentEmail = sessionStorage.getItem("userEmail") || "";
+        const misOrdenes = ordenes.filter(o =>
+            o.creadoPor === currentUser || o.creadoPorEmail === currentEmail ||
+            (!o.creadoPor && !o.creadoPorEmail)
+        );
+        renderOrdenesPorTipo(misOrdenes, "digital", "ordenesDigitalLista", rolUsuario);
+        renderOrdenesPorTipo(misOrdenes, "imprenta", "ordenesImprentaLista", rolUsuario);
+    } else {
+        const tipoRol = rolUsuario;
+        const misOrdenes = ordenes.filter(o => o.tipo === tipoRol);
+        const currentUser = sessionStorage.getItem("userName") || "";
+        const currentEmail = sessionStorage.getItem("userEmail") || "";
+        const pendientes = [];
+        const respondidas = [];
+
+        misOrdenes.forEach(orden => {
+            const disenoId = orden.id + "-diseno";
+            const diseno = ordenesDisenoDB[disenoId];
+            if (diseno && diseno.estado === "respondida") {
+                const sinAsignar = !diseno.creadoPor && !diseno.creadoPorEmail;
+                const esMio = sinAsignar || diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
+                if (!esMio) { pendientes.push(orden); return; }
+                const tieneAprobada = (diseno.items || []).some(item =>
+                    (item.imagenes || []).some(img => img.estado === "aprobada")
+                );
+                if (tieneAprobada) { respondidas.push({ orden, diseno }); }
+                else { pendientes.push(orden); }
+            } else if (diseno && diseno.estado === "pendiente") {
+                const sinAsignar = !diseno.creadoPor && !diseno.creadoPorEmail;
+                const esMio = sinAsignar || diseno.creadoPor === currentUser || diseno.creadoPorEmail === currentEmail;
+                if (esMio) { pendientes.push(orden); }
+            } else {
+                pendientes.push(orden);
+            }
+        });
+
+        renderOrdenesPorTipo(pendientes, tipoRol, "ordenesPendientesLista", rolUsuario);
+        renderDisenosRespondidos(respondidas, "ordenesDisenosLista", rolUsuario);
     }
 }
 
@@ -2246,6 +2257,9 @@ async function guardarOrdenDiseno(orden) {
         : '<i class="bi bi-check-lg"></i> Guardar y generar link';
 }
 // ===== SECCION DISEÑOS (ordenes de diseño con estado) =====
+let disenosCache = [];
+let disenosRolCache = "";
+
 async function cargarDisenosAprobados(rolUsuario) {
     // Admin, ventas y ordenes usan esta seccion
     if (rolUsuario !== "administrador" && rolUsuario !== "ventas" && rolUsuario !== "ordenes") return;
@@ -2265,23 +2279,49 @@ async function cargarDisenosAprobados(rolUsuario) {
             const currentUser = sessionStorage.getItem("userName") || "";
             const currentEmail = sessionStorage.getItem("userEmail") || "";
             disenos = disenos.filter(d => {
-                // Órdenes antiguas sin creadoPor se muestran a todos
                 if (!d.creadoPor && !d.creadoPorEmail) return true;
                 return d.creadoPor === currentUser || d.creadoPorEmail === currentEmail;
             });
         }
 
-        const digitales = disenos.filter(d => d.tipo === "digital");
-        const imprenta = disenos.filter(d => d.tipo === "imprenta");
-
-        renderDisenosEnContainer(digitales, containerDigital);
-        renderDisenosEnContainer(imprenta, containerImprenta);
-
+        disenosCache = disenos;
+        disenosRolCache = rolUsuario;
+        renderDisenosFiltrados();
     } catch (err) {
         console.error("Error cargando diseños:", err);
         containerDigital.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
         containerImprenta.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
     }
+}
+
+function renderDisenosFiltrados() {
+    const containerDigital = document.getElementById("listaDisenosDigital");
+    const containerImprenta = document.getElementById("listaDisenosImprenta");
+    if (!containerDigital || !containerImprenta) return;
+
+    let disenos = [...disenosCache];
+    const busqueda = (document.getElementById("disenosBuscar")?.value || "").trim().toLowerCase();
+    const filtroEstado = document.getElementById("disenosFiltroEstado")?.value || "";
+
+    // Filtrar por búsqueda
+    if (busqueda) {
+        disenos = disenos.filter(d =>
+            (d.cliente || "").toLowerCase().includes(busqueda) ||
+            (d.numero || "").toLowerCase().includes(busqueda) ||
+            (d.tipo || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    // Filtrar por estado
+    if (filtroEstado) {
+        disenos = disenos.filter(d => d.estado === filtroEstado);
+    }
+
+    const digitales = disenos.filter(d => d.tipo === "digital");
+    const imprenta = disenos.filter(d => d.tipo === "imprenta");
+
+    renderDisenosEnContainer(digitales, containerDigital);
+    renderDisenosEnContainer(imprenta, containerImprenta);
 }
 
 function renderDisenosEnContainer(filtrados, container) {
@@ -2682,6 +2722,7 @@ function getPasosOrden(orden) {
 }
 
 let seguimientoFiltro = "todos";
+let seguimientoCache = [];
 
 function setupSeguimiento() {
     const filtros = document.querySelectorAll(".seg-filtro-btn");
@@ -2690,9 +2731,12 @@ function setupSeguimiento() {
             filtros.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             seguimientoFiltro = btn.dataset.filtro;
-            cargarSeguimiento();
+            renderSeguimiento();
         });
     });
+    // Buscador
+    const inputBuscar = document.getElementById("seguimientoBuscar");
+    if (inputBuscar) inputBuscar.addEventListener("input", () => renderSeguimiento());
 }
 
 async function cargarSeguimiento() {
@@ -2721,18 +2765,42 @@ async function cargarSeguimiento() {
             if (!o.pasoActual) o.pasoActual = "recibido";
         });
 
-        // Filtrar
-        if (seguimientoFiltro !== "todos") {
-            ordenes = ordenes.filter(o => o.pasoActual === seguimientoFiltro);
-        }
+        seguimientoCache = ordenes;
+        renderSeguimiento();
+    } catch (err) {
+        console.error("Error cargando seguimiento:", err);
+    }
+}
 
-        if (ordenes.length === 0) {
-            container.innerHTML = '<div class="empty-state"><i class="bi bi-truck"></i><p>No hay ordenes en este estado</p></div>';
-            return;
-        }
+function renderSeguimiento() {
+    const container = document.getElementById("seguimientoLista");
+    if (!container) return;
 
-        container.innerHTML = "";
-        ordenes.forEach(orden => {
+    let ordenes = [...seguimientoCache];
+    const busqueda = (document.getElementById("seguimientoBuscar")?.value || "").trim().toLowerCase();
+
+    // Filtrar por búsqueda
+    if (busqueda) {
+        ordenes = ordenes.filter(o =>
+            (o.cliente || "").toLowerCase().includes(busqueda) ||
+            (o.numero || "").toLowerCase().includes(busqueda) ||
+            (o.negocio || "").toLowerCase().includes(busqueda) ||
+            (o.tipo || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    // Filtrar por estado
+    if (seguimientoFiltro !== "todos") {
+        ordenes = ordenes.filter(o => o.pasoActual === seguimientoFiltro);
+    }
+
+    if (ordenes.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-truck"></i><p>No hay ordenes en este estado</p></div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    ordenes.forEach(orden => {
             const card = document.createElement("div");
             card.className = "seg-orden-card";
 
@@ -2861,11 +2929,6 @@ async function cargarSeguimiento() {
                 });
             });
         });
-
-    } catch (err) {
-        console.error("Error cargando seguimiento:", err);
-        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
-    }
 }
 
 async function actualizarPasoOrden(ordenId, nuevoPaso) {
@@ -3906,6 +3969,7 @@ function setupNotificaciones() {
 
 // ===== REMISION (Entregas) =====
 let remisionFiltro = "todos";
+let remisionCache = [];
 
 function setupRemision() {
     const filtros = document.querySelectorAll(".rem-filtro-btn");
@@ -3914,9 +3978,12 @@ function setupRemision() {
             filtros.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             remisionFiltro = btn.dataset.filtro;
-            cargarRemision();
+            renderRemision();
         });
     });
+    // Buscador
+    const inputBuscar = document.getElementById("remisionBuscar");
+    if (inputBuscar) inputBuscar.addEventListener("input", () => renderRemision());
 }
 
 async function cargarRemision() {
@@ -3943,24 +4010,49 @@ async function cargarRemision() {
         ordenes = ordenes.filter(o => o.pasoActual === "terminado");
         ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
 
-        // Filtrar según tab
-        if (remisionFiltro === "pendiente") {
-            ordenes = ordenes.filter(o => !o.metodoEntrega);
-        } else if (remisionFiltro === "recoger") {
-            ordenes = ordenes.filter(o => o.metodoEntrega === "recoger" && !o.entregaCompletada);
-        } else if (remisionFiltro === "domicilio") {
-            ordenes = ordenes.filter(o => o.metodoEntrega === "domicilio" && !o.entregaCompletada);
-        } else if (remisionFiltro === "entregado") {
-            ordenes = ordenes.filter(o => o.entregaCompletada);
-        }
+        remisionCache = ordenes;
+        renderRemision();
+    } catch (err) {
+        console.error("Error cargando remision:", err);
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
+    }
+}
 
-        if (ordenes.length === 0) {
-            container.innerHTML = '<div class="empty-state"><i class="bi bi-geo-alt"></i><p>No hay ordenes en este estado</p></div>';
-            return;
-        }
+function renderRemision() {
+    const container = document.getElementById("remisionLista");
+    if (!container) return;
 
-        container.innerHTML = "";
-        ordenes.forEach(orden => {
+    let ordenes = [...remisionCache];
+    const busqueda = (document.getElementById("remisionBuscar")?.value || "").trim().toLowerCase();
+
+    // Filtrar por búsqueda
+    if (busqueda) {
+        ordenes = ordenes.filter(o =>
+            (o.cliente || "").toLowerCase().includes(busqueda) ||
+            (o.numero || "").toLowerCase().includes(busqueda) ||
+            (o.negocio || "").toLowerCase().includes(busqueda) ||
+            (o.tipo || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    // Filtrar según tab
+    if (remisionFiltro === "pendiente") {
+        ordenes = ordenes.filter(o => !o.metodoEntrega);
+    } else if (remisionFiltro === "recoger") {
+        ordenes = ordenes.filter(o => o.metodoEntrega === "recoger" && !o.entregaCompletada);
+    } else if (remisionFiltro === "domicilio") {
+        ordenes = ordenes.filter(o => o.metodoEntrega === "domicilio" && !o.entregaCompletada);
+    } else if (remisionFiltro === "entregado") {
+        ordenes = ordenes.filter(o => o.entregaCompletada);
+    }
+
+    if (ordenes.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-geo-alt"></i><p>No hay ordenes en este estado</p></div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    ordenes.forEach(orden => {
             const card = document.createElement("div");
             card.className = "seg-orden-card";
 
@@ -4064,9 +4156,4 @@ async function cargarRemision() {
                 });
             });
         });
-
-    } catch (err) {
-        console.error("Error cargando remision:", err);
-        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error al cargar</p></div>';
-    }
 }

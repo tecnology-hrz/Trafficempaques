@@ -253,6 +253,14 @@
 
                 <!-- Vista principal de ordenes -->
                 <div id="ordenesListaView">
+                    <!-- Buscador de ordenes -->
+                    <div class="cotizaciones-filtros">
+                        <div class="input-wrapper filtro-busqueda">
+                            <i class="bi bi-search input-icon"></i>
+                            <input type="text" id="ordenesBuscar" placeholder="Buscar por cliente, numero u orden...">
+                        </div>
+                    </div>
+
                     <!-- Tabs solo para admin -->
                     <div class="tab-bar" id="ordenesTabBar">
                         <button class="tab-btn active" data-tab="digital">
@@ -386,6 +394,14 @@
                     <h2 class="section-title"><i class="bi bi-truck"></i> Seguimiento de Ordenes</h2>
                 </div>
 
+                <!-- Buscador de seguimiento -->
+                <div class="cotizaciones-filtros">
+                    <div class="input-wrapper filtro-busqueda">
+                        <i class="bi bi-search input-icon"></i>
+                        <input type="text" id="seguimientoBuscar" placeholder="Buscar por cliente, numero o negocio...">
+                    </div>
+                </div>
+
                 <!-- Filtros -->
                 <div class="seguimiento-filtros">
                     <button class="seg-filtro-btn active" data-filtro="todos">Todos</button>
@@ -415,6 +431,14 @@
                     <h2 class="section-title"><i class="bi bi-geo-alt"></i> Remision - Entregas</h2>
                 </div>
 
+                <!-- Buscador de remision -->
+                <div class="cotizaciones-filtros">
+                    <div class="input-wrapper filtro-busqueda">
+                        <i class="bi bi-search input-icon"></i>
+                        <input type="text" id="remisionBuscar" placeholder="Buscar por cliente, numero o negocio...">
+                    </div>
+                </div>
+
                 <!-- Filtros Remisión -->
                 <div class="seguimiento-filtros">
                     <button class="rem-filtro-btn active" data-filtro="todos">Todos</button>
@@ -438,6 +462,19 @@
             <div class="section" id="section-disenos">
                 <div class="section-header">
                     <h2 class="section-title"><i class="bi bi-brush"></i> Ordenes de Diseño</h2>
+                </div>
+
+                <!-- Buscador de diseños -->
+                <div class="cotizaciones-filtros">
+                    <div class="input-wrapper filtro-busqueda">
+                        <i class="bi bi-search input-icon"></i>
+                        <input type="text" id="disenosBuscar" placeholder="Buscar por cliente, numero o tipo...">
+                    </div>
+                    <select id="disenosFiltroEstado">
+                        <option value="">Todos los estados</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="respondida">Respondida</option>
+                    </select>
                 </div>
 
                 <!-- Tabs Digital / Imprenta -->
