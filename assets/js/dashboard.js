@@ -4074,13 +4074,21 @@ function renderRemision() {
             // Acciones
             let actionsHtml = '';
             if (!orden.entregaCompletada) {
-                if (orden.metodoEntrega === "domicilio" && orden.entregaUbicacionUrl) {
-                    actionsHtml += `<a href="${orden.entregaUbicacionUrl}" target="_blank" class="seg-btn-avanzar" style="text-decoration:none;"><i class="bi bi-geo-alt-fill"></i> Ver ubicacion</a>`;
-                    actionsHtml += `<button class="seg-btn-link" data-copy-url="${orden.entregaUbicacionUrl}"><i class="bi bi-clipboard"></i> Copiar link Maps</button>`;
+                if (orden.metodoEntrega === "domicilio") {
+                    // Link para el repartidor
+                    actionsHtml += `<button class="seg-btn-link rem-btn-copiar-link-repartidor" data-id="${orden.id}"><i class="bi bi-truck"></i> Copiar link repartidor</button>`;
+                    if (orden.entregaUbicacionUrl) {
+                        actionsHtml += `<a href="${orden.entregaUbicacionUrl}" target="_blank" class="seg-btn-avanzar" style="text-decoration:none;"><i class="bi bi-geo-alt-fill"></i> Ver ubicacion</a>`;
+                        actionsHtml += `<button class="seg-btn-link" data-copy-url="${orden.entregaUbicacionUrl}"><i class="bi bi-clipboard"></i> Copiar link Maps</button>`;
+                    }
                 }
                 if (orden.metodoEntrega) {
                     actionsHtml += `<button class="seg-btn-avanzar rem-btn-completar" data-id="${orden.id}"><i class="bi bi-check-lg"></i> Marcar entregado</button>`;
                 }
+            }
+            // Si está entregado y tiene evidencia, mostrar botón para ver
+            if (orden.entregaCompletada && orden.entregaEvidenciaUrl) {
+                actionsHtml += `<button class="seg-btn-avanzar rem-btn-ver-evidencia" data-url="${orden.entregaEvidenciaUrl}" style="background:#16a34a;"><i class="bi bi-image"></i> Ver evidencia</button>`;
             }
             // Botón eliminar siempre visible
             actionsHtml += `<button class="seg-btn-retroceder rem-btn-eliminar" data-id="${orden.id}"><i class="bi bi-trash"></i> Eliminar</button>`;
@@ -4089,6 +4097,10 @@ function renderRemision() {
             let direccionHtml = '';
             if (orden.metodoEntrega === "domicilio") {
                 direccionHtml = `<div style="font-size:12px;color:#666;margin-top:4px;">📍 ${orden.entregaDireccion || 'Sin direccion'}</div>`;
+            }
+            if (orden.entregaCompletada && orden.entregaCompletadaFecha) {
+                const fechaEntrega = new Date(orden.entregaCompletadaFecha).toLocaleDateString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+                direccionHtml += `<div style="font-size:11px;color:#16a34a;margin-top:3px;"><i class="bi bi-check-circle-fill"></i> Entregado: ${fechaEntrega}</div>`;
             }
 
             const fechaEnvio = orden.fechaEnvio ? new Date(orden.fechaEnvio).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
@@ -4108,6 +4120,19 @@ function renderRemision() {
             container.appendChild(card);
         });
 
+        // Evento: copiar link repartidor
+        container.querySelectorAll(".rem-btn-copiar-link-repartidor").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+                const link = baseUrl + "remision.html?id=" + id;
+                copyToClipboard(link).then(() => {
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Link copiado';
+                    setTimeout(() => { btn.innerHTML = '<i class="bi bi-truck"></i> Copiar link repartidor'; }, 2000);
+                });
+            });
+        });
+
         // Evento: copiar link maps
         container.querySelectorAll("[data-copy-url]").forEach(btn => {
             btn.addEventListener("click", () => {
@@ -4116,6 +4141,15 @@ function renderRemision() {
                     btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
                     setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar link Maps'; }, 2000);
                 });
+            });
+        });
+
+        // Evento: ver evidencia de entrega
+        container.querySelectorAll(".rem-btn-ver-evidencia").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const url = btn.dataset.url;
+                document.getElementById("imgModalDashImg").src = url;
+                document.getElementById("imgModalDash").classList.add("show");
             });
         });
 
