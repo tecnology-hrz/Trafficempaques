@@ -259,6 +259,13 @@
                             <i class="bi bi-search input-icon"></i>
                             <input type="text" id="ordenesBuscar" placeholder="Buscar por cliente, numero u orden...">
                         </div>
+                        <select id="ordenesFiltroEstado">
+                            <option value="">Todos los estados</option>
+                            <option value="atiempo">A tiempo (3+ dias)</option>
+                            <option value="pronto">Pronto (1-2 dias)</option>
+                            <option value="vencida">Vencida / Hoy</option>
+                            <option value="sinfecha">Sin fecha limite</option>
+                        </select>
                     </div>
 
                     <!-- Tabs solo para admin -->
@@ -371,6 +378,10 @@
                                     <span class="diseno-info-label">Tipo</span>
                                     <span class="diseno-info-value" id="disenoTipo">-</span>
                                 </div>
+                            </div>
+                            <div class="form-group" style="margin-top:16px;max-width:280px;">
+                                <label for="disenoFechaLimite"><i class="bi bi-calendar-event"></i> Fecha limite de diseño</label>
+                                <input type="date" id="disenoFechaLimite">
                             </div>
                         </div>
                     </div>

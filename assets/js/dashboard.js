@@ -96,6 +96,7 @@ async function initDashboard(rol, nombre) {
     }
 
     setupOrdenesByRole(rol);
+    setupOrdenesFiltros(rol);
     setupNavigation();
     setupTabs();
     setupModal();
@@ -180,6 +181,14 @@ function setupOrdenesByRole(rol) {
         tabPendientes.classList.add("active");
     }
     // El rol "ordenes" ve ambos tabs igual que admin
+}
+
+// ===== FILTROS ORDENES (para todos los roles) =====
+function setupOrdenesFiltros(rolUsuario) {
+    const inputOrdenesBuscar = document.getElementById("ordenesBuscar");
+    if (inputOrdenesBuscar) inputOrdenesBuscar.addEventListener("input", () => renderOrdenesConFiltro(ordenesRolCache || rolUsuario));
+    const selectOrdenesEstado = document.getElementById("ordenesFiltroEstado");
+    if (selectOrdenesEstado) selectOrdenesEstado.addEventListener("change", () => renderOrdenesConFiltro(ordenesRolCache || rolUsuario));
 }
 
 // ===== FORMATO MONEDA =====
@@ -558,9 +567,6 @@ function setupCotizador() {
     if (inputBuscar) inputBuscar.addEventListener("input", () => renderListaCotizaciones());
     if (selectEstado) selectEstado.addEventListener("change", () => renderListaCotizaciones());
 
-    // Filtros de ordenes
-    const inputOrdenesBuscar = document.getElementById("ordenesBuscar");
-    if (inputOrdenesBuscar) inputOrdenesBuscar.addEventListener("input", () => renderOrdenesConFiltro(ordenesRolCache || rol));
 
     // Filtros de diseños
     const inputDisenosBuscar = document.getElementById("disenosBuscar");
@@ -1592,6 +1598,35 @@ let ordenesDisenoDB = {}; // Cache de ordenes de diseño existentes
 let ordenesCache = []; // Cache de ordenes para filtrado
 let ordenesRolCache = ""; // Rol usado al cargar
 
+// Calcula el estado de tiempo de una orden segun su fecha limite de diseño
+// (prioritaria) o su fecha de entrega. Devuelve: atiempo | pronto | vencida | sinfecha
+function calcularEstadoOrden(orden) {
+    const disenoId = orden.id + "-diseno";
+    const diseno = ordenesDisenoDB[disenoId];
+
+    let fechaRef = null;
+    // Prioridad 1: fecha limite de diseño (yyyy-mm-dd)
+    if (diseno && diseno.fechaLimite) {
+        const [y, m, d] = diseno.fechaLimite.split("-");
+        fechaRef = new Date(y, m - 1, d);
+    } else if (orden.fechaEntrega) {
+        // Prioridad 2: fecha de entrega (dd/mm/yyyy)
+        const [d, m, y] = orden.fechaEntrega.split("/");
+        fechaRef = new Date(y, m - 1, d);
+    }
+
+    if (!fechaRef || isNaN(fechaRef)) return "sinfecha";
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    fechaRef.setHours(0, 0, 0, 0);
+    const diffDias = Math.round((fechaRef - hoy) / (1000 * 60 * 60 * 24));
+
+    if (diffDias <= 0) return "vencida";
+    if (diffDias <= 2) return "pronto";
+    return "atiempo";
+}
+
 async function cargarOrdenes(rolUsuario) {
     try {
         // Leer de la coleccion "produccion" que el admin crea al enviar
@@ -1615,6 +1650,7 @@ async function cargarOrdenes(rolUsuario) {
 
 function renderOrdenesConFiltro(rolUsuario) {
     const busqueda = (document.getElementById("ordenesBuscar")?.value || "").trim().toLowerCase();
+    const filtroEstado = document.getElementById("ordenesFiltroEstado")?.value || "";
     let ordenes = ordenesCache;
 
     // Filtrar por búsqueda
@@ -1625,6 +1661,11 @@ function renderOrdenesConFiltro(rolUsuario) {
             (o.negocio || "").toLowerCase().includes(busqueda) ||
             (o.tipo || "").toLowerCase().includes(busqueda)
         );
+    }
+
+    // Filtrar por estado de tiempo (a tiempo / pronto / vencida / sin fecha)
+    if (filtroEstado) {
+        ordenes = ordenes.filter(o => calcularEstadoOrden(o) === filtroEstado);
     }
 
     if (rolUsuario === "administrador" || rolUsuario === "ordenes") {
@@ -1772,23 +1813,13 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
         const fecha = new Date(orden.fechaEnvio || "");
         const fechaStr = isNaN(fecha) ? "-" : fecha.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 
-        // Semaforo segun fecha de entrega
+        // Semaforo segun fecha limite de diseño (o fecha de entrega)
+        const estadoOrden = calcularEstadoOrden(orden);
         let filaClass = "fila-verde";
-        if (orden.fechaEntrega) {
-            const [d, m, y] = orden.fechaEntrega.split("/");
-            const entrega = new Date(y, m - 1, d);
-            const hoy = new Date();
-            hoy.setHours(0, 0, 0, 0);
-            entrega.setHours(0, 0, 0, 0);
-            const diffDias = Math.round((entrega - hoy) / (1000 * 60 * 60 * 24));
-            if (diffDias <= 0) {
-                filaClass = "fila-rojo";
-            } else if (diffDias <= 2) {
-                filaClass = "fila-amarillo";
-            } else {
-                filaClass = "fila-verde";
-            }
-        }
+        if (estadoOrden === "vencida") filaClass = "fila-rojo";
+        else if (estadoOrden === "pronto") filaClass = "fila-amarillo";
+        else if (estadoOrden === "atiempo") filaClass = "fila-verde";
+        else filaClass = "fila-verde"; // sin fecha
 
         const fechaMostrar = orden.fechaEntrega || fechaStr;
 
@@ -1933,6 +1964,12 @@ function abrirVistaDisenoOrden(orden, existente) {
     document.getElementById("disenoCliente").textContent = orden.cliente;
     document.getElementById("disenoTelefono").textContent = orden.telefono || "-";
     document.getElementById("disenoTipo").textContent = orden.tipo || "-";
+
+    // Fecha limite de diseño (yyyy-mm-dd para el input date)
+    const inputFechaLimite = document.getElementById("disenoFechaLimite");
+    if (inputFechaLimite) {
+        inputFechaLimite.value = (existente && existente.fechaLimite) ? existente.fechaLimite : "";
+    }
 
     if (existente) {
         document.getElementById("disenoViewTitle").innerHTML = `<i class="bi bi-pencil"></i> Editar Orden de Diseño - ${orden.numero}`;
@@ -2211,6 +2248,8 @@ async function guardarOrdenDiseno(orden) {
         const disenoId = orden.id + "-diseno";
         const esEdicion = !!disenoEditando;
 
+        const fechaLimite = document.getElementById("disenoFechaLimite")?.value || "";
+
         const dataToSave = {
             ordenId: orden.id,
             cotizacionId: orden.cotizacionId || orden.id,
@@ -2220,6 +2259,7 @@ async function guardarOrdenDiseno(orden) {
             tipo: orden.tipo,
             items: disenoItems,
             estado: "pendiente",
+            fechaLimite: fechaLimite,
             creadoPor: sessionStorage.getItem("userName") || "",
             creadoPorEmail: sessionStorage.getItem("userEmail") || "",
             fechaCreacion: esEdicion ? (disenoEditando.fechaCreacion || new Date().toISOString()) : new Date().toISOString(),
