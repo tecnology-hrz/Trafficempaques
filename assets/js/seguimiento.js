@@ -109,38 +109,67 @@ function renderSeguimiento(orden) {
     // Seleccionar pasos según tipo de orden
     const PASOS = orden.tipo === "digital" ? PASOS_DIGITAL : PASOS_IMPRENTA;
 
-    // Determinar paso actual
-    const seguimiento = orden.seguimiento || {};
-    const pasoActual = orden.pasoActual || "recibido";
-    const idxActual = PASOS.findIndex(p => p.key === pasoActual);
-
     const timeline = document.getElementById("timeline");
     timeline.innerHTML = "";
 
-    PASOS.forEach((paso, idx) => {
-        let estado;
-        if (idx < idxActual) {
-            estado = "completado";
-        } else if (idx === idxActual) {
-            estado = "activo";
-        } else {
-            estado = "pendiente";
-        }
+    const items = orden.items || [];
+    const itemsSeg = orden.itemsSeguimiento || {};
+    const hayPorProducto = items.length > 0 && Object.keys(itemsSeg).length > 0;
 
-        const fechaPaso = seguimiento[paso.key] ? new Date(seguimiento[paso.key]).toLocaleDateString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+    // Helper: renderiza un timeline para un paso actual dado
+    function renderTimeline(pasoActual, seguimiento) {
+        const idxActual = PASOS.findIndex(p => p.key === pasoActual);
+        const frag = document.createDocumentFragment();
+        PASOS.forEach((paso, idx) => {
+            let estado;
+            if (idx < idxActual) estado = "completado";
+            else if (idx === idxActual) estado = "activo";
+            else estado = "pendiente";
 
-        const stepEl = document.createElement("div");
-        stepEl.className = `timeline-step ${estado}`;
-        stepEl.innerHTML = `
-            <div class="timeline-dot"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>
-            <div class="timeline-content">
-                <div class="timeline-title">${paso.title}</div>
-                <div class="timeline-desc">${paso.desc}</div>
-                ${fechaPaso ? `<div class="timeline-date">${fechaPaso}</div>` : ""}
-            </div>
-        `;
-        timeline.appendChild(stepEl);
-    });
+            const fechaPaso = seguimiento[paso.key] ? new Date(seguimiento[paso.key]).toLocaleDateString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+
+            const stepEl = document.createElement("div");
+            stepEl.className = `timeline-step ${estado}`;
+            stepEl.innerHTML = `
+                <div class="timeline-dot"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>
+                <div class="timeline-content">
+                    <div class="timeline-title">${paso.title}</div>
+                    <div class="timeline-desc">${paso.desc}</div>
+                    ${fechaPaso ? `<div class="timeline-date">${fechaPaso}</div>` : ""}
+                </div>
+            `;
+            frag.appendChild(stepEl);
+        });
+        return frag;
+    }
+
+    if (hayPorProducto) {
+        // Un timeline independiente por cada producto
+        const estadoLabels = { recibido: "Recibido", diseno: "En diseño", guillotina: "Guillotina", impresion: "Impresión", troquelado: "Troquelado", vasos: "Vasos", empaques: "Empaques", terminado: "Terminado", revision: "Revisión", ajustes: "Ajustes", entrega: "Entrega" };
+        items.forEach((item, idx) => {
+            const entry = itemsSeg[idx] || {};
+            const pasoItem = entry.pasoActual || orden.pasoActual || "recibido";
+            const seguimientoItem = entry.seguimiento || {};
+
+            const bloque = document.createElement("div");
+            bloque.className = "producto-track";
+            const nombreProd = `${item.cantidad || 1}x ${item.producto || "Producto " + (idx + 1)}`;
+            bloque.innerHTML = `
+                <div class="producto-track-header">
+                    <span class="producto-track-nombre"><i class="bi bi-box"></i> ${nombreProd}</span>
+                    <span class="producto-track-estado">${estadoLabels[pasoItem] || pasoItem}</span>
+                </div>
+                <div class="timeline producto-track-timeline"></div>
+            `;
+            timeline.appendChild(bloque);
+            bloque.querySelector(".producto-track-timeline").appendChild(renderTimeline(pasoItem, seguimientoItem));
+        });
+    } else {
+        // Timeline global (compatibilidad)
+        timeline.appendChild(renderTimeline(orden.pasoActual || "recibido", orden.seguimiento || {}));
+    }
+
+    const pasoActual = orden.pasoActual || "recibido";
 
     // Banner terminado
     if (pasoActual === "terminado") {

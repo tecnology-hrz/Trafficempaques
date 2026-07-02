@@ -2761,6 +2761,71 @@ function getPasosOrden(orden) {
     return orden.tipo === "digital" ? PASOS_DIGITAL_SEG : PASOS_IMPRENTA_SEG;
 }
 
+// Devuelve el seguimiento de un producto (item) dentro de la orden.
+// Si no existe aun, hereda el paso global de la orden (compatibilidad hacia atras).
+function getItemSeguimiento(orden, idx) {
+    const its = orden.itemsSeguimiento || {};
+    const entry = its[idx];
+    if (entry && entry.pasoActual) {
+        return { pasoActual: entry.pasoActual, seguimiento: entry.seguimiento || {} };
+    }
+    return { pasoActual: orden.pasoActual || "recibido", seguimiento: {} };
+}
+
+// Calcula el paso global de la orden = el producto MENOS avanzado.
+// (La orden completa solo llega a una etapa cuando todos sus productos la alcanzan.)
+function getOrdenPasoGlobal(orden) {
+    const PASOS = getPasosOrden(orden);
+    const items = orden.items || [];
+    if (items.length === 0) return orden.pasoActual || "recibido";
+    let minIdx = PASOS.length - 1;
+    items.forEach((_, idx) => {
+        const seg = getItemSeguimiento(orden, idx);
+        const i = PASOS.findIndex(p => p.key === seg.pasoActual);
+        if (i >= 0 && i < minIdx) minIdx = i;
+    });
+    return PASOS[Math.max(0, minIdx)].key;
+}
+
+// Genera los botones de accion para un producto segun el rol y su paso actual.
+function getAccionesItem(rolUsuario, pasoActual, PASOS, ordenId, idx) {
+    const idxActual = PASOS.findIndex(p => p.key === pasoActual);
+    let html = "";
+
+    const btnAvanzar = (paso, title) => {
+        const cls = paso === "terminado" ? "seg-btn-avanzar terminado" : "seg-btn-avanzar";
+        const label = paso === "terminado" ? "Marcar Terminado" : title;
+        return `<button class="${cls}" data-id="${ordenId}" data-idx="${idx}" data-paso="${paso}"><i class="bi bi-arrow-right"></i> ${label}</button>`;
+    };
+    const btnRetro = (paso, title) =>
+        `<button class="seg-btn-retroceder" data-id="${ordenId}" data-idx="${idx}" data-paso="${paso}"><i class="bi bi-arrow-left"></i> ${title}</button>`;
+
+    const siguiente = idxActual < PASOS.length - 1 ? PASOS[idxActual + 1] : null;
+    const anterior  = idxActual > 0 ? PASOS[idxActual - 1] : null;
+
+    if (rolUsuario === "administrador") {
+        if (siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+        if (anterior)  html += btnRetro(anterior.key, anterior.title);
+    } else if (rolUsuario === "ordenes") {
+        if (siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "ventas") {
+        if (pasoActual === "recibido" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "diseno" || rolUsuario === "digital" || rolUsuario === "imprenta") {
+        if (pasoActual === "diseno" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "guillotina") {
+        if (pasoActual === "guillotina" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "impresion") {
+        if (pasoActual === "impresion" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "troquelado") {
+        if (pasoActual === "troquelado" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "vasos") {
+        if (pasoActual === "vasos" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    } else if (rolUsuario === "empaques") {
+        if (pasoActual === "empaques" && siguiente) html += btnAvanzar(siguiente.key, "Enviar a " + siguiente.title);
+    }
+    return html;
+}
+
 let seguimientoFiltro = "todos";
 let seguimientoCache = [];
 
@@ -2829,9 +2894,13 @@ function renderSeguimiento() {
         );
     }
 
-    // Filtrar por estado
+    // Filtrar por estado (coincide si CUALQUIER producto de la orden esta en ese paso)
     if (seguimientoFiltro !== "todos") {
-        ordenes = ordenes.filter(o => o.pasoActual === seguimientoFiltro);
+        ordenes = ordenes.filter(o => {
+            const items = o.items || [];
+            if (items.length === 0) return (o.pasoActual || "recibido") === seguimientoFiltro;
+            return items.some((_, idx) => getItemSeguimiento(o, idx).pasoActual === seguimientoFiltro);
+        });
     }
 
     if (ordenes.length === 0) {
@@ -2844,85 +2913,72 @@ function renderSeguimiento() {
             const card = document.createElement("div");
             card.className = "seg-orden-card";
 
-            const pasoActual = orden.pasoActual || "recibido";
             const PASOS_SEGUIMIENTO = getPasosOrden(orden);
-            const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
+            const items = orden.items || [];
 
-            // Mini timeline
-            let timelineHtml = '';
-            PASOS_SEGUIMIENTO.forEach((paso, idx) => {
-                let estado = idx < idxActual ? "completado" : idx === idxActual ? "activo" : "";
-                timelineHtml += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
-                if (idx < PASOS_SEGUIMIENTO.length - 1) {
-                    timelineHtml += `<div class="seg-step-line ${idx < idxActual ? "completado" : ""}"></div>`;
-                }
-            });
+            // Paso global = producto menos avanzado
+            const pasoGlobal = getOrdenPasoGlobal(orden);
 
-            // Estado badge
             const estadoLabels = { recibido: "Recibido", diseno: "En diseño", guillotina: "Guillotina", impresion: "Impresión", troquelado: "Troquelado", vasos: "Vasos", empaques: "Empaques", terminado: "Terminado", revision: "Revisión", ajustes: "Ajustes", entrega: "Entrega" };
             const estadoIcons = { recibido: "bi-inbox", diseno: "bi-brush", guillotina: "bi-scissors", impresion: "bi-printer", troquelado: "bi-hexagon", vasos: "bi-cup-straw", empaques: "bi-box-seam", terminado: "bi-bag-check", revision: "bi-eye", ajustes: "bi-pencil-square", entrega: "bi-send" };
 
-            // Botones de acción según rol y paso actual
-            let actionsHtml = '';
-            if (rol === "administrador") {
-                // Admin: control total, avanzar y retroceder cualquier paso
-                if (idxActual < PASOS_SEGUIMIENTO.length - 1) {
-                    const siguiente = PASOS_SEGUIMIENTO[idxActual + 1];
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="${siguiente.key}"><i class="bi bi-arrow-right"></i> ${siguiente.title}</button>`;
-                }
-                if (idxActual > 0) {
-                    const anterior = PASOS_SEGUIMIENTO[idxActual - 1];
-                    actionsHtml += `<button class="seg-btn-retroceder" data-id="${orden.id}" data-paso="${anterior.key}"><i class="bi bi-arrow-left"></i> ${anterior.title}</button>`;
-                }
-            } else if (rol === "ventas") {
-                // Ventas: puede avanzar de recibido a diseño
-                if (pasoActual === "recibido") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="diseno"><i class="bi bi-arrow-right"></i> Enviar a Diseño</button>`;
-                }
-            } else if (rol === "diseno" || rol === "digital" || rol === "imprenta") {
-                // Diseño: puede avanzar de diseño a guillotina
-                if (pasoActual === "diseno") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="guillotina"><i class="bi bi-arrow-right"></i> Enviar a Guillotina</button>`;
-                }
-            } else if (rol === "guillotina") {
-                // Guillotina: puede avanzar a impresión
-                if (pasoActual === "guillotina") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="impresion"><i class="bi bi-arrow-right"></i> Enviar a Impresión</button>`;
-                }
-            } else if (rol === "impresion") {
-                // Impresión: puede avanzar a troquelado
-                if (pasoActual === "impresion") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="troquelado"><i class="bi bi-arrow-right"></i> Enviar a Troquelado</button>`;
-                }
-            } else if (rol === "troquelado") {
-                // Troquelado: puede avanzar a vasos
-                if (pasoActual === "troquelado") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="vasos"><i class="bi bi-arrow-right"></i> Enviar a Vasos</button>`;
-                }
-            } else if (rol === "vasos") {
-                // Vasos: puede avanzar a empaques
-                if (pasoActual === "vasos") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="empaques"><i class="bi bi-arrow-right"></i> Enviar a Empaques</button>`;
-                }
-            } else if (rol === "empaques") {
-                // Empaques: puede avanzar a terminado
-                if (pasoActual === "empaques") {
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="terminado"><i class="bi bi-arrow-right"></i> Marcar Terminado</button>`;
-                }
-            } else if (rol === "ordenes") {
-                // Ordenes: puede avanzar cualquier paso en producción
-                if (idxActual < PASOS_SEGUIMIENTO.length - 1) {
-                    const siguiente = PASOS_SEGUIMIENTO[idxActual + 1];
-                    actionsHtml += `<button class="seg-btn-avanzar" data-id="${orden.id}" data-paso="${siguiente.key}"><i class="bi bi-arrow-right"></i> ${siguiente.title}</button>`;
-                }
-            }
-            // Link de seguimiento para compartir
-            if (pasoActual === "terminado") {
-                actionsHtml += `<button class="seg-btn-link" data-id="${orden.id}"><i class="bi bi-link-45deg"></i> Copiar link cliente</button>`;
-            }
-
             const fechaEnvio = orden.fechaEnvio ? new Date(orden.fechaEnvio).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "-";
             const nombreSeg = orden.negocio || orden.cliente;
+
+            // ¿Todos los productos terminados?
+            const todosTerminados = items.length > 0 && items.every((_, idx) => getItemSeguimiento(orden, idx).pasoActual === "terminado");
+
+            // Construir bloque por producto
+            let productosHtml = "";
+            if (items.length === 0) {
+                // Compatibilidad: orden sin items detallados -> timeline global
+                const pasoActual = orden.pasoActual || "recibido";
+                const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
+                let timelineHtml = "";
+                PASOS_SEGUIMIENTO.forEach((paso, idx) => {
+                    let estado = idx < idxActual ? "completado" : idx === idxActual ? "activo" : "";
+                    timelineHtml += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
+                    if (idx < PASOS_SEGUIMIENTO.length - 1) timelineHtml += `<div class="seg-step-line ${idx < idxActual ? "completado" : ""}"></div>`;
+                });
+                const acciones = getAccionesItem(rol, pasoActual, PASOS_SEGUIMIENTO, orden.id, -1);
+                productosHtml = `
+                    <div class="seg-timeline-mini">${timelineHtml}</div>
+                    <div class="seg-orden-actions">${acciones}</div>
+                `;
+            } else {
+                items.forEach((item, idx) => {
+                    const seg = getItemSeguimiento(orden, idx);
+                    const pasoActual = seg.pasoActual;
+                    const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
+
+                    let timelineHtml = "";
+                    PASOS_SEGUIMIENTO.forEach((paso, i) => {
+                        let estado = i < idxActual ? "completado" : i === idxActual ? "activo" : "";
+                        timelineHtml += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
+                        if (i < PASOS_SEGUIMIENTO.length - 1) timelineHtml += `<div class="seg-step-line ${i < idxActual ? "completado" : ""}"></div>`;
+                    });
+
+                    const acciones = getAccionesItem(rol, pasoActual, PASOS_SEGUIMIENTO, orden.id, idx);
+                    const nombreProd = `<strong>${item.cantidad || 1}x</strong> ${item.producto || "Producto " + (idx + 1)}`;
+
+                    productosHtml += `
+                        <div class="seg-producto-item">
+                            <div class="seg-producto-header">
+                                <span class="seg-producto-nombre"><i class="bi bi-box"></i> ${nombreProd}</span>
+                                <span class="seg-estado-badge ${pasoActual}"><i class="bi ${estadoIcons[pasoActual]}"></i> ${estadoLabels[pasoActual]}</span>
+                            </div>
+                            <div class="seg-timeline-mini">${timelineHtml}</div>
+                            <div class="seg-orden-actions">${acciones}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Link cliente cuando toda la orden esta terminada
+            let linkHtml = "";
+            if (todosTerminados || pasoGlobal === "terminado") {
+                linkHtml = `<div class="seg-orden-footer"><button class="seg-btn-link" data-id="${orden.id}"><i class="bi bi-link-45deg"></i> Copiar link cliente</button></div>`;
+            }
 
             card.innerHTML = `
                 <div class="seg-orden-header">
@@ -2930,30 +2986,22 @@ function renderSeguimiento() {
                         <div class="seg-orden-numero">${orden.numero} <span style="font-weight:400;color:#888;font-size:12px;">&bull; ${orden.tipo}</span></div>
                         <div class="seg-orden-cliente">${nombreSeg} &bull; ${fechaEnvio}</div>
                     </div>
-                    <span class="seg-estado-badge ${pasoActual}"><i class="bi ${estadoIcons[pasoActual]}"></i> ${estadoLabels[pasoActual]}</span>
+                    <span class="seg-estado-badge ${pasoGlobal}"><i class="bi ${estadoIcons[pasoGlobal]}"></i> ${estadoLabels[pasoGlobal]}</span>
                 </div>
-                <div class="seg-timeline-mini">${timelineHtml}</div>
-                <div class="seg-orden-actions">${actionsHtml}</div>
+                <div class="seg-productos-lista">${productosHtml}</div>
+                ${linkHtml}
             `;
 
             container.appendChild(card);
         });
 
-        // Eventos avanzar
-        container.querySelectorAll(".seg-btn-avanzar").forEach(btn => {
+        // Eventos avanzar / retroceder (por producto)
+        container.querySelectorAll(".seg-btn-avanzar, .seg-btn-retroceder").forEach(btn => {
             btn.addEventListener("click", async () => {
                 const id = btn.dataset.id;
                 const paso = btn.dataset.paso;
-                await actualizarPasoOrden(id, paso);
-            });
-        });
-
-        // Eventos retroceder
-        container.querySelectorAll(".seg-btn-retroceder").forEach(btn => {
-            btn.addEventListener("click", async () => {
-                const id = btn.dataset.id;
-                const paso = btn.dataset.paso;
-                await actualizarPasoOrden(id, paso);
+                const idx = parseInt(btn.dataset.idx);
+                await actualizarPasoOrden(id, paso, idx);
             });
         });
 
@@ -2971,17 +3019,54 @@ function renderSeguimiento() {
         });
 }
 
-async function actualizarPasoOrden(ordenId, nuevoPaso) {
+async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx) {
     try {
         const ref = doc(db, "produccion", ordenId);
         const snap = await getDoc(ref);
         if (!snap.exists()) return;
 
         const data = snap.data();
-        const seguimiento = data.seguimiento || {};
-        seguimiento[nuevoPaso] = new Date().toISOString();
+        const items = data.items || [];
+        const PASOS = data.tipo === "digital" ? PASOS_DIGITAL_SEG : PASOS_IMPRENTA_SEG;
 
-        await setDoc(ref, { ...data, pasoActual: nuevoPaso, seguimiento });
+        // Si no hay indice de producto valido (orden sin items detallados): comportamiento global
+        if (itemIdx === undefined || itemIdx === null || isNaN(itemIdx) || itemIdx < 0 || items.length === 0) {
+            const seguimiento = data.seguimiento || {};
+            seguimiento[nuevoPaso] = new Date().toISOString();
+            await setDoc(ref, { ...data, pasoActual: nuevoPaso, seguimiento });
+            cargarSeguimiento();
+            return;
+        }
+
+        // Actualizar seguimiento del producto especifico
+        const itemsSeguimiento = data.itemsSeguimiento || {};
+        // Inicializar entradas faltantes heredando el paso global actual
+        const pasoBase = data.pasoActual || "recibido";
+        items.forEach((_, i) => {
+            if (!itemsSeguimiento[i]) {
+                itemsSeguimiento[i] = { pasoActual: pasoBase, seguimiento: {} };
+            }
+        });
+
+        const entry = itemsSeguimiento[itemIdx];
+        entry.pasoActual = nuevoPaso;
+        entry.seguimiento = entry.seguimiento || {};
+        entry.seguimiento[nuevoPaso] = new Date().toISOString();
+
+        // Paso global de la orden = producto MENOS avanzado
+        let minIdx = PASOS.length - 1;
+        items.forEach((_, i) => {
+            const p = itemsSeguimiento[i]?.pasoActual || pasoBase;
+            const pi = PASOS.findIndex(x => x.key === p);
+            if (pi >= 0 && pi < minIdx) minIdx = pi;
+        });
+        const pasoGlobal = PASOS[Math.max(0, minIdx)].key;
+
+        // Mantener el mapa de fechas global (marca cuando TODOS alcanzan un paso)
+        const seguimiento = data.seguimiento || {};
+        if (!seguimiento[pasoGlobal]) seguimiento[pasoGlobal] = new Date().toISOString();
+
+        await setDoc(ref, { ...data, itemsSeguimiento, pasoActual: pasoGlobal, seguimiento });
         cargarSeguimiento();
     } catch (err) {
         console.error("Error actualizando paso:", err);
