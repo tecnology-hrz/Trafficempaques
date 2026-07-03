@@ -138,6 +138,14 @@
                             <div class="card-body padded">
                                 <!-- Selector de cliente existente -->
                                 <div class="form-row cliente-selector-row">
+                                    <div class="form-field" style="flex:0 0 200px;">
+                                        <label>Tipo de cliente</label>
+                                        <select id="cotClienteFiltroTipo">
+                                            <option value="">Todos los tipos</option>
+                                            <option value="natural">Persona natural</option>
+                                            <option value="juridica">Persona juridica</option>
+                                        </select>
+                                    </div>
                                     <div class="form-field" style="flex:1;">
                                         <label>Cliente existente</label>
                                         <select id="cotClienteSelect">
@@ -146,13 +154,27 @@
                                     </div>
                                 </div>
                                 <div class="form-row">
+                                    <div class="form-field" style="flex:1;">
+                                        <label>Tipo de cliente</label>
+                                        <div class="tipo-persona-selector" id="cotTipoPersonaSelector">
+                                            <button type="button" class="tipo-persona-option active" data-tipo="natural">
+                                                <i class="bi bi-person"></i> Persona natural
+                                            </button>
+                                            <button type="button" class="tipo-persona-option" data-tipo="juridica">
+                                                <i class="bi bi-building"></i> Persona juridica
+                                            </button>
+                                        </div>
+                                        <input type="hidden" id="cotTipoPersona" value="natural">
+                                    </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-field">
-                                        <label>Nombre del cliente</label>
+                                        <label id="cotClienteLabel">Nombre del cliente</label>
                                         <input type="text" id="cotCliente" placeholder="Nombre o empresa">
                                     </div>
                                     <div class="form-field">
-                                        <label>NIT / Cedula</label>
-                                        <input type="text" id="cotNit" placeholder="900.000.000-0">
+                                        <label id="cotNitLabel">Cedula</label>
+                                        <input type="text" id="cotNit" placeholder="1.000.000.000">
                                     </div>
                                 </div>
                                 <div class="form-row">
@@ -556,6 +578,11 @@
                             <i class="bi bi-search"></i>
                             <input type="text" id="clientesBuscar" placeholder="Buscar cliente...">
                         </div>
+                        <select id="clientesFiltroTipo" class="clientes-filtro-tipo">
+                            <option value="">Todos los tipos</option>
+                            <option value="natural">Persona natural</option>
+                            <option value="juridica">Persona juridica</option>
+                        </select>
                         <button class="btn-primary" id="btnNuevoCliente">
                             <i class="bi bi-person-plus"></i> Nuevo cliente
                         </button>
@@ -568,6 +595,7 @@
                                 <thead>
                                     <tr>
                                         <th>Cliente</th>
+                                        <th>Tipo</th>
                                         <th>NIT / Cedula</th>
                                         <th>Negocio</th>
                                         <th>Telefono</th>
@@ -577,7 +605,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="clientesTablaBody">
-                                    <tr><td colspan="7" class="tabla-empty">Cargando clientes...</td></tr>
+                                    <tr><td colspan="8" class="tabla-empty">Cargando clientes...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1173,13 +1201,25 @@
             </div>
             <div class="modal-body">
                 <div class="form-grid-modal">
+                    <div class="modal-field" style="grid-column:1/-1;">
+                        <label>Tipo de cliente</label>
+                        <div class="tipo-persona-selector" id="clienteTipoSelector">
+                            <button type="button" class="tipo-persona-option active" data-tipo="natural">
+                                <i class="bi bi-person"></i> Persona natural
+                            </button>
+                            <button type="button" class="tipo-persona-option" data-tipo="juridica">
+                                <i class="bi bi-building"></i> Persona juridica
+                            </button>
+                        </div>
+                        <input type="hidden" id="clienteModalTipo" value="natural">
+                    </div>
                     <div class="modal-field">
-                        <label>Nombre *</label>
+                        <label id="clienteModalNombreLabel">Nombre *</label>
                         <input type="text" id="clienteModalNombre" placeholder="Nombre completo">
                     </div>
                     <div class="modal-field">
-                        <label>NIT / Cedula</label>
-                        <input type="text" id="clienteModalNit" placeholder="900.000.000-0">
+                        <label id="clienteModalNitLabel">Cedula</label>
+                        <input type="text" id="clienteModalNit" placeholder="1.000.000.000">
                     </div>
                     <div class="modal-field">
                         <label>Negocio</label>

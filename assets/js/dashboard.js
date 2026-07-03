@@ -582,6 +582,11 @@ function setupCotizador() {
         document.getElementById("cotTelefono").value = "";
         document.getElementById("cotDireccion").value = "";
         document.getElementById("cotCiudad").value   = "";
+        const cotFiltroTipoEl = document.getElementById("cotClienteFiltroTipo");
+        if (cotFiltroTipoEl) cotFiltroTipoEl.value = "";
+        actualizarSelectClientes();
+        document.getElementById("cotClienteSelect").value = "";
+        setTipoPersonaCotizador("natural");
         document.getElementById("cotTipo").value     = "imprenta";
         document.getElementById("cotNotas").value    = "";
         // Fecha actual auto
@@ -616,6 +621,7 @@ function setupCotizador() {
 
     btnGuardar.addEventListener("click", async () => {
         const cliente  = document.getElementById("cotCliente").value.trim();
+        const tipoPersona = document.getElementById("cotTipoPersona").value || "natural";
         const nit      = document.getElementById("cotNit").value.trim();
         const negocio  = document.getElementById("cotNegocio").value.trim();
         const telefono = document.getElementById("cotTelefono").value.trim();
@@ -657,7 +663,7 @@ function setupCotizador() {
             const snap = await getDoc(ref);
             const existing = snap.data();
             const notas = document.getElementById("cotNotas").value.trim();
-            await setDoc(ref, { ...existing, cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas });
+            await setDoc(ref, { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas });
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
@@ -668,9 +674,9 @@ function setupCotizador() {
         } else {
             // Crear nueva
             const notas = document.getElementById("cotNotas").value.trim();
-            const result = await crearCotizacion({ cliente, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
+            const result = await crearCotizacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
             // Guardar cliente en base de datos
-            await guardarClienteDesdeCotzacion({ cliente, nit, negocio, telefono, direccion, ciudad });
+            await guardarClienteDesdeCotzacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
             const link = baseUrl + "cotizacion.html?id=" + result.id;
             showLinkModal("Cotizacion " + result.numero + " creada", "Comparte este link con el cliente:", link);
@@ -1397,6 +1403,7 @@ function abrirModalAcciones(cotId, cotName) {
         document.getElementById("cotTelefono").value = cot.telefono || "";
         document.getElementById("cotDireccion").value = cot.direccion || "";
         document.getElementById("cotCiudad").value   = cot.ciudad || "";
+        setTipoPersonaCotizador(cot.tipoPersona || "natural");
         document.getElementById("cotTipo").value     = cot.tipo || "imprenta";
         document.getElementById("cotFechaActual").value = cot.fechaActual || "";
         document.getElementById("cotModalidadPago").value = cot.modalidadPago || "contado";
@@ -3453,6 +3460,7 @@ function setupClientes() {
     const btnSave = document.getElementById("clienteModalSave");
     const btnNuevo = document.getElementById("btnNuevoCliente");
     const buscarInput = document.getElementById("clientesBuscar");
+    const filtroTipo = document.getElementById("clientesFiltroTipo");
 
     btnNuevo.addEventListener("click", () => abrirModalCliente());
     btnClose.addEventListener("click", cerrarModalCliente);
@@ -3464,6 +3472,40 @@ function setupClientes() {
     buscarInput.addEventListener("input", () => {
         renderTablaClientes(buscarInput.value.trim().toLowerCase());
     });
+
+    if (filtroTipo) {
+        filtroTipo.addEventListener("change", () => {
+            renderTablaClientes(buscarInput.value.trim().toLowerCase());
+        });
+    }
+
+    // Selector visual de tipo de persona en el modal de cliente
+    const tipoSelector = document.getElementById("clienteTipoSelector");
+    if (tipoSelector) {
+        tipoSelector.querySelectorAll(".tipo-persona-option").forEach(btn => {
+            btn.addEventListener("click", () => {
+                setTipoPersonaCliente(btn.dataset.tipo);
+            });
+        });
+    }
+
+    // Selector visual de tipo de persona en el cotizador
+    const cotTipoSelector = document.getElementById("cotTipoPersonaSelector");
+    if (cotTipoSelector) {
+        cotTipoSelector.querySelectorAll(".tipo-persona-option").forEach(btn => {
+            btn.addEventListener("click", () => {
+                setTipoPersonaCotizador(btn.dataset.tipo);
+            });
+        });
+    }
+
+    // Filtro de tipo de cliente en el selector del cotizador
+    const cotFiltroTipo = document.getElementById("cotClienteFiltroTipo");
+    if (cotFiltroTipo) {
+        cotFiltroTipo.addEventListener("change", () => {
+            actualizarSelectClientes();
+        });
+    }
 
     // Selector de cliente en cotizador
     const selectCliente = document.getElementById("cotClienteSelect");
@@ -3478,6 +3520,7 @@ function setupClientes() {
                 document.getElementById("cotTelefono").value = "";
                 document.getElementById("cotDireccion").value = "";
                 document.getElementById("cotCiudad").value = "";
+                setTipoPersonaCotizador("natural");
                 return;
             }
             const cliente = clientesDB.find(c => c.id === id);
@@ -3488,8 +3531,61 @@ function setupClientes() {
                 document.getElementById("cotTelefono").value = cliente.telefono || "";
                 document.getElementById("cotDireccion").value = cliente.direccion || "";
                 document.getElementById("cotCiudad").value = cliente.ciudad || "";
+                setTipoPersonaCotizador(cliente.tipoPersona || "natural");
             }
         });
+    }
+}
+
+// Cambia el tipo de persona seleccionado en el modal de cliente y ajusta las etiquetas
+function setTipoPersonaCliente(tipo) {
+    document.getElementById("clienteModalTipo").value = tipo;
+    const selector = document.getElementById("clienteTipoSelector");
+    if (selector) {
+        selector.querySelectorAll(".tipo-persona-option").forEach(b => {
+            b.classList.toggle("active", b.dataset.tipo === tipo);
+        });
+    }
+    const nombreLabel = document.getElementById("clienteModalNombreLabel");
+    const nitLabel = document.getElementById("clienteModalNitLabel");
+    const nombreInput = document.getElementById("clienteModalNombre");
+    const nitInput = document.getElementById("clienteModalNit");
+    if (tipo === "juridica") {
+        if (nombreLabel) nombreLabel.textContent = "Razon social *";
+        if (nitLabel) nitLabel.textContent = "NIT";
+        if (nombreInput) nombreInput.placeholder = "Nombre de la empresa";
+        if (nitInput) nitInput.placeholder = "900.000.000-0";
+    } else {
+        if (nombreLabel) nombreLabel.textContent = "Nombre *";
+        if (nitLabel) nitLabel.textContent = "Cedula";
+        if (nombreInput) nombreInput.placeholder = "Nombre completo";
+        if (nitInput) nitInput.placeholder = "1.000.000.000";
+    }
+}
+
+// Cambia el tipo de persona seleccionado en el cotizador y ajusta las etiquetas
+function setTipoPersonaCotizador(tipo) {
+    document.getElementById("cotTipoPersona").value = tipo;
+    const selector = document.getElementById("cotTipoPersonaSelector");
+    if (selector) {
+        selector.querySelectorAll(".tipo-persona-option").forEach(b => {
+            b.classList.toggle("active", b.dataset.tipo === tipo);
+        });
+    }
+    const nombreLabel = document.getElementById("cotClienteLabel");
+    const nitLabel = document.getElementById("cotNitLabel");
+    const nombreInput = document.getElementById("cotCliente");
+    const nitInput = document.getElementById("cotNit");
+    if (tipo === "juridica") {
+        if (nombreLabel) nombreLabel.textContent = "Razon social";
+        if (nitLabel) nitLabel.textContent = "NIT";
+        if (nombreInput) nombreInput.placeholder = "Nombre de la empresa";
+        if (nitInput) nitInput.placeholder = "900.000.000-0";
+    } else {
+        if (nombreLabel) nombreLabel.textContent = "Nombre del cliente";
+        if (nitLabel) nitLabel.textContent = "Cedula";
+        if (nombreInput) nombreInput.placeholder = "Nombre o empresa";
+        if (nitInput) nitInput.placeholder = "1.000.000.000";
     }
 }
 
@@ -3506,6 +3602,7 @@ function abrirModalCliente(cliente) {
     document.getElementById("clienteModalTelefono").value = cliente ? cliente.telefono || "" : "";
     document.getElementById("clienteModalDireccion").value = cliente ? cliente.direccion || "" : "";
     document.getElementById("clienteModalCiudad").value = cliente ? cliente.ciudad || "" : "";
+    setTipoPersonaCliente(cliente && cliente.tipoPersona ? cliente.tipoPersona : "natural");
 
     document.getElementById("clienteModalOverlay").classList.add("show");
     setTimeout(() => document.getElementById("clienteModalNombre").focus(), 100);
@@ -3525,6 +3622,7 @@ async function guardarCliente() {
 
     const data = {
         nombre,
+        tipoPersona: document.getElementById("clienteModalTipo").value || "natural",
         nit: document.getElementById("clienteModalNit").value.trim(),
         negocio: document.getElementById("clienteModalNegocio").value.trim(),
         telefono: document.getElementById("clienteModalTelefono").value.trim(),
@@ -3573,23 +3671,39 @@ async function cargarClientes() {
 function actualizarSelectClientes() {
     const select = document.getElementById("cotClienteSelect");
     if (!select) return;
+    const filtroTipo = document.getElementById("cotClienteFiltroTipo");
+    const tipoSel = filtroTipo ? filtroTipo.value : "";
     const valorActual = select.value;
     select.innerHTML = '<option value="">-- Nuevo cliente --</option>';
-    clientesDB.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.nombre + (c.negocio ? " - " + c.negocio : "");
-        select.appendChild(opt);
-    });
-    select.value = valorActual;
+    clientesDB
+        .filter(c => !tipoSel || (c.tipoPersona || "natural") === tipoSel)
+        .forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c.id;
+            const tipoTxt = (c.tipoPersona || "natural") === "juridica" ? "Juridica" : "Natural";
+            opt.textContent = c.nombre + (c.negocio ? " - " + c.negocio : "") + " (" + tipoTxt + ")";
+            select.appendChild(opt);
+        });
+    // Mantener el valor si sigue disponible en la lista filtrada
+    if ([...select.options].some(o => o.value === valorActual)) {
+        select.value = valorActual;
+    } else {
+        select.value = "";
+    }
 }
 
 function renderTablaClientes(busqueda) {
     const tbody = document.getElementById("clientesTablaBody");
+    const filtroTipo = document.getElementById("clientesFiltroTipo");
+    const tipoSel = filtroTipo ? filtroTipo.value : "";
     let filtrados = clientesDB;
 
+    if (tipoSel) {
+        filtrados = filtrados.filter(c => (c.tipoPersona || "natural") === tipoSel);
+    }
+
     if (busqueda) {
-        filtrados = clientesDB.filter(c =>
+        filtrados = filtrados.filter(c =>
             (c.nombre || "").toLowerCase().includes(busqueda) ||
             (c.negocio || "").toLowerCase().includes(busqueda) ||
             (c.nit || "").toLowerCase().includes(busqueda) ||
@@ -3599,14 +3713,19 @@ function renderTablaClientes(busqueda) {
     }
 
     if (filtrados.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">No se encontraron clientes</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="tabla-empty">No se encontraron clientes</td></tr>';
         return;
     }
 
     tbody.innerHTML = filtrados.map(c => {
+        const tipo = c.tipoPersona || "natural";
+        const tipoBadge = tipo === "juridica"
+            ? '<span class="tipo-persona-badge juridica"><i class="bi bi-building"></i> Juridica</span>'
+            : '<span class="tipo-persona-badge natural"><i class="bi bi-person"></i> Natural</span>';
         return `
             <tr>
                 <td><strong>${c.nombre || "-"}</strong></td>
+                <td>${tipoBadge}</td>
                 <td>${c.nit || "-"}</td>
                 <td>${c.negocio || "-"}</td>
                 <td>${c.telefono || "-"}</td>
@@ -3658,6 +3777,7 @@ async function guardarClienteDesdeCotzacion(datos) {
     const id = datos.cliente.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Date.now().toString(36);
     await setDoc(doc(db, "clientes", id), {
         nombre: datos.cliente,
+        tipoPersona: datos.tipoPersona || "natural",
         nit: datos.nit || "",
         negocio: datos.negocio || "",
         telefono: datos.telefono || "",

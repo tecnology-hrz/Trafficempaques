@@ -4597,3 +4597,85 @@ body {
         font-size: 12px;
     }
 }
+
+/* ===== FILTRO TIPO DE CLIENTE ===== */
+.clientes-filtro-tipo {
+    padding: 8px 14px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    color: #333;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.clientes-filtro-tipo:focus {
+    border-color: #29ABE2;
+}
+
+/* ===== SELECTOR TIPO DE PERSONA (natural / juridica) ===== */
+.tipo-persona-selector {
+    display: flex;
+    gap: 10px;
+}
+
+.tipo-persona-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    color: #666;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tipo-persona-option i {
+    font-size: 16px;
+}
+
+.tipo-persona-option:hover {
+    border-color: #29ABE2;
+    background: #f0f9ff;
+}
+
+.tipo-persona-option.active {
+    border-color: #29ABE2;
+    background: #e0f7ff;
+    color: #29ABE2;
+    font-weight: 600;
+}
+
+/* ===== BADGE TIPO DE PERSONA EN TABLA ===== */
+.tipo-persona-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tipo-persona-badge i {
+    font-size: 12px;
+}
+
+.tipo-persona-badge.natural {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.tipo-persona-badge.juridica {
+    background: #ede7f6;
+    color: #5e35b1;
+}
