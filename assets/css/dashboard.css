@@ -4679,3 +4679,50 @@ body {
     background: #ede7f6;
     color: #5e35b1;
 }
+
+/* ===== TOTALES DEL COTIZADOR (subtotal / IVA / total) ===== */
+.cot-totales-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 320px;
+    margin-left: auto;
+}
+
+.cot-total-linea {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #555;
+}
+
+.cot-iva-linea.iva-inactivo {
+    opacity: 0.55;
+}
+
+.cot-iva-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+}
+
+.cot-iva-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #29ABE2;
+}
+
+.cot-total-linea.cot-total-final {
+    border-top: 1.5px solid #e0e0e0;
+    padding-top: 8px;
+    margin-top: 2px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #222;
+}

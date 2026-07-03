@@ -130,7 +130,14 @@ function renderCotizacion() {
         tbody.appendChild(tr);
     });
 
-    // Total
+    // Total (con desglose de IVA cuando aplique)
+    if (cotizacion.aplicarIva && cotizacion.iva) {
+        const subtotal = cotizacion.subtotal !== undefined ? cotizacion.subtotal : (cotizacion.total - cotizacion.iva);
+        document.getElementById("cotSubtotal").textContent = "$" + formatMoney(subtotal);
+        document.getElementById("cotIva").textContent = "$" + formatMoney(cotizacion.iva);
+        document.getElementById("cotSubtotalRow").style.display = "flex";
+        document.getElementById("cotIvaRow").style.display = "flex";
+    }
     document.getElementById("cotTotal").textContent = "$" + formatMoney(cotizacion.total);
 
     // Modalidad de pago: si es credito, ocultar opciones de pago y comprobante

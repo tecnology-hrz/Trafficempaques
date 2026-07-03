@@ -243,9 +243,22 @@
                                 </div>
                             </div>
                             <div class="card-footer">
-                                <div class="cot-total-inline">
-                                    <span>Total:</span>
-                                    <span id="cotTotal">$0</span>
+                                <div class="cot-totales-wrap">
+                                    <div class="cot-total-linea">
+                                        <span>Subtotal:</span>
+                                        <span id="cotSubtotal">$0</span>
+                                    </div>
+                                    <div class="cot-total-linea cot-iva-linea">
+                                        <label class="cot-iva-check">
+                                            <input type="checkbox" id="cotAplicarIva">
+                                            <span>IVA (19%):</span>
+                                        </label>
+                                        <span id="cotIva">$0</span>
+                                    </div>
+                                    <div class="cot-total-linea cot-total-final">
+                                        <span>Total:</span>
+                                        <span id="cotTotal">$0</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

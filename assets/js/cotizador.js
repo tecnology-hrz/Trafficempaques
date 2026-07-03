@@ -75,6 +75,7 @@ export async function crearCotizacion(datos) {
     const cotizacion = {
         numero,
         cliente: datos.cliente,
+        tipoPersona: datos.tipoPersona || "natural",
         nit: datos.nit || "",
         negocio: datos.negocio || "",
         telefono: datos.telefono || "",
@@ -83,6 +84,9 @@ export async function crearCotizacion(datos) {
         tipo: datos.tipo,
         modalidadPago: datos.modalidadPago || "contado",
         items: datos.items,
+        subtotal: datos.subtotal !== undefined ? datos.subtotal : datos.total,
+        aplicarIva: datos.aplicarIva || false,
+        iva: datos.iva || 0,
         total: datos.total,
         estado: "pendiente",
         metodoPago: "",

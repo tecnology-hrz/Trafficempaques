@@ -553,6 +553,7 @@ async function loadCollection(collectionName, containerId, showValue) {
 }
 // ===== COTIZADOR =====
 let cotItems = [];
+let cargandoCotizacion = false;  // evita que setTipoPersona sobreescriba el IVA guardado al cargar
 
 function setupCotizador() {
     const btnNueva  = document.getElementById("btnNuevaCotizacion");
@@ -560,6 +561,10 @@ function setupCotizador() {
     const btnAdd    = document.getElementById("btnAddItem");
     const btnGuardar = document.getElementById("btnGuardarCotizacion");
     const tipoSelect = document.getElementById("cotTipo");
+
+    // Checkbox de IVA: recalcula totales al cambiar
+    const chkIva = document.getElementById("cotAplicarIva");
+    if (chkIva) chkIva.addEventListener("change", calcularTotales);
 
     // Filtros de cotizaciones
     const inputBuscar = document.getElementById("cotizacionesBuscar");
@@ -655,7 +660,10 @@ function setupCotizador() {
             precioTotal: item.cantidad * item.precioUnit
         }));
 
-        const total = items.reduce((sum, i) => sum + i.precioTotal, 0);
+        const subtotal = items.reduce((sum, i) => sum + i.precioTotal, 0);
+        const aplicarIva = document.getElementById("cotAplicarIva")?.checked || false;
+        const iva = aplicarIva ? Math.round(subtotal * IVA_RATE) : 0;
+        const total = subtotal + iva;
 
         if (editId) {
             // Editar: actualizar sin cambiar el ID ni el link
@@ -663,7 +671,7 @@ function setupCotizador() {
             const snap = await getDoc(ref);
             const existing = snap.data();
             const notas = document.getElementById("cotNotas").value.trim();
-            await setDoc(ref, { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas });
+            await setDoc(ref, { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas });
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
@@ -674,7 +682,7 @@ function setupCotizador() {
         } else {
             // Crear nueva
             const notas = document.getElementById("cotNotas").value.trim();
-            const result = await crearCotizacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
+            const result = await crearCotizacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
             // Guardar cliente en base de datos
             await guardarClienteDesdeCotzacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad });
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
@@ -899,9 +907,23 @@ function renderCotItems() {
     });
 }
 
+const IVA_RATE = 0.19;
+
 function calcularTotales() {
-    const total = cotItems.reduce((sum, item) => sum + (item.cantidad * item.precioUnit), 0);
+    const subtotal = cotItems.reduce((sum, item) => sum + (item.cantidad * item.precioUnit), 0);
+    const aplicarIva = document.getElementById("cotAplicarIva")?.checked || false;
+    const iva = aplicarIva ? Math.round(subtotal * IVA_RATE) : 0;
+    const total = subtotal + iva;
+
+    const subEl = document.getElementById("cotSubtotal");
+    const ivaEl = document.getElementById("cotIva");
+    if (subEl) subEl.textContent = "$" + formatMoneyLocal(subtotal);
+    if (ivaEl) ivaEl.textContent = "$" + formatMoneyLocal(iva);
     document.getElementById("cotTotal").textContent = "$" + formatMoneyLocal(total);
+
+    // Atenuar la linea de IVA cuando no esta aplicado
+    const ivaLinea = document.querySelector(".cot-iva-linea");
+    if (ivaLinea) ivaLinea.classList.toggle("iva-inactivo", !aplicarIva);
 }
 
 // ===== PRODUCTO TEMPORAL =====
@@ -1397,6 +1419,7 @@ function abrirModalAcciones(cotId, cotName) {
         if (!docSnap.exists()) return;
         const cot = docSnap.data();
 
+        cargandoCotizacion = true;
         document.getElementById("cotCliente").value  = cot.cliente || "";
         document.getElementById("cotNit").value      = cot.nit || "";
         document.getElementById("cotNegocio").value  = cot.negocio || "";
@@ -1404,6 +1427,14 @@ function abrirModalAcciones(cotId, cotName) {
         document.getElementById("cotDireccion").value = cot.direccion || "";
         document.getElementById("cotCiudad").value   = cot.ciudad || "";
         setTipoPersonaCotizador(cot.tipoPersona || "natural");
+        // Restaurar estado del IVA guardado (si el campo no existe, usar segun tipo de persona)
+        const chkIvaEdit = document.getElementById("cotAplicarIva");
+        if (chkIvaEdit) {
+            chkIvaEdit.checked = (cot.aplicarIva !== undefined)
+                ? !!cot.aplicarIva
+                : (cot.tipoPersona === "juridica");
+        }
+        cargandoCotizacion = false;
         document.getElementById("cotTipo").value     = cot.tipo || "imprenta";
         document.getElementById("cotFechaActual").value = cot.fechaActual || "";
         document.getElementById("cotModalidadPago").value = cot.modalidadPago || "contado";
@@ -3586,6 +3617,16 @@ function setTipoPersonaCotizador(tipo) {
         if (nitLabel) nitLabel.textContent = "Cedula";
         if (nombreInput) nombreInput.placeholder = "Nombre o empresa";
         if (nitInput) nitInput.placeholder = "1.000.000.000";
+    }
+
+    // El IVA se aplica por defecto para personas juridicas (con NIT).
+    // Solo se ajusta automaticamente si no se esta editando/cargando una cotizacion existente.
+    if (!cargandoCotizacion) {
+        const chkIva = document.getElementById("cotAplicarIva");
+        if (chkIva) {
+            chkIva.checked = (tipo === "juridica");
+            calcularTotales();
+        }
     }
 }
 
