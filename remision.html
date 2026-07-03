@@ -69,6 +69,44 @@
         .ya-entregado { padding: 24px; }
         .ya-entregado .evidencia-preview { margin-top: 12px; text-align: center; }
         .ya-entregado .evidencia-preview img { max-width: 100%; max-height: 300px; border-radius: 10px; border: 1px solid #e2e8f0; }
+
+        /* Detalle del pedido */
+        .pedido-section { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }
+        .pedido-section h3 { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+        .pedido-lista { display: flex; flex-direction: column; gap: 8px; }
+        .pedido-item { display: flex; align-items: center; gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; }
+        .pedido-item-cant { flex-shrink: 0; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 8px; background: #f59e0b; color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        .pedido-item-info { flex: 1; min-width: 0; }
+        .pedido-item-nombre { font-size: 14px; color: #222; font-weight: 600; }
+        .pedido-item-detalle { font-size: 12px; color: #888; margin-top: 2px; }
+        .pedido-vacio { font-size: 13px; color: #888; text-align: center; padding: 8px; }
+
+        /* Campo nombre de quien recibe */
+        .recibe-field { margin-bottom: 16px; }
+        .recibe-field label { display: block; font-size: 13px; color: #555; font-weight: 600; margin-bottom: 6px; }
+        .recibe-field input { width: 100%; padding: 12px 14px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+        .recibe-field input:focus { border-color: #f59e0b; }
+
+        /* Botones de captura de evidencia */
+        .evidencia-botones { display: flex; gap: 10px; margin-bottom: 16px; }
+        .btn-captura { flex: 1; padding: 14px 12px; border: 1.5px solid #d1d5db; border-radius: 12px; background: #fff; color: #444; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: all 0.2s; }
+        .btn-captura i { font-size: 24px; color: #f59e0b; }
+        .btn-captura:hover { border-color: #f59e0b; background: #fffbeb; }
+
+        /* Modal de camara en vivo */
+        .camara-modal { position: fixed; inset: 0; background: #000; z-index: 1000; display: none; flex-direction: column; }
+        .camara-modal.show { display: flex; }
+        .camara-video-wrap { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .camara-video-wrap video { width: 100%; height: 100%; object-fit: contain; }
+        .camara-cargando { position: absolute; color: #fff; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .camara-error { position: absolute; color: #fff; text-align: center; padding: 30px; font-size: 14px; max-width: 340px; }
+        .camara-error i { font-size: 40px; color: #f59e0b; display: block; margin-bottom: 12px; }
+        .camara-controls { padding: 20px; display: flex; align-items: center; justify-content: center; gap: 30px; background: #000; }
+        .camara-btn-cerrar { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(0,0,0,0.5); color: #fff; font-size: 22px; cursor: pointer; z-index: 2; display: flex; align-items: center; justify-content: center; }
+        .camara-btn-flip { position: absolute; top: 16px; left: 16px; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(0,0,0,0.5); color: #fff; font-size: 20px; cursor: pointer; z-index: 2; display: flex; align-items: center; justify-content: center; }
+        .camara-btn-capturar { width: 72px; height: 72px; border-radius: 50%; border: 5px solid #fff; background: #f59e0b; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .camara-btn-capturar i { font-size: 30px; color: #fff; }
+        .camara-btn-capturar:active { transform: scale(0.94); }
     </style>
 </head>
 <body>
@@ -90,7 +128,25 @@
         </div>
     </div>
 
-    <input type="file" id="inputEvidencia" accept="image/*" capture="environment" style="display:none;">
+    <!-- Modal de camara en vivo -->
+    <div class="camara-modal" id="camaraModal">
+        <div class="camara-video-wrap">
+            <button class="camara-btn-cerrar" id="camaraCerrar"><i class="bi bi-x-lg"></i></button>
+            <button class="camara-btn-flip" id="camaraFlip" title="Cambiar camara"><i class="bi bi-arrow-repeat"></i></button>
+            <video id="camaraVideo" autoplay playsinline muted></video>
+            <div class="camara-cargando" id="camaraCargando">
+                <span class="spinner" style="width:28px;height:28px;"></span>
+                <span>Iniciando camara...</span>
+            </div>
+        </div>
+        <div class="camara-controls">
+            <button class="camara-btn-capturar" id="camaraCapturar"><i class="bi bi-camera-fill"></i></button>
+        </div>
+    </div>
+
+    <!-- Fallback: input nativo con captura (se usa si getUserMedia no esta disponible) -->
+    <input type="file" id="inputEvidenciaCamara" accept="image/*" capture="environment" style="display:none;">
+    <input type="file" id="inputEvidenciaGaleria" accept="image/*" style="display:none;">
 
     <script type="module">
         import { db, doc, getDoc, setDoc } from "./assets/js/auth.js";
@@ -180,10 +236,15 @@
                             </div>
                         </div>
                     </div>
+                    <div class="pedido-section">
+                        <h3><i class="bi bi-box-seam"></i> Pedido entregado</h3>
+                        ${renderPedido(orden)}
+                    </div>
                     <div class="completado-banner">
                         <i class="bi bi-check-circle-fill"></i>
                         <h3>Entrega completada</h3>
                         <p>Esta entrega ya fue marcada como completada.</p>
+                        ${orden.entregaRecibidoPor ? `<p style="margin-top:6px;"><strong>Recibido por:</strong> ${orden.entregaRecibidoPor}</p>` : ''}
                         ${orden.entregaEvidenciaUrl ? `<img src="${orden.entregaEvidenciaUrl}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:12px;border:2px solid rgba(255,255,255,0.3);">` : ''}
                     </div>
                 `;
@@ -261,14 +322,34 @@
                     `}
                 </div>
 
+                <!-- Detalle del pedido -->
+                <div class="pedido-section">
+                    <h3><i class="bi bi-box-seam"></i> Pedido a entregar</h3>
+                    ${renderPedido(orden)}
+                </div>
+
                 <!-- Evidencia de entrega -->
                 <div class="evidencia-section">
                     <h3><i class="bi bi-camera-fill"></i> Evidencia de entrega</h3>
-                    <p class="desc">Sube una foto como prueba de que el pedido fue entregado.</p>
+                    <p class="desc">Registra quien recibio el pedido y adjunta una foto como prueba de entrega.</p>
+
+                    <div class="recibe-field">
+                        <label for="inputRecibe">Nombre de quien recibe</label>
+                        <input type="text" id="inputRecibe" placeholder="Ej: Juan Perez" autocomplete="name">
+                    </div>
+
+                    <div class="evidencia-botones">
+                        <button type="button" class="btn-captura" id="btnTomarFoto">
+                            <i class="bi bi-camera-fill"></i> Tomar foto
+                        </button>
+                        <button type="button" class="btn-captura" id="btnGaleria">
+                            <i class="bi bi-image"></i> Subir de galeria
+                        </button>
+                    </div>
 
                     <div class="upload-area" id="uploadArea">
                         <i class="bi bi-camera"></i>
-                        <p>Toca para tomar foto o seleccionar imagen</p>
+                        <p>Toma una foto o selecciona una imagen</p>
                     </div>
 
                     <button class="btn-enviar-evidencia" id="btnEnviarEvidencia" disabled>
@@ -278,6 +359,108 @@
             `;
 
             setupEventos(orden, mapsUrl);
+        }
+
+        // ===== CAMARA EN VIVO (getUserMedia) =====
+        let camaraStream = null;
+        let camaraFacing = "environment";
+        let camaraOnCapture = null;
+
+        async function iniciarStream() {
+            const video = document.getElementById("camaraVideo");
+            const cargando = document.getElementById("camaraCargando");
+            cargando.style.display = "flex";
+            cargando.innerHTML = '<span class="spinner" style="width:28px;height:28px;"></span><span>Iniciando camara...</span>';
+
+            // Detener stream previo si existe
+            if (camaraStream) {
+                camaraStream.getTracks().forEach(t => t.stop());
+                camaraStream = null;
+            }
+
+            try {
+                camaraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: camaraFacing } },
+                    audio: false
+                });
+                video.srcObject = camaraStream;
+                await video.play();
+                cargando.style.display = "none";
+            } catch (err) {
+                console.error("Error camara:", err);
+                let msg = "No se pudo acceder a la camara.";
+                if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                    msg = "Permiso de camara denegado. Habilitalo en los ajustes del navegador o usa 'Subir de galeria'.";
+                } else if (err.name === "NotFoundError") {
+                    msg = "No se encontro ninguna camara en este dispositivo.";
+                }
+                cargando.style.display = "flex";
+                cargando.innerHTML = `<div class="camara-error"><i class="bi bi-camera-video-off"></i>${msg}</div>`;
+            }
+        }
+
+        function abrirCamara(onCapture) {
+            camaraOnCapture = onCapture;
+            document.getElementById("camaraModal").classList.add("show");
+            iniciarStream();
+        }
+
+        function cerrarCamara() {
+            if (camaraStream) {
+                camaraStream.getTracks().forEach(t => t.stop());
+                camaraStream = null;
+            }
+            document.getElementById("camaraModal").classList.remove("show");
+        }
+
+        // Listeners del modal de camara (se registran una sola vez)
+        (function initCamaraModal() {
+            const video = document.getElementById("camaraVideo");
+            document.getElementById("camaraCerrar").addEventListener("click", cerrarCamara);
+
+            document.getElementById("camaraFlip").addEventListener("click", () => {
+                camaraFacing = camaraFacing === "environment" ? "user" : "environment";
+                iniciarStream();
+            });
+
+            document.getElementById("camaraCapturar").addEventListener("click", () => {
+                if (!camaraStream || !video.videoWidth) return;
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((blob) => {
+                    if (!blob) return;
+                    const file = new File([blob], "evidencia-" + Date.now() + ".jpg", { type: "image/jpeg" });
+                    if (typeof camaraOnCapture === "function") camaraOnCapture(file);
+                    cerrarCamara();
+                }, "image/jpeg", 0.9);
+            });
+        })();
+
+        function renderPedido(orden) {
+            const items = orden.items || [];
+            if (!items.length) {
+                return '<p class="pedido-vacio">No hay productos registrados en esta orden.</p>';
+            }
+            const filas = items.map(it => {
+                const detalles = [];
+                if (it.tipo) detalles.push(it.tipo);
+                if (Array.isArray(it.terminados) && it.terminados.length) detalles.push(it.terminados.join(", "));
+                if (Array.isArray(it.colores) && it.colores.length) detalles.push(it.colores.join(", "));
+                if (Array.isArray(it.materiales) && it.materiales.length) detalles.push(it.materiales.join(", "));
+                const detalleTxt = detalles.filter(Boolean).join(" • ");
+                return `
+                    <div class="pedido-item">
+                        <div class="pedido-item-cant">${it.cantidad || 1}</div>
+                        <div class="pedido-item-info">
+                            <div class="pedido-item-nombre">${it.producto || "Producto"}</div>
+                            ${detalleTxt ? `<div class="pedido-item-detalle">${detalleTxt}</div>` : ""}
+                        </div>
+                    </div>
+                `;
+            }).join("");
+            return `<div class="pedido-lista">${filas}</div>`;
         }
 
         function setupEventos(orden, mapsUrl) {
@@ -303,36 +486,61 @@
                 });
             }
 
-            // Upload de evidencia
+            // Upload de evidencia (camara o galeria)
             const uploadArea = document.getElementById("uploadArea");
-            const inputEvidencia = document.getElementById("inputEvidencia");
+            const inputCamara = document.getElementById("inputEvidenciaCamara");
+            const inputGaleria = document.getElementById("inputEvidenciaGaleria");
+            const btnTomarFoto = document.getElementById("btnTomarFoto");
+            const btnGaleria = document.getElementById("btnGaleria");
+            const inputRecibe = document.getElementById("inputRecibe");
             const btnEnviar = document.getElementById("btnEnviarEvidencia");
             let archivoEvidencia = null;
 
-            uploadArea.addEventListener("click", () => inputEvidencia.click());
-
-            inputEvidencia.addEventListener("change", (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+            function mostrarPreview(file) {
                 archivoEvidencia = file;
-
-                // Preview
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     uploadArea.classList.add("has-image");
                     uploadArea.innerHTML = `
                         <i class="bi bi-check-circle-fill"></i>
-                        <p>Imagen seleccionada</p>
+                        <p>Imagen lista</p>
                         <img src="${ev.target.result}" class="preview-img" alt="Preview">
                     `;
                     btnEnviar.disabled = false;
                 };
                 reader.readAsDataURL(file);
+            }
+
+            // Boton "Tomar foto": intenta abrir la camara en vivo; si no hay soporte, usa el input nativo
+            btnTomarFoto.addEventListener("click", () => {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    abrirCamara(mostrarPreview);
+                } else {
+                    inputCamara.click();
+                }
+            });
+            btnGaleria.addEventListener("click", () => inputGaleria.click());
+            uploadArea.addEventListener("click", () => btnTomarFoto.click());
+
+            inputCamara.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) mostrarPreview(file);
+            });
+            inputGaleria.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) mostrarPreview(file);
             });
 
             // Enviar evidencia
             btnEnviar.addEventListener("click", async () => {
                 if (!archivoEvidencia) return;
+                const nombreRecibe = (inputRecibe.value || "").trim();
+                if (!nombreRecibe) {
+                    inputRecibe.focus();
+                    inputRecibe.style.borderColor = "#ef4444";
+                    alert("Por favor ingresa el nombre de quien recibe el pedido.");
+                    return;
+                }
                 btnEnviar.disabled = true;
                 btnEnviar.innerHTML = '<span class="spinner"></span> Subiendo imagen...';
 
@@ -363,7 +571,8 @@
                             ...ordenData,
                             entregaCompletada: true,
                             entregaCompletadaFecha: new Date().toISOString(),
-                            entregaEvidenciaUrl: imageUrl
+                            entregaEvidenciaUrl: imageUrl,
+                            entregaRecibidoPor: nombreRecibe
                         });
                     }
 
@@ -373,6 +582,7 @@
                             <i class="bi bi-check-circle-fill"></i>
                             <h3>¡Entrega confirmada!</h3>
                             <p>La evidencia fue enviada correctamente. Gracias.</p>
+                            <p style="margin-top:6px;"><strong>Recibido por:</strong> ${nombreRecibe}</p>
                             <img src="${imageUrl}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:12px;border:2px solid rgba(255,255,255,0.3);">
                         </div>
                     `;
