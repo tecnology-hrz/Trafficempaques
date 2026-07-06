@@ -2051,6 +2051,12 @@ body {
     color: #155724;
 }
 
+.diseno-estado-inline.vencida {
+    background: #f8d7da;
+    color: #842029;
+    font-weight: 600;
+}
+
 /* Estado en modal de diseños */
 .diseno-img-estado {
     display: inline-flex;

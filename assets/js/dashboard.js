@@ -1638,17 +1638,58 @@ let ordenesRolCache = ""; // Rol usado al cargar
 
 // Calcula el estado de tiempo de una orden segun su fecha limite de diseño
 // (prioritaria) o su fecha de entrega. Devuelve: atiempo | pronto | vencida | sinfecha
+// Dias maximos para crear la orden de diseño desde que la orden entra a produccion.
+const DIAS_LIMITE_DISENO = 15;
+
+// Devuelve un objeto Date con la fecha limite para crear la orden de diseño.
+// Usa el campo guardado orden.fechaLimiteDiseno (yyyy-mm-dd) o lo calcula
+// sumando DIAS_LIMITE_DISENO a la fecha de envio a produccion.
+function obtenerFechaLimiteDiseno(orden) {
+    if (orden.fechaLimiteDiseno) {
+        const [y, m, d] = orden.fechaLimiteDiseno.split("-");
+        return new Date(y, m - 1, d);
+    }
+    if (orden.fechaEnvio) {
+        const base = new Date(orden.fechaEnvio);
+        if (!isNaN(base)) {
+            base.setDate(base.getDate() + DIAS_LIMITE_DISENO);
+            return base;
+        }
+    }
+    return null;
+}
+
+// Dias que faltan para que venza el plazo de creacion de la orden de diseño.
+// Devuelve null si no aplica (ya existe la orden de diseño o no hay fecha).
+function diasRestantesDiseno(orden) {
+    const disenoId = orden.id + "-diseno";
+    if (ordenesDisenoDB[disenoId]) return null;
+    const fechaRef = obtenerFechaLimiteDiseno(orden);
+    if (!fechaRef || isNaN(fechaRef)) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    fechaRef.setHours(0, 0, 0, 0);
+    return Math.round((fechaRef - hoy) / (1000 * 60 * 60 * 24));
+}
+
 function calcularEstadoOrden(orden) {
     const disenoId = orden.id + "-diseno";
     const diseno = ordenesDisenoDB[disenoId];
 
     let fechaRef = null;
-    // Prioridad 1: fecha limite de diseño (yyyy-mm-dd)
+    // Prioridad 1: la orden de diseño ya existe y tiene fecha limite propia (yyyy-mm-dd)
     if (diseno && diseno.fechaLimite) {
         const [y, m, d] = diseno.fechaLimite.split("-");
         fechaRef = new Date(y, m - 1, d);
-    } else if (orden.fechaEntrega) {
-        // Prioridad 2: fecha de entrega (dd/mm/yyyy)
+    } else if (!diseno) {
+        // Prioridad 2: la orden de diseño AUN NO se ha creado -> aplica el plazo
+        // maximo para crearla (fechaEnvio + DIAS_LIMITE_DISENO). Si se vence, la
+        // orden se marca como vencida aunque no exista todavia la orden de diseño.
+        fechaRef = obtenerFechaLimiteDiseno(orden);
+    }
+
+    // Prioridad 3: fecha de entrega (dd/mm/yyyy) si no hubo referencia previa
+    if ((!fechaRef || isNaN(fechaRef)) && orden.fechaEntrega) {
         const [d, m, y] = orden.fechaEntrega.split("/");
         fechaRef = new Date(y, m - 1, d);
     }
@@ -1665,6 +1706,31 @@ function calcularEstadoOrden(orden) {
     return "atiempo";
 }
 
+// Actualiza en la base de datos las ordenes que aun no tienen fechaLimiteDiseno.
+// Calcula la fecha como fechaEnvio + DIAS_LIMITE_DISENO (yyyy-mm-dd) y la persiste.
+// Muta el array recibido para que el render use el valor ya calculado.
+async function migrarFechasLimiteDiseno(ordenes) {
+    const pendientes = ordenes.filter(o => !o.fechaLimiteDiseno && o.fechaEnvio);
+    if (pendientes.length === 0) return;
+
+    await Promise.all(pendientes.map(async (orden) => {
+        const base = new Date(orden.fechaEnvio);
+        if (isNaN(base)) return;
+        base.setDate(base.getDate() + DIAS_LIMITE_DISENO);
+        const fechaLimiteDiseno = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+        orden.fechaLimiteDiseno = fechaLimiteDiseno;
+        try {
+            const ref = doc(db, "produccion", orden.id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+                await setDoc(ref, { ...snap.data(), fechaLimiteDiseno });
+            }
+        } catch (err) {
+            console.warn("No se pudo migrar fechaLimiteDiseno de", orden.id, err);
+        }
+    }));
+}
+
 async function cargarOrdenes(rolUsuario) {
     try {
         // Leer de la coleccion "produccion" que el admin crea al enviar
@@ -1672,6 +1738,10 @@ async function cargarOrdenes(rolUsuario) {
         const ordenes = [];
         snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
         ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+
+        // Migracion: asignar fecha limite de diseño a ordenes antiguas que no la tienen.
+        // Se calcula como fechaEnvio + DIAS_LIMITE_DISENO y se guarda en la base de datos.
+        await migrarFechasLimiteDiseno(ordenes);
 
         // Cargar ordenes de diseño existentes
         const snapDiseno = await getDocs(collection(db, "ordenesDiseno"));
@@ -1876,6 +1946,12 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
             disenoEstadoBadge = `<span class="diseno-estado-inline respondida"><i class="bi bi-check-circle"></i> Diseño respondido</span>`;
         } else if (tieneDiseno) {
             disenoEstadoBadge = `<span class="diseno-estado-inline pendiente"><i class="bi bi-clock"></i> Diseño pendiente</span>`;
+        } else if (estadoOrden === "vencida") {
+            // No se creo la orden de diseño dentro del plazo -> vencida
+            disenoEstadoBadge = `<span class="diseno-estado-inline vencida"><i class="bi bi-exclamation-triangle"></i> Diseño vencido</span>`;
+        } else if (estadoOrden === "pronto") {
+            const dias = diasRestantesDiseno(orden);
+            disenoEstadoBadge = `<span class="diseno-estado-inline pendiente"><i class="bi bi-hourglass-split"></i> ${dias === 0 ? "Vence hoy" : "Vence en " + dias + (dias === 1 ? " dia" : " dias")}</span>`;
         }
 
         // Boton copiar link solo si ya existe orden de diseño
@@ -2730,6 +2806,10 @@ async function abrirDetalleAprobada(id) {
 async function enviarAProduccion(cot, tipoProd, items) {
     // Guardar en coleccion "produccion" con el ID de la cotizacion
     const prodId = cot.id + "-" + tipoProd;
+    // Fecha limite para crear la orden de diseño: hoy + DIAS_LIMITE_DISENO (yyyy-mm-dd)
+    const limite = new Date();
+    limite.setDate(limite.getDate() + DIAS_LIMITE_DISENO);
+    const fechaLimiteDiseno = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, "0")}-${String(limite.getDate()).padStart(2, "0")}`;
     await setDoc(doc(db, "produccion", prodId), {
         cotizacionId: cot.id,
         numero:       cot.numero,
@@ -2750,6 +2830,7 @@ async function enviarAProduccion(cot, tipoProd, items) {
         pasoActual:   "recibido",
         seguimiento:  { recibido: new Date().toISOString() },
         fechaEnvio:   new Date().toISOString(),
+        fechaLimiteDiseno: fechaLimiteDiseno,
         fechaEntrega: cot.fechaEntrega || "",
         creadoPor:    cot.creadoPor || sessionStorage.getItem("userName") || "",
         creadoPorEmail: cot.creadoPorEmail || sessionStorage.getItem("userEmail") || ""
