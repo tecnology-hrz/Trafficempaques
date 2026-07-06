@@ -671,7 +671,14 @@ function setupCotizador() {
             const snap = await getDoc(ref);
             const existing = snap.data();
             const notas = document.getElementById("cotNotas").value.trim();
-            await setDoc(ref, { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas });
+            const cotActualizada = { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas };
+            await setDoc(ref, cotActualizada);
+            // Cascada: propagar cambios a produccion y ordenes de diseño existentes
+            try {
+                await actualizarCascadaCotizacion(editId, cotActualizada);
+            } catch (errCascada) {
+                console.error("Error al actualizar en cascada:", errCascada);
+            }
             btnGuardar.dataset.editId = "";
             btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
             document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
@@ -679,6 +686,9 @@ function setupCotizador() {
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
             const link = baseUrl + "cotizacion.html?id=" + editId;
             showLinkModal("Cotizacion actualizada", "Comparte este link actualizado con el cliente:", link);
+            // Refrescar ordenes/diseños para reflejar la cascada
+            cargarOrdenes(rol);
+            cargarDisenosAprobados(rol);
         } else {
             // Crear nueva
             const notas = document.getElementById("cotNotas").value.trim();
@@ -2054,10 +2064,41 @@ function abrirModalOrden(orden, esRolProduccion) {
 }
 
 async function crearOrdenDiseno(orden) {
-    // Verificar si ya existe una orden de diseño
     const disenoId = orden.id + "-diseno";
-    const existente = ordenesDisenoDB[disenoId] || null;
-    abrirVistaDisenoOrden(orden, existente);
+
+    // Sincronizar con la cotizacion actual antes de abrir, para corregir ordenes
+    // que quedaron desactualizadas (productos agregados en ediciones previas).
+    let ordenActualizada = orden;
+    try {
+        const cotId = orden.cotizacionId || orden.id.replace(/-(digital|imprenta)$/, "");
+        const cotSnap = await getDoc(doc(db, "cotizaciones", cotId));
+        if (cotSnap.exists()) {
+            const cot = cotSnap.data();
+            await actualizarCascadaCotizacion(cotId, cot);
+            // Releer la orden de produccion ya sincronizada
+            const prodSnap = await getDoc(doc(db, "produccion", orden.id));
+            if (prodSnap.exists()) {
+                ordenActualizada = { id: orden.id, ...prodSnap.data() };
+                ordenesCache = ordenesCache.map(o => o.id === orden.id ? ordenActualizada : o);
+            }
+        }
+    } catch (err) {
+        console.warn("No se pudo sincronizar la orden de diseño con la cotizacion:", err);
+    }
+
+    // Releer la orden de diseño (ya sincronizada si existia)
+    let existente = ordenesDisenoDB[disenoId] || null;
+    try {
+        const disenoSnap = await getDoc(doc(db, "ordenesDiseno", disenoId));
+        if (disenoSnap.exists()) {
+            existente = { id: disenoId, ...disenoSnap.data() };
+            ordenesDisenoDB[disenoId] = existente;
+        }
+    } catch (err) {
+        console.warn("No se pudo releer la orden de diseño:", err);
+    }
+
+    abrirVistaDisenoOrden(ordenActualizada, existente);
 }
 
 // ===== VISTA ORDEN DE DISEÑO (inline) =====
@@ -2801,6 +2842,92 @@ async function abrirDetalleAprobada(id) {
     }
 
     document.getElementById("cotDetalleOverlay").classList.add("show");
+}
+
+// Devuelve los items de una cotizacion que corresponden a un tipo de produccion.
+// Si la cotizacion no es "ambas", todos los items van a esa produccion.
+function itemsParaProduccion(cot, tipoProd) {
+    return (cot.items || []).filter(i => {
+        if (cot.tipo !== "ambas") return true;
+        return (i.tipo || "imprenta") === tipoProd;
+    });
+}
+
+// Combina los items nuevos de la cotizacion con los items previos de la orden de
+// diseño, preservando las imagenes y links de Pacdora de los productos que ya
+// existian. Los productos nuevos entran sin imagenes; los eliminados desaparecen.
+function mergeDisenoItems(nuevosItems, itemsPrevios) {
+    const previos = [...(itemsPrevios || [])];
+    return nuevosItems.map(item => {
+        // Buscar un item previo con el mismo producto que aun no haya sido usado
+        const idx = previos.findIndex(p => (p.producto || "") === (item.producto || ""));
+        let prev = null;
+        if (idx !== -1) {
+            prev = previos[idx];
+            previos.splice(idx, 1); // consumir para no reutilizar en duplicados
+        }
+        return {
+            producto: item.producto,
+            cantidad: item.cantidad,
+            terminados: item.terminados || (item.terminado ? [item.terminado] : []),
+            colores: item.colores || (item.color ? [item.color] : []),
+            materiales: item.materiales || [],
+            planchas: item.planchas || [],
+            terminado: item.terminado || "",
+            color: item.color || "",
+            tipo: item.tipo || "",
+            precioUnit: item.precioUnit || 0,
+            precioTotal: item.precioTotal || 0,
+            imagenes: prev ? (prev.imagenes || []) : [],
+            pacdoraLinks: prev ? (prev.pacdoraLinks || []) : []
+        };
+    });
+}
+
+// Propaga en cascada los cambios de una cotizacion editada hacia las ordenes de
+// produccion y las ordenes de diseño ya existentes. Solo actualiza lo que ya existe.
+async function actualizarCascadaCotizacion(cotId, cot) {
+    const tipos = ["digital", "imprenta"];
+    for (const tipoProd of tipos) {
+        const prodId = `${cotId}-${tipoProd}`;
+        const prodRef = doc(db, "produccion", prodId);
+        const prodSnap = await getDoc(prodRef);
+        if (!prodSnap.exists()) continue;
+
+        const prodData = prodSnap.data();
+        const itemsProd = itemsParaProduccion(cot, tipoProd);
+        const totalProd = itemsProd.reduce((s, i) => s + (i.precioTotal || 0), 0);
+
+        // Actualizar la orden de produccion preservando seguimiento, paso y fechas
+        await setDoc(prodRef, {
+            ...prodData,
+            cliente:   cot.cliente,
+            negocio:   cot.negocio || "",
+            nit:       cot.nit || "",
+            telefono:  cot.telefono || "",
+            direccion: cot.direccion || "",
+            ciudad:    cot.ciudad || "",
+            items:     itemsProd,
+            total:     totalProd,
+            fechaEntrega: cot.fechaEntrega || prodData.fechaEntrega || ""
+        });
+
+        // Actualizar la orden de diseño si existe, preservando imagenes/links
+        const disenoId = `${prodId}-diseno`;
+        const disenoRef = doc(db, "ordenesDiseno", disenoId);
+        const disenoSnap = await getDoc(disenoRef);
+        if (disenoSnap.exists()) {
+            const disenoData = disenoSnap.data();
+            const mergedItems = mergeDisenoItems(itemsProd, disenoData.items);
+            await setDoc(disenoRef, {
+                ...disenoData,
+                cliente:  cot.cliente,
+                telefono: cot.telefono || "",
+                items:    mergedItems,
+                fechaActualizacion: new Date().toISOString()
+            });
+        }
+    }
 }
 
 async function enviarAProduccion(cot, tipoProd, items) {
