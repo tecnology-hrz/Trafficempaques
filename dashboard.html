@@ -7,6 +7,9 @@
     <title>Traffic - Dashboard</title>
     <link rel="stylesheet" href="assets/css/dashboard.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- jsPDF + autotable para exportar cotizaciones y ordenes a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -40,7 +43,7 @@
                 <i class="bi bi-people"></i>
                 <span>Usuarios</span>
             </a>
-            <a class="nav-item" data-section="clientes">
+            <a class="nav-item" data-section="clientes" data-role="administrador,ventas,ordenes">
                 <i class="bi bi-person-lines-fill"></i>
                 <span>Clientes</span>
             </a>
@@ -582,7 +585,7 @@
                 </div>
             </div>
 
-            <!-- ===== SECCION: CLIENTES (solo admin) ===== -->
+            <!-- ===== SECCION: CLIENTES (admin, ventas y ordenes) ===== -->
             <div class="section" id="section-clientes">
                 <div class="section-header">
                     <h2 class="section-title"><i class="bi bi-person-lines-fill"></i> Clientes</h2>
@@ -631,6 +634,9 @@
                 <div class="section-header">
                     <h2 class="section-title"><i class="bi bi-graph-up-arrow"></i> Resumen Financiero</h2>
                     <div class="finanzas-filtros">
+                        <select id="finanzasFiltroVendedor" class="finanzas-select" style="display:none;">
+                            <option value="">Todos los vendedores</option>
+                        </select>
                         <select id="finanzasFiltroMes" class="finanzas-select">
                             <option value="">Todos los meses</option>
                             <option value="0">Enero</option>
@@ -1026,11 +1032,47 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-cancel" id="ordenDetalleCancel">Cerrar</button>
+                <button class="btn-primary" id="ordenDetallePDF">
+                    <i class="bi bi-file-earmark-pdf"></i> Descargar PDF
+                </button>
                 <button class="btn-copiar-link-modal" id="ordenDetalleCopyLink" style="display:none;">
                     <i class="bi bi-link-45deg"></i> Copiar link
                 </button>
                 <button class="btn-primary" id="ordenDetalleRedisenar" style="display:none;">
                     <i class="bi bi-arrow-repeat"></i> Rediseñar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL CANTIDAD SEGUIMIENTO ===== -->
+    <div class="modal-overlay" id="segCantidadOverlay">
+        <div class="modal modal-seg-cantidad">
+            <div class="modal-header">
+                <h3 id="segCantidadTitulo">Registrar cantidad</h3>
+                <button class="modal-close" id="segCantidadClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="seg-cantidad-desc" id="segCantidadDesc"></p>
+                <div class="seg-cantidad-info">
+                    <div class="seg-cantidad-info-item">
+                        <span class="seg-cantidad-info-label"><i class="bi bi-box-seam"></i> Cantidad ordenada</span>
+                        <span class="seg-cantidad-info-value" id="segCantidadOrdenada">-</span>
+                    </div>
+                    <div class="seg-cantidad-info-item" id="segCantidadRecibidaWrap">
+                        <span class="seg-cantidad-info-label"><i class="bi bi-box-arrow-in-down"></i> Recibido de la etapa anterior</span>
+                        <span class="seg-cantidad-info-value" id="segCantidadRecibida">-</span>
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label id="segCantidadLabel">Cantidad realizada / que envias</label>
+                    <input type="number" id="segCantidadInput" min="0" placeholder="0" inputmode="numeric">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="segCantidadCancel">Cancelar</button>
+                <button class="btn-primary" id="segCantidadConfirm">
+                    <i class="bi bi-arrow-right"></i> Confirmar y avanzar
                 </button>
             </div>
         </div>
@@ -1068,6 +1110,10 @@
                 <button class="modal-close" id="accionesClose"><i class="bi bi-x-lg"></i></button>
             </div>
             <div class="modal-body">
+                <button class="btn-accion-modal" id="btnAccionPDF">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    <span>Descargar PDF</span>
+                </button>
                 <button class="btn-accion-modal" id="btnAccionEditar">
                     <i class="bi bi-pencil"></i>
                     <span>Editar cotizacion</span>
@@ -1396,7 +1442,7 @@
             <i class="bi bi-people"></i>
             <span>Usuarios</span>
         </a>
-        <a class="bottom-nav-item" data-section="clientes">
+        <a class="bottom-nav-item" data-section="clientes" data-role="administrador,ventas,ordenes">
             <i class="bi bi-person-lines-fill"></i>
             <span>Clientes</span>
         </a>
@@ -1450,6 +1496,7 @@
         </div>
     </div>
 
+    <script src="assets/js/pdf-export.js"></script>
     <script type="module" src="assets/js/dashboard.js"></script>
 </body>
 </html>

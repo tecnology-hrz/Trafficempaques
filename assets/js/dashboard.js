@@ -117,9 +117,11 @@ async function initDashboard(rol, nombre) {
         setupModalDetalle();
     }
 
-    // Clientes: visible para todos los roles
-    setupClientes();
-    cargarClientes();
+    // Clientes: solo admin, ventas y ordenes (los roles de produccion no ven clientes)
+    if (rol === "administrador" || rol === "ventas" || rol === "ordenes") {
+        setupClientes();
+        cargarClientes();
+    }
 
     // Solo admin
     if (rol === "administrador") {
@@ -138,6 +140,7 @@ async function initDashboard(rol, nombre) {
 
     // Seguimiento: visible para todos los roles
     setupSeguimiento();
+    setupSegCantidadModal();
     cargarSeguimiento();
 
     // Remision: admin, ventas, ordenes
@@ -1423,6 +1426,19 @@ function abrirModalAcciones(cotId, cotName) {
     const overlay = document.getElementById("accionesOverlay");
     document.getElementById("accionesTitulo").textContent = cotName;
 
+    const btnPDF = document.getElementById("btnAccionPDF");
+    if (btnPDF) {
+        btnPDF.onclick = async () => {
+            overlay.classList.remove("show");
+            const docSnap = await getDoc(doc(db, "cotizaciones", cotId));
+            if (!docSnap.exists()) return;
+            const cot = { id: docSnap.id, ...docSnap.data() };
+            if (typeof window.exportarCotizacionPDF === "function") {
+                window.exportarCotizacionPDF(cot);
+            }
+        };
+    }
+
     document.getElementById("btnAccionEditar").onclick = async () => {
         overlay.classList.remove("show");
         const docSnap = await getDoc(doc(db, "cotizaciones", cotId));
@@ -1798,6 +1814,10 @@ function renderOrdenesConFiltro(rolUsuario) {
         );
         renderOrdenesPorTipo(misOrdenes, "digital", "ordenesDigitalLista", rolUsuario);
         renderOrdenesPorTipo(misOrdenes, "imprenta", "ordenesImprentaLista", rolUsuario);
+    } else if (["diseno", "guillotina", "impresion", "troquelado", "vasos", "empaques"].includes(rolUsuario)) {
+        // Roles de area: ven TODAS las ordenes en solo lectura (sin filtrar por tipo)
+        renderOrdenesSoloLectura(ordenes, "ordenesPendientesLista");
+        renderDisenosRespondidos([], "ordenesDisenosLista", rolUsuario);
     } else {
         const tipoRol = rolUsuario;
         const misOrdenes = ordenes.filter(o => o.tipo === tipoRol);
@@ -2030,9 +2050,12 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
     });
 }
 
+let ordenDetalleActual = null;
+
 function abrirModalOrden(orden, esRolProduccion) {
     const overlay = document.getElementById("ordenDetalleOverlay");
     const items = orden.items || [];
+    ordenDetalleActual = orden;
 
     document.getElementById("ordenDetalleNumero").textContent = orden.numero;
     document.getElementById("ordenDetalleCliente").textContent = orden.cliente;
@@ -2040,6 +2063,17 @@ function abrirModalOrden(orden, esRolProduccion) {
     // Ocultar botones de diseño (solo se muestran en abrirModalVerDisenos)
     document.getElementById("ordenDetalleCopyLink").style.display = "none";
     document.getElementById("ordenDetalleRedisenar").style.display = "none";
+
+    // Boton de descarga PDF de la orden
+    const btnPDFOrden = document.getElementById("ordenDetallePDF");
+    if (btnPDFOrden) {
+        btnPDFOrden.style.display = "";
+        btnPDFOrden.onclick = () => {
+            if (typeof window.exportarOrdenPDF === "function" && ordenDetalleActual) {
+                window.exportarOrdenPDF(ordenDetalleActual);
+            }
+        };
+    }
 
     const itemsHtml = items.map(i => {
         const terminadosDisplay = i.terminados ? (Array.isArray(i.terminados) ? (i.terminados.length > 0 ? i.terminados.join(", ") : "-") : i.terminados) : (i.terminado || "-");
@@ -2061,6 +2095,67 @@ function abrirModalOrden(orden, esRolProduccion) {
     document.getElementById("ordenDetalleItems").innerHTML = itemsHtml || `<tr><td colspan="6">Sin productos</td></tr>`;
 
     overlay.classList.add("show");
+}
+
+// ===== ORDENES EN SOLO LECTURA (roles de area: diseno, guillotina, impresion, etc.) =====
+// Estos roles ven todas las ordenes pero sin acciones de edicion/creacion de diseño.
+function renderOrdenesSoloLectura(ordenes, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!ordenes || ordenes.length === 0) {
+        container.innerHTML = `<div class="empty-state"><i class="bi bi-inbox"></i><p>No hay ordenes aun</p></div>`;
+        return;
+    }
+
+    let html = `
+        <div class="ordenes-tabla-wrap">
+        <table class="ordenes-tabla">
+            <thead>
+                <tr>
+                    <th>Orden</th>
+                    <th>Cliente</th>
+                    <th>Tipo</th>
+                    <th>Entrega</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    ordenes.forEach(orden => {
+        const fecha = new Date(orden.fechaEnvio || "");
+        const fechaStr = isNaN(fecha) ? "-" : fecha.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+        const fechaMostrar = orden.fechaEntrega || fechaStr;
+        const tipoLabel = orden.tipo === "digital" ? "Digital" : "Imprenta";
+
+        html += `
+            <tr>
+                <td><strong>${orden.numero}</strong></td>
+                <td>${orden.cliente}</td>
+                <td>${tipoLabel}</td>
+                <td>${fechaMostrar}</td>
+                <td>
+                    <div class="orden-acciones">
+                        <button class="btn-ver-orden" data-id="${orden.id}">
+                            <i class="bi bi-eye"></i> Ver mas
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+
+    container.querySelectorAll(".btn-ver-orden").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const orden = ordenes.find(o => o.id === id);
+            if (orden) abrirModalOrden(orden, false);
+        });
+    });
 }
 
 async function crearOrdenDiseno(orden) {
@@ -2579,6 +2674,10 @@ function abrirModalVerDisenos(diseno) {
     document.getElementById("ordenDetalleNumero").textContent = diseno.numero + " - Diseños";
     document.getElementById("ordenDetalleCliente").textContent = diseno.cliente;
 
+    // Ocultar el boton PDF de orden en la vista de diseños (no aplica aqui)
+    const btnPDFOrden = document.getElementById("ordenDetallePDF");
+    if (btnPDFOrden) btnPDFOrden.style.display = "none";
+
     let html = "";
     (diseno.items || []).forEach((item, idx) => {
         html += `<tr><td colspan="4" style="padding:12px 0 6px;font-weight:700;border-bottom:none;"><i class="bi bi-box"></i> ${item.cantidad}x ${item.producto}</td></tr>`;
@@ -3013,9 +3112,19 @@ function getItemSeguimiento(orden, idx) {
     const its = orden.itemsSeguimiento || {};
     const entry = its[idx];
     if (entry && entry.pasoActual) {
-        return { pasoActual: entry.pasoActual, seguimiento: entry.seguimiento || {} };
+        return { pasoActual: entry.pasoActual, seguimiento: entry.seguimiento || {}, cantidades: entry.cantidades || {} };
     }
-    return { pasoActual: orden.pasoActual || "recibido", seguimiento: {} };
+    return { pasoActual: orden.pasoActual || "recibido", seguimiento: {}, cantidades: {} };
+}
+
+// Devuelve el mapa de cantidades registradas por paso para un producto (o la orden global).
+function getItemCantidades(orden, idx) {
+    if (idx === undefined || idx === null || idx < 0) {
+        return orden.cantidadesSeguimiento || {};
+    }
+    const its = orden.itemsSeguimiento || {};
+    const entry = its[idx];
+    return (entry && entry.cantidades) ? entry.cantidades : {};
 }
 
 // Calcula el paso global de la orden = el producto MENOS avanzado.
@@ -3207,6 +3316,9 @@ function renderSeguimiento() {
                     const acciones = getAccionesItem(rol, pasoActual, PASOS_SEGUIMIENTO, orden.id, idx);
                     const nombreProd = `<strong>${item.cantidad || 1}x</strong> ${item.producto || "Producto " + (idx + 1)}`;
 
+                    // Resumen de cantidades por etapa (lo que cada area realizo/envio)
+                    const cantidadesHtml = buildCantidadesHtml(orden, idx, PASOS_SEGUIMIENTO, pasoActual, item);
+
                     productosHtml += `
                         <div class="seg-producto-item">
                             <div class="seg-producto-header">
@@ -3214,6 +3326,7 @@ function renderSeguimiento() {
                                 <span class="seg-estado-badge ${pasoActual}"><i class="bi ${estadoIcons[pasoActual]}"></i> ${estadoLabels[pasoActual]}</span>
                             </div>
                             <div class="seg-timeline-mini">${timelineHtml}</div>
+                            ${cantidadesHtml}
                             <div class="seg-orden-actions">${acciones}</div>
                         </div>
                     `;
@@ -3241,8 +3354,18 @@ function renderSeguimiento() {
             container.appendChild(card);
         });
 
-        // Eventos avanzar / retroceder (por producto)
-        container.querySelectorAll(".seg-btn-avanzar, .seg-btn-retroceder").forEach(btn => {
+        // Eventos avanzar: pedir cantidad realizada/enviada antes de pasar
+        container.querySelectorAll(".seg-btn-avanzar").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                const paso = btn.dataset.paso;
+                const idx = parseInt(btn.dataset.idx);
+                abrirModalCantidad(id, paso, idx);
+            });
+        });
+
+        // Eventos retroceder: directo, sin pedir cantidad
+        container.querySelectorAll(".seg-btn-retroceder").forEach(btn => {
             btn.addEventListener("click", async () => {
                 const id = btn.dataset.id;
                 const paso = btn.dataset.paso;
@@ -3265,7 +3388,130 @@ function renderSeguimiento() {
         });
 }
 
-async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx) {
+// Construye el bloque visual que muestra la cantidad registrada en cada etapa.
+// Cada etapa (que produce/entrega) guarda cuanto realizo. La etapa siguiente lo ve
+// como "cantidad recibida".
+function buildCantidadesHtml(orden, idx, PASOS, pasoActual, item) {
+    const cantidades = getItemCantidades(orden, idx);
+    const ordenada = parseInt(item.cantidad) || 0;
+    const idxActual = PASOS.findIndex(p => p.key === pasoActual);
+
+    // Solo mostramos etapas de trabajo (no "recibido" ni "terminado") que ya tengan cantidad
+    const filas = [];
+    PASOS.forEach((paso, i) => {
+        if (paso.key === "recibido" || paso.key === "terminado") return;
+        const cant = cantidades[paso.key];
+        if (cant === undefined || cant === null || cant === "") return;
+        filas.push(`
+            <div class="seg-cant-fila">
+                <span class="seg-cant-etapa"><i class="bi ${paso.icon}"></i> ${paso.title}</span>
+                <span class="seg-cant-valor">${cant}</span>
+            </div>
+        `);
+    });
+
+    // Cantidad que la etapa actual recibio de la anterior (para roles operativos)
+    let recibidaHtml = "";
+    const anterior = idxActual > 0 ? PASOS[idxActual - 1] : null;
+    if (anterior && cantidades[anterior.key] !== undefined && cantidades[anterior.key] !== null && cantidades[anterior.key] !== "") {
+        recibidaHtml = `<div class="seg-cant-recibida"><i class="bi bi-box-arrow-in-down"></i> Recibido de ${anterior.title}: <strong>${cantidades[anterior.key]}</strong></div>`;
+    }
+
+    if (filas.length === 0 && !recibidaHtml) return "";
+
+    return `
+        <div class="seg-cantidades">
+            ${recibidaHtml}
+            ${filas.length > 0 ? `<div class="seg-cant-titulo">Cantidades por etapa (de ${ordenada} ordenadas)</div>${filas.join("")}` : ""}
+        </div>
+    `;
+}
+
+// Estado temporal del modal de cantidad
+let segCantidadCtx = null;
+
+function abrirModalCantidad(ordenId, nuevoPaso, itemIdx) {
+    const orden = seguimientoCache.find(o => o.id === ordenId);
+    if (!orden) { actualizarPasoOrden(ordenId, nuevoPaso, itemIdx); return; }
+
+    const PASOS = getPasosOrden(orden);
+    const items = orden.items || [];
+    const hayItem = !(itemIdx === undefined || itemIdx === null || isNaN(itemIdx) || itemIdx < 0 || items.length === 0);
+
+    const seg = hayItem ? getItemSeguimiento(orden, itemIdx) : { pasoActual: orden.pasoActual || "recibido" };
+    const pasoActual = seg.pasoActual;
+    const idxActual = PASOS.findIndex(p => p.key === pasoActual);
+    const pasoActualObj = PASOS[idxActual] || { title: pasoActual };
+
+    // Si el paso actual es "recibido" o el destino es un retroceso, no pedir cantidad
+    // (los avances desde "recibido" son solo "enviar a diseño", sin produccion fisica).
+    const item = hayItem ? items[itemIdx] : null;
+    const ordenada = item ? (parseInt(item.cantidad) || 0) : 0;
+    const cantidades = hayItem ? getItemCantidades(orden, itemIdx) : (orden.cantidadesSeguimiento || {});
+
+    // Cantidad recibida de la etapa anterior
+    const anterior = idxActual > 0 ? PASOS[idxActual - 1] : null;
+    const recibida = anterior && cantidades[anterior.key] !== undefined ? cantidades[anterior.key] : null;
+
+    // No pedir cantidad cuando el paso actual no implica produccion fisica (recibido, diseno en digital)
+    // Solo pedimos cantidad para etapas operativas: guillotina, impresion, troquelado, vasos, empaques, diseno(imprenta), revision, ajustes, entrega.
+    const pasosSinCantidad = ["recibido"];
+    if (pasosSinCantidad.includes(pasoActual)) {
+        actualizarPasoOrden(ordenId, nuevoPaso, itemIdx);
+        return;
+    }
+
+    segCantidadCtx = { ordenId, nuevoPaso, itemIdx, pasoActual };
+
+    document.getElementById("segCantidadTitulo").textContent = "Cantidad en " + (pasoActualObj.title || pasoActual);
+    const prodNombre = item ? `${item.cantidad || 1}x ${item.producto || ""}` : orden.numero;
+    document.getElementById("segCantidadDesc").textContent =
+        `Registra la cantidad que realizaste/envias en la etapa de ${pasoActualObj.title || pasoActual} para ${prodNombre}.`;
+
+    document.getElementById("segCantidadOrdenada").textContent = ordenada > 0 ? ordenada : "-";
+    const recibidaWrap = document.getElementById("segCantidadRecibidaWrap");
+    if (recibida !== null && recibida !== "") {
+        recibidaWrap.style.display = "";
+        document.getElementById("segCantidadRecibida").textContent = `${recibida} (de ${anterior.title})`;
+    } else {
+        recibidaWrap.style.display = "none";
+    }
+
+    // Prefill: cantidad ya registrada en este paso, o la recibida, o la ordenada
+    const input = document.getElementById("segCantidadInput");
+    const yaRegistrada = cantidades[pasoActual];
+    input.value = (yaRegistrada !== undefined && yaRegistrada !== null && yaRegistrada !== "")
+        ? yaRegistrada
+        : (recibida !== null && recibida !== "" ? recibida : (ordenada > 0 ? ordenada : ""));
+
+    document.getElementById("segCantidadOverlay").classList.add("show");
+    setTimeout(() => { input.focus(); input.select(); }, 100);
+}
+
+function setupSegCantidadModal() {
+    const overlay = document.getElementById("segCantidadOverlay");
+    if (!overlay) return;
+    const cerrar = () => { overlay.classList.remove("show"); segCantidadCtx = null; };
+    document.getElementById("segCantidadClose").addEventListener("click", cerrar);
+    document.getElementById("segCantidadCancel").addEventListener("click", cerrar);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) cerrar(); });
+
+    document.getElementById("segCantidadConfirm").addEventListener("click", async () => {
+        if (!segCantidadCtx) return;
+        const input = document.getElementById("segCantidadInput");
+        const cantidad = input.value === "" ? null : (parseInt(input.value) || 0);
+        const { ordenId, nuevoPaso, itemIdx, pasoActual } = segCantidadCtx;
+        cerrar();
+        await actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, { paso: pasoActual, cantidad });
+    });
+
+    const input = document.getElementById("segCantidadInput");
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") document.getElementById("segCantidadConfirm").click();
+    });
+}
+
+async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, cantidadInfo) {
     try {
         const ref = doc(db, "produccion", ordenId);
         const snap = await getDoc(ref);
@@ -3279,7 +3525,11 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx) {
         if (itemIdx === undefined || itemIdx === null || isNaN(itemIdx) || itemIdx < 0 || items.length === 0) {
             const seguimiento = data.seguimiento || {};
             seguimiento[nuevoPaso] = new Date().toISOString();
-            await setDoc(ref, { ...data, pasoActual: nuevoPaso, seguimiento });
+            const cantidadesSeguimiento = data.cantidadesSeguimiento || {};
+            if (cantidadInfo && cantidadInfo.paso && cantidadInfo.cantidad !== null && cantidadInfo.cantidad !== undefined) {
+                cantidadesSeguimiento[cantidadInfo.paso] = cantidadInfo.cantidad;
+            }
+            await setDoc(ref, { ...data, pasoActual: nuevoPaso, seguimiento, cantidadesSeguimiento });
             cargarSeguimiento();
             return;
         }
@@ -3290,7 +3540,7 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx) {
         const pasoBase = data.pasoActual || "recibido";
         items.forEach((_, i) => {
             if (!itemsSeguimiento[i]) {
-                itemsSeguimiento[i] = { pasoActual: pasoBase, seguimiento: {} };
+                itemsSeguimiento[i] = { pasoActual: pasoBase, seguimiento: {}, cantidades: {} };
             }
         });
 
@@ -3298,6 +3548,12 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx) {
         entry.pasoActual = nuevoPaso;
         entry.seguimiento = entry.seguimiento || {};
         entry.seguimiento[nuevoPaso] = new Date().toISOString();
+
+        // Registrar la cantidad realizada/enviada en la etapa desde la que se avanza
+        entry.cantidades = entry.cantidades || {};
+        if (cantidadInfo && cantidadInfo.paso && cantidadInfo.cantidad !== null && cantidadInfo.cantidad !== undefined) {
+            entry.cantidades[cantidadInfo.paso] = cantidadInfo.cantidad;
+        }
 
         // Paso global de la orden = producto MENOS avanzado
         let minIdx = PASOS.length - 1;
@@ -3329,6 +3585,7 @@ function logout() {
 function setupFinanzas() {
     const filtroMes = document.getElementById("finanzasFiltroMes");
     const filtroAnio = document.getElementById("finanzasFiltroAnio");
+    const filtroVendedor = document.getElementById("finanzasFiltroVendedor");
 
     // Llenar años disponibles
     const anioActual = new Date().getFullYear();
@@ -3346,6 +3603,13 @@ function setupFinanzas() {
     filtroMes.addEventListener("change", cargarFinanzas);
     filtroAnio.addEventListener("change", cargarFinanzas);
 
+    // Filtro por vendedor: solo lo ve el administrador (los vendedores solo ven lo suyo)
+    if (filtroVendedor && rol === "administrador") {
+        filtroVendedor.style.display = "";
+        filtroVendedor.addEventListener("change", cargarFinanzas);
+        poblarFiltroVendedores();
+    }
+
     // Filtros de estado de pago en la tabla
     document.querySelectorAll(".finanzas-filtro-pago").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -3354,6 +3618,35 @@ function setupFinanzas() {
             cargarFinanzas();
         });
     });
+}
+
+// Llena el selector de vendedores del filtro de finanzas con los usuarios de rol
+// "ventas" (y "administrador", por si generan cotizaciones). El valor de cada
+// opcion es el email del usuario, que es el identificador estable de "creadoPorEmail".
+async function poblarFiltroVendedores() {
+    const filtroVendedor = document.getElementById("finanzasFiltroVendedor");
+    if (!filtroVendedor) return;
+    try {
+        const snap = await getDocs(collection(db, "usuarios"));
+        const vendedores = [];
+        snap.forEach(docSnap => {
+            const u = docSnap.data();
+            if (u.rol === "ventas" || u.rol === "administrador") {
+                vendedores.push({ nombre: u.nombre || u.email, email: u.email });
+            }
+        });
+        vendedores.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        // Conservar la opcion "Todos" y agregar el resto
+        filtroVendedor.innerHTML = '<option value="">Todos los vendedores</option>';
+        vendedores.forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v.email;
+            opt.textContent = v.nombre;
+            filtroVendedor.appendChild(opt);
+        });
+    } catch (err) {
+        console.warn("No se pudieron cargar los vendedores para el filtro:", err);
+    }
 }
 
 async function cargarFinanzas() {
@@ -3418,6 +3711,19 @@ async function cargarFinanzas() {
             cotizacionesBase = todas.filter(c =>
                 c.creadoPorEmail === currentEmail || c.creadoPor === currentUser
             );
+        } else {
+            // Admin: puede filtrar por vendedor (email de creadoPorEmail)
+            const filtroVendedor = document.getElementById("finanzasFiltroVendedor");
+            const vendedorEmail = filtroVendedor ? filtroVendedor.value : "";
+            if (vendedorEmail) {
+                // Buscar tambien el nombre asociado por si la cotizacion solo guardo creadoPor
+                const opt = filtroVendedor.querySelector(`option[value="${vendedorEmail}"]`);
+                const vendedorNombre = opt ? opt.textContent : "";
+                cotizacionesBase = todas.filter(c =>
+                    c.creadoPorEmail === vendedorEmail ||
+                    (vendedorNombre && c.creadoPor === vendedorNombre)
+                );
+            }
         }
 
         // Filtrar por mes/año
