@@ -745,6 +745,30 @@ body {
 .btn-primary:hover { background: #1a90c8; }
 .btn-primary.btn-full { width: 100%; justify-content: center; margin-top: 16px; padding: 13px; font-size: 14px; }
 
+.section-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-secondary {
+    padding: 10px 18px;
+    background: #f1f3f5;
+    color: #444;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.btn-secondary:hover { background: #e6e8ea; color: #222; }
+.btn-secondary i { color: #dc2626; }
+
 .btn-back {
     padding: 8px 14px;
     background: #f0f0f0;

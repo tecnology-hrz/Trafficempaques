@@ -110,8 +110,25 @@ export async function obtenerCotizaciones(filtroUsuario) {
     const snap = await getDocs(collection(db, "cotizaciones"));
     let lista = [];
     snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
+    // Excluir las que estan en papelera
+    lista = lista.filter(c => !c.eliminado);
     lista.sort((a, b) => b.fechaCreacion.localeCompare(a.fechaCreacion));
     // Filtrar por usuario si se proporciona
+    if (filtroUsuario && filtroUsuario.email) {
+        lista = lista.filter(c =>
+            c.creadoPorEmail === filtroUsuario.email || c.creadoPor === filtroUsuario.nombre
+        );
+    }
+    return lista;
+}
+
+// ===== OBTENER COTIZACIONES EN PAPELERA =====
+export async function obtenerCotizacionesEliminadas(filtroUsuario) {
+    const snap = await getDocs(collection(db, "cotizaciones"));
+    let lista = [];
+    snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
+    lista = lista.filter(c => c.eliminado);
+    lista.sort((a, b) => (b.fechaEliminado || "").localeCompare(a.fechaEliminado || ""));
     if (filtroUsuario && filtroUsuario.email) {
         lista = lista.filter(c =>
             c.creadoPorEmail === filtroUsuario.email || c.creadoPor === filtroUsuario.nombre
@@ -136,8 +153,36 @@ export async function actualizarCotizacion(id, datos) {
     await setDoc(ref, { ...current, ...datos });
 }
 
-// ===== ELIMINAR COTIZACION =====
-export async function eliminarCotizacion(id) {
+// ===== ELIMINAR COTIZACION (enviar a papelera / soft delete) =====
+export async function eliminarCotizacion(id, usuario) {
+    const ref = doc(db, "cotizaciones", id);
+    const docSnap = await getDoc(ref);
+    if (!docSnap.exists()) return;
+    const current = docSnap.data();
+    await setDoc(ref, {
+        ...current,
+        eliminado: true,
+        fechaEliminado: new Date().toISOString(),
+        eliminadoPor: (usuario && usuario.nombre) || "",
+        eliminadoPorEmail: (usuario && usuario.email) || ""
+    });
+}
+
+// ===== RESTAURAR COTIZACION (sacar de papelera) =====
+export async function restaurarCotizacion(id) {
+    const ref = doc(db, "cotizaciones", id);
+    const docSnap = await getDoc(ref);
+    if (!docSnap.exists()) return;
+    const current = docSnap.data();
+    delete current.eliminado;
+    delete current.fechaEliminado;
+    delete current.eliminadoPor;
+    delete current.eliminadoPorEmail;
+    await setDoc(ref, current);
+}
+
+// ===== ELIMINAR COTIZACION DEFINITIVAMENTE =====
+export async function eliminarCotizacionDefinitivo(id) {
     await deleteDoc(doc(db, "cotizaciones", id));
 }
 

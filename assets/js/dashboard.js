@@ -2,6 +2,7 @@
 import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
     cargarCatalogos, crearCotizacion, obtenerCotizaciones, eliminarCotizacion,
+    obtenerCotizacionesEliminadas, restaurarCotizacion, eliminarCotizacionDefinitivo,
     getProductosImprenta, getProductosDigital, getTerminados, getColores,
     getMateriales, getPlanchas,
     getFormatMoney, getParseMoney
@@ -136,6 +137,8 @@ async function initDashboard(rol, nombre) {
         setupFinanzas();
         cargarFinanzas();
         setupCatalogoAdmin();
+        setupPapelera();
+        cargarPapelera();
     }
 
     // Ventas: finanzas propias
@@ -613,6 +616,8 @@ function setupCotizador() {
         document.getElementById("cotModalidadPago").value = "contado";
         renderCotItems();
         calcularTotales();
+        const papeleraView = document.getElementById("cotizadorPapelera");
+        if (papeleraView) papeleraView.style.display = "none";
         document.getElementById("cotizadorLista").style.display = "none";
         document.getElementById("cotizadorForm").style.display  = "block";
     });
@@ -1498,15 +1503,21 @@ function abrirModalAcciones(cotId, cotName) {
         btnGuardar.dataset.editId = cotId;
         btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar cambios';
         document.getElementById("formCotTitle").textContent = "Editar " + cotName;
+        const papeleraViewEdit = document.getElementById("cotizadorPapelera");
+        if (papeleraViewEdit) papeleraViewEdit.style.display = "none";
         document.getElementById("cotizadorLista").style.display = "none";
         document.getElementById("cotizadorForm").style.display  = "block";
     };
 
     document.getElementById("btnAccionEliminar").onclick = () => {
         overlay.classList.remove("show");
-        showConfirm("Eliminar cotizacion", `Eliminar ${cotName}? No se puede deshacer.`, async () => {
-            await eliminarCotizacion(cotId);
+        showConfirm("Enviar a papelera", `Enviar ${cotName} a la papelera? Podras restaurarla despues.`, async () => {
+            await eliminarCotizacion(cotId, {
+                nombre: sessionStorage.getItem("userName") || "",
+                email: sessionStorage.getItem("userEmail") || ""
+            });
             cargarListaCotizaciones();
+            cargarPapelera();
         });
     };
 
@@ -1769,18 +1780,20 @@ async function cargarOrdenes(rolUsuario) {
         const snap = await getDocs(collection(db, "produccion"));
         const ordenes = [];
         snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
-        ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+        // Excluir ordenes en papelera
+        const ordenesActivas = ordenes.filter(o => !o.eliminado);
+        ordenesActivas.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
 
         // Migracion: asignar fecha limite de diseño a ordenes antiguas que no la tienen.
         // Se calcula como fechaEnvio + DIAS_LIMITE_DISENO y se guarda en la base de datos.
-        await migrarFechasLimiteDiseno(ordenes);
+        await migrarFechasLimiteDiseno(ordenesActivas);
 
         // Cargar ordenes de diseño existentes
         const snapDiseno = await getDocs(collection(db, "ordenesDiseno"));
         ordenesDisenoDB = {};
         snapDiseno.forEach(d => { ordenesDisenoDB[d.id] = { id: d.id, ...d.data() }; });
 
-        ordenesCache = ordenes;
+        ordenesCache = ordenesActivas;
         ordenesRolCache = rolUsuario;
         renderOrdenesConFiltro(rolUsuario);
     } catch (err) {
@@ -3260,6 +3273,8 @@ async function cargarSeguimiento() {
         const snap = await getDocs(collection(db, "produccion"));
         let ordenes = [];
         snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
+        // Excluir ordenes en papelera
+        ordenes = ordenes.filter(o => !o.eliminado);
         ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
 
         // Para ordenes sin negocio, buscarlo de la cotización
@@ -3695,7 +3710,11 @@ async function cargarFinanzas() {
     try {
         const snap = await getDocs(collection(db, "cotizaciones"));
         const todas = [];
-        snap.forEach(d => todas.push({ id: d.id, ...d.data() }));
+        snap.forEach(d => {
+            const data = d.data();
+            if (data.eliminado) return; // excluir las que estan en papelera
+            todas.push({ id: d.id, ...data });
+        });
 
         // Cruzar con produccion para recuperar pagos restantes antiguos
         // (cuando se pagaba el saldo restante solo se actualizaba produccion)
@@ -4773,7 +4792,9 @@ function setupNotificaciones() {
     onSnapshot(collection(db, "cotizaciones"), (snapshot) => {
         let cotAprobadas = 0;
         snapshot.forEach(d => {
-            if (d.data().estado === "aprobada") cotAprobadas++;
+            const data = d.data();
+            if (data.eliminado) return;
+            if (data.estado === "aprobada") cotAprobadas++;
         });
 
         console.log("[NOTIF] Cotizaciones aprobadas:", cotAprobadas, "| anterior:", notifCotizacionesCount);
@@ -4791,7 +4812,9 @@ function setupNotificaciones() {
     onSnapshot(collection(db, "produccion"), (snapshot) => {
         let nuevoEstado = {};
         snapshot.forEach(d => {
-            nuevoEstado[d.id] = d.data().pasoActual || "recibido";
+            const data = d.data();
+            if (data.eliminado) return;
+            nuevoEstado[d.id] = data.pasoActual || "recibido";
         });
 
         console.log("[NOTIF] Producción actualizada, órdenes:", Object.keys(nuevoEstado).length);
@@ -4862,8 +4885,8 @@ async function cargarRemision() {
             }
         });
 
-        // Solo ordenes terminadas
-        ordenes = ordenes.filter(o => o.pasoActual === "terminado");
+        // Solo ordenes terminadas y no eliminadas
+        ordenes = ordenes.filter(o => o.pasoActual === "terminado" && !o.eliminado);
         ordenes.sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
 
         remisionCache = ordenes;
@@ -5035,15 +5058,218 @@ function renderRemision() {
         container.querySelectorAll(".rem-btn-eliminar").forEach(btn => {
             btn.addEventListener("click", () => {
                 const id = btn.dataset.id;
-                showConfirm("Eliminar remision", "¿Seguro que deseas eliminar esta orden de remision? Se eliminara de produccion.", async () => {
+                showConfirm("Enviar a papelera", "¿Enviar esta orden a la papelera? Podras restaurarla despues.", async () => {
                     try {
-                        await deleteDoc(doc(db, "produccion", id));
+                        await enviarOrdenAPapelera(id);
                         cargarRemision();
                         cargarSeguimiento();
+                        cargarPapelera();
                     } catch (err) {
-                        console.error("Error eliminando remision:", err);
+                        console.error("Error enviando remision a papelera:", err);
                     }
                 });
             });
         });
+}
+
+// ===== PAPELERA: helpers para ordenes de produccion =====
+async function enviarOrdenAPapelera(id) {
+    const ref = doc(db, "produccion", id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const current = snap.data();
+    await setDoc(ref, {
+        ...current,
+        eliminado: true,
+        fechaEliminado: new Date().toISOString(),
+        eliminadoPor: sessionStorage.getItem("userName") || "",
+        eliminadoPorEmail: sessionStorage.getItem("userEmail") || ""
+    });
+}
+
+async function restaurarOrden(id) {
+    const ref = doc(db, "produccion", id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const current = snap.data();
+    delete current.eliminado;
+    delete current.fechaEliminado;
+    delete current.eliminadoPor;
+    delete current.eliminadoPorEmail;
+    await setDoc(ref, current);
+}
+
+async function eliminarOrdenDefinitivo(id) {
+    await deleteDoc(doc(db, "produccion", id));
+}
+
+// ===== PAPELERA (solo admin) =====
+function setupPapelera() {
+    const listaView     = document.getElementById("cotizadorLista");
+    const papeleraView  = document.getElementById("cotizadorPapelera");
+    const formView      = document.getElementById("cotizadorForm");
+    const btnAbrir      = document.getElementById("btnAbrirPapelera");
+    const btnVolver     = document.getElementById("btnVolverDePapelera");
+    if (!btnAbrir || !papeleraView) return;
+
+    btnAbrir.addEventListener("click", () => {
+        if (listaView) listaView.style.display = "none";
+        if (formView)  formView.style.display  = "none";
+        papeleraView.style.display = "block";
+        cargarPapelera();
+    });
+
+    if (btnVolver) {
+        btnVolver.addEventListener("click", () => {
+            papeleraView.style.display = "none";
+            if (listaView) listaView.style.display = "block";
+        });
+    }
+}
+
+async function cargarPapelera() {
+    const contCot = document.getElementById("papeleraCotizacionesLista");
+    const contOrd = document.getElementById("papeleraOrdenesLista");
+    if (!contCot || !contOrd) return; // solo admin tiene la seccion
+
+    // --- Cotizaciones en papelera ---
+    try {
+        const cotizaciones = await obtenerCotizacionesEliminadas();
+        renderPapeleraCotizaciones(cotizaciones);
+    } catch (err) {
+        console.error("Error cargando papelera de cotizaciones:", err);
+    }
+
+    // --- Ordenes en papelera ---
+    try {
+        const snap = await getDocs(collection(db, "produccion"));
+        let ordenes = [];
+        snap.forEach(d => ordenes.push({ id: d.id, ...d.data() }));
+        ordenes = ordenes.filter(o => o.eliminado);
+        ordenes.sort((a, b) => (b.fechaEliminado || "").localeCompare(a.fechaEliminado || ""));
+        renderPapeleraOrdenes(ordenes);
+    } catch (err) {
+        console.error("Error cargando papelera de ordenes:", err);
+    }
+}
+
+function fechaEliminadoStr(iso) {
+    if (!iso) return "-";
+    const f = new Date(iso);
+    return isNaN(f) ? "-" : f.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function renderPapeleraCotizaciones(lista) {
+    const container = document.getElementById("papeleraCotizacionesLista");
+    if (!container) return;
+
+    if (!lista || lista.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-trash3"></i><p>La papelera de cotizaciones esta vacia</p></div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    lista.forEach(cot => {
+        const item = document.createElement("div");
+        item.className = "cot-list-item";
+        item.innerHTML = `
+            <div class="cot-list-info">
+                <span class="cot-list-numero">${cot.numero || "Cotizacion"} <span class="cot-estado ${cot.estado || ""}">${cot.estado || ""}</span></span>
+                <span class="cot-list-cliente">${cot.cliente || "-"} &bull; ${cot.tipo || "-"} &bull; Eliminada: ${fechaEliminadoStr(cot.fechaEliminado)}${cot.eliminadoPor ? " por " + cot.eliminadoPor : ""}</span>
+            </div>
+            <div class="cot-list-right">
+                <span class="cot-list-total">$${formatMoneyLocal(cot.total)}</span>
+                <button class="btn-copiar-link papelera-restaurar" data-tipo="cotizacion" data-id="${cot.id}">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restaurar
+                </button>
+                <button class="btn-mas-acciones papelera-eliminar" data-tipo="cotizacion" data-id="${cot.id}" data-name="${cot.numero || "cotizacion"}" style="background:#dc2626;color:#fff;">
+                    <i class="bi bi-trash"></i> Eliminar definitivo
+                </button>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+
+    wirePapeleraBotones(container);
+}
+
+function renderPapeleraOrdenes(lista) {
+    const container = document.getElementById("papeleraOrdenesLista");
+    if (!container) return;
+
+    if (!lista || lista.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-trash3"></i><p>La papelera de ordenes esta vacia</p></div>';
+        return;
+    }
+
+    container.innerHTML = "";
+    lista.forEach(orden => {
+        const nombre = orden.negocio || orden.cliente || "-";
+        const item = document.createElement("div");
+        item.className = "cot-list-item";
+        item.innerHTML = `
+            <div class="cot-list-info">
+                <span class="cot-list-numero">${orden.numero || "Orden"} <span class="cot-estado">${orden.tipo || ""}</span></span>
+                <span class="cot-list-cliente">${nombre} &bull; Eliminada: ${fechaEliminadoStr(orden.fechaEliminado)}${orden.eliminadoPor ? " por " + orden.eliminadoPor : ""}</span>
+            </div>
+            <div class="cot-list-right">
+                <button class="btn-copiar-link papelera-restaurar" data-tipo="orden" data-id="${orden.id}">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restaurar
+                </button>
+                <button class="btn-mas-acciones papelera-eliminar" data-tipo="orden" data-id="${orden.id}" data-name="${orden.numero || "orden"}" style="background:#dc2626;color:#fff;">
+                    <i class="bi bi-trash"></i> Eliminar definitivo
+                </button>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+
+    wirePapeleraBotones(container);
+}
+
+function wirePapeleraBotones(container) {
+    // Restaurar
+    container.querySelectorAll(".papelera-restaurar").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            const tipo = btn.dataset.tipo;
+            btn.disabled = true;
+            try {
+                if (tipo === "cotizacion") {
+                    await restaurarCotizacion(id);
+                    cargarListaCotizaciones();
+                } else {
+                    await restaurarOrden(id);
+                    cargarOrdenes(rol);
+                    cargarSeguimiento();
+                    cargarRemision();
+                }
+                cargarPapelera();
+            } catch (err) {
+                console.error("Error restaurando:", err);
+                btn.disabled = false;
+            }
+        });
+    });
+
+    // Eliminar definitivo
+    container.querySelectorAll(".papelera-eliminar").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const tipo = btn.dataset.tipo;
+            const name = btn.dataset.name;
+            showConfirm("Eliminar definitivamente", `Eliminar ${name} de forma permanente? Esta accion NO se puede deshacer.`, async () => {
+                try {
+                    if (tipo === "cotizacion") {
+                        await eliminarCotizacionDefinitivo(id);
+                    } else {
+                        await eliminarOrdenDefinitivo(id);
+                    }
+                    cargarPapelera();
+                } catch (err) {
+                    console.error("Error eliminando definitivo:", err);
+                }
+            });
+        });
+    });
 }

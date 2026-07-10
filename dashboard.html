@@ -97,9 +97,14 @@
                 <div id="cotizadorLista">
                     <div class="section-header">
                         <h2 class="section-title"><i class="bi bi-calculator"></i> Cotizaciones</h2>
-                        <button class="btn-primary" id="btnNuevaCotizacion">
-                            <i class="bi bi-plus-lg"></i> Nueva cotizacion
-                        </button>
+                        <div class="section-header-actions">
+                            <button class="btn-secondary" id="btnAbrirPapelera" data-role="administrador">
+                                <i class="bi bi-trash3"></i> Papelera
+                            </button>
+                            <button class="btn-primary" id="btnNuevaCotizacion">
+                                <i class="bi bi-plus-lg"></i> Nueva cotizacion
+                            </button>
+                        </div>
                     </div>
                     <div class="cotizaciones-filtros">
                         <div class="input-wrapper filtro-busqueda">
@@ -281,6 +286,48 @@
                         <button class="btn-primary btn-full" id="btnGuardarCotizacion">
                             <i class="bi bi-check-lg"></i> Guardar y generar link
                         </button>
+                    </div>
+                </div>
+
+                <!-- Vista: Papelera (solo admin) -->
+                <div id="cotizadorPapelera" style="display:none;">
+                    <div class="section-header">
+                        <button class="btn-back" id="btnVolverDePapelera">
+                            <i class="bi bi-arrow-left"></i> Volver
+                        </button>
+                        <h2 class="section-title"><i class="bi bi-trash3"></i> Papelera</h2>
+                    </div>
+                    <p class="papelera-desc" style="color:#888;font-size:13px;margin:-8px 0 16px;">Los elementos enviados a la papelera pueden restaurarse o eliminarse definitivamente.</p>
+
+                    <div class="tab-bar" id="papeleraTabBar">
+                        <button class="tab-btn active" data-tab="papeleraCotizaciones">
+                            <i class="bi bi-calculator"></i> Cotizaciones
+                        </button>
+                        <button class="tab-btn" data-tab="papeleraOrdenes">
+                            <i class="bi bi-clipboard-check"></i> Ordenes
+                        </button>
+                    </div>
+
+                    <div class="tab-content active" id="tab-papeleraCotizaciones">
+                        <div class="card">
+                            <div class="card-body" id="papeleraCotizacionesLista">
+                                <div class="empty-state">
+                                    <i class="bi bi-trash3"></i>
+                                    <p>La papelera de cotizaciones esta vacia</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="tab-papeleraOrdenes">
+                        <div class="card">
+                            <div class="card-body" id="papeleraOrdenesLista">
+                                <div class="empty-state">
+                                    <i class="bi bi-trash3"></i>
+                                    <p>La papelera de ordenes esta vacia</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
