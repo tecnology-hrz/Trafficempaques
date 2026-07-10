@@ -238,11 +238,126 @@
             </div>
         </div>
 
-        <!-- Mensaje aprobada -->
+        <!-- Mensaje aprobada (pago completo) -->
         <div class="cot-aprobada" id="seccionAprobada" style="display:none;">
             <i class="bi bi-check-circle-fill"></i>
             <h3>Cotizacion aprobada</h3>
             <p>Tu cotizacion ha sido aprobada y enviada. Nos pondremos en contacto contigo pronto.</p>
+        </div>
+
+        <!-- Seccion abonos: saldo pendiente (el link sigue vivo hasta completar el pago) -->
+        <div class="cot-section cot-abonos" id="seccionAbonos" style="display:none;">
+            <h3><i class="bi bi-cash-coin"></i> Estado de pago</h3>
+
+            <div class="abonos-resumen">
+                <div class="abono-resumen-item">
+                    <span class="abono-resumen-label">Total</span>
+                    <span class="abono-resumen-value" id="abonosTotal">$0</span>
+                </div>
+                <div class="abono-resumen-item">
+                    <span class="abono-resumen-label">Abonado</span>
+                    <span class="abono-resumen-value abonado" id="abonosPagado">$0</span>
+                </div>
+                <div class="abono-resumen-item">
+                    <span class="abono-resumen-label">Saldo pendiente</span>
+                    <span class="abono-resumen-value pendiente" id="abonosSaldo">$0</span>
+                </div>
+            </div>
+
+            <div class="abonos-progress">
+                <div class="abonos-progress-bar" id="abonosProgressBar" style="width:0%"></div>
+            </div>
+
+            <!-- Historial de abonos -->
+            <div class="abonos-historial" id="abonosHistorial"></div>
+
+            <!-- Formulario nuevo abono -->
+            <div class="abono-nuevo" id="abonoNuevo">
+                <h4><i class="bi bi-plus-circle"></i> Registrar nuevo abono</h4>
+
+                <div class="pago-options abono-pago-options">
+                    <label class="pago-option">
+                        <input type="radio" name="metodoAbono" value="davivienda">
+                        <div class="pago-option-content">
+                            <i class="bi bi-bank"></i>
+                            <span class="pago-option-name">Davivienda</span>
+                        </div>
+                    </label>
+                    <label class="pago-option">
+                        <input type="radio" name="metodoAbono" value="bancolombia">
+                        <div class="pago-option-content">
+                            <i class="bi bi-bank"></i>
+                            <span class="pago-option-name">Bancolombia</span>
+                        </div>
+                    </label>
+                    <label class="pago-option">
+                        <input type="radio" name="metodoAbono" value="nequi">
+                        <div class="pago-option-content">
+                            <i class="bi bi-phone"></i>
+                            <span class="pago-option-name">Nequi</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="pago-datos" id="abonoDatosDavivienda" style="display:none;">
+                    <div class="pago-datos-card">
+                        <h4><i class="bi bi-bank"></i> Davivienda</h4>
+                        <div class="pago-datos-grid">
+                            <div class="pago-dato"><span>Titular:</span> Sherley Sinisterra Tenorio</div>
+                            <div class="pago-dato"><span>Numero:</span> 4884 0653 5812</div>
+                            <div class="pago-dato"><span>Tipo:</span> Cuenta de Ahorros</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pago-datos" id="abonoDatosBancolombia" style="display:none;">
+                    <div class="pago-datos-card">
+                        <h4><i class="bi bi-bank"></i> Bancolombia</h4>
+                        <div class="pago-datos-grid">
+                            <div class="pago-dato"><span>Titular:</span> Sherley Sinisterra Tenorio</div>
+                            <div class="pago-dato"><span>Numero:</span> 803-379806-98</div>
+                            <div class="pago-dato"><span>Tipo:</span> Cuenta de Ahorros</div>
+                            <div class="pago-dato"><span>Cedula:</span> 1143925013</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pago-datos" id="abonoDatosNequi" style="display:none;">
+                    <div class="pago-datos-card">
+                        <h4><i class="bi bi-phone"></i> Nequi</h4>
+                        <div class="pago-datos-grid">
+                            <div class="pago-dato"><span>Titular:</span> Sherley Sinisterra Tenorio</div>
+                            <div class="pago-dato"><span>Numero:</span> 318 398 1777</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="abono-input">
+                    <label>Monto del abono</label>
+                    <div class="input-money-wrap">
+                        <span class="input-money-prefix">$</span>
+                        <input type="text" id="montoNuevoAbono" placeholder="0" inputmode="numeric">
+                    </div>
+                    <button type="button" class="btn-abono-total" id="btnAbonarSaldoTotal">Abonar saldo total</button>
+                </div>
+
+                <div class="comprobante-col">
+                    <button class="btn-upload-comp" id="uploadAbono">
+                        <i class="bi bi-cloud-arrow-up"></i> Subir comprobante
+                    </button>
+                    <input type="file" id="inputAbono" accept="image/*,.pdf" hidden>
+                    <div class="comprobante-preview" id="abonoPreview"></div>
+                </div>
+
+                <button class="btn-aprobar" id="btnRegistrarAbono" disabled>
+                    <i class="bi bi-check-circle"></i> Registrar abono
+                </button>
+            </div>
+        </div>
+
+        <!-- Mensaje pago completado -->
+        <div class="cot-aprobada" id="seccionPagoCompleto" style="display:none;">
+            <i class="bi bi-check-circle-fill"></i>
+            <h3>Pago completado</h3>
+            <p>Has completado el pago total de tu cotizacion. Gracias por tu compra.</p>
         </div>
 
         <!-- Footer -->

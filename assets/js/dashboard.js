@@ -3914,18 +3914,32 @@ function renderTablaFinanzas(cotizaciones) {
                 : '<span class="finanzas-tipo-badge ambas"><i class="bi bi-layers"></i> Ambas</span>';
         const metodo = cot.metodoPago || "-";
         const tieneRestante = !!cot.pagoRestanteCompletado;
-        const metodoTexto = tieneRestante && cot.pagoRestanteMetodo
-            ? `${metodo.charAt(0).toUpperCase() + metodo.slice(1)} <span class="finanzas-metodo-extra">+ ${cot.pagoRestanteMetodo.charAt(0).toUpperCase() + cot.pagoRestanteMetodo.slice(1)}</span>`
-            : metodo.charAt(0).toUpperCase() + metodo.slice(1);
+        const numAbonos = Array.isArray(cot.abonos) ? cot.abonos.length : 0;
+        let metodoTexto;
+        if (numAbonos > 1) {
+            metodoTexto = `${metodo.charAt(0).toUpperCase() + metodo.slice(1)} <span class="finanzas-metodo-extra">· ${numAbonos} abonos</span>`;
+        } else if (tieneRestante && cot.pagoRestanteMetodo) {
+            metodoTexto = `${metodo.charAt(0).toUpperCase() + metodo.slice(1)} <span class="finanzas-metodo-extra">+ ${cot.pagoRestanteMetodo.charAt(0).toUpperCase() + cot.pagoRestanteMetodo.slice(1)}</span>`;
+        } else {
+            metodoTexto = metodo.charAt(0).toUpperCase() + metodo.slice(1);
+        }
         const estadoPago = saldo <= 0
             ? (tieneRestante
                 ? '<span class="finanzas-estado-badge pagado"><i class="bi bi-check-circle"></i> Pago completado</span>'
                 : '<span class="finanzas-estado-badge pagado"><i class="bi bi-check-circle"></i> Pagado</span>')
             : '<span class="finanzas-estado-badge pendiente"><i class="bi bi-clock"></i> Saldo pendiente</span>';
 
-        // Comprobantes (puede haber dos: inicial y restante)
+        // Comprobantes: si hay historial de abonos, mostrar uno por cada abono.
+        // Si no, mantener compatibilidad con comprobante inicial + restante.
         let comprobantesHtml = '';
-        if (cot.comprobante && cot.pagoRestanteComprobante) {
+        const abonosCot = Array.isArray(cot.abonos) ? cot.abonos.filter(a => a && a.comprobante) : [];
+        if (abonosCot.length > 0) {
+            comprobantesHtml = '<div class="finanzas-comprobantes-cell">' +
+                abonosCot.map((a, i) =>
+                    `<button class="btn-ver-comprobante" data-url="${a.comprobante}" title="Abono ${i + 1}: $${(parseInt(a.monto) || 0).toLocaleString("en-US")}"><i class="bi bi-receipt-cutoff"></i> ${i + 1}</button>`
+                ).join("") +
+                '</div>';
+        } else if (cot.comprobante && cot.pagoRestanteComprobante) {
             comprobantesHtml = `
                 <div class="finanzas-comprobantes-cell">
                     <button class="btn-ver-comprobante" data-url="${cot.comprobante}" title="Comprobante inicial"><i class="bi bi-receipt-cutoff"></i> 1</button>

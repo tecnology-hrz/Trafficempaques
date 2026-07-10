@@ -1022,3 +1022,172 @@ body {
     color: #aaa;
     margin-top: 4px;
 }
+
+/* ===== SECCION ABONOS (saldo pendiente) ===== */
+.cot-abonos h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.abonos-resumen {
+    display: flex;
+    gap: 12px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+}
+
+.abono-resumen-item {
+    flex: 1;
+    min-width: 100px;
+    background: #f8fafc;
+    border: 1px solid #eef0f2;
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+}
+
+.abono-resumen-label {
+    display: block;
+    font-size: 12px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin-bottom: 6px;
+}
+
+.abono-resumen-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.abono-resumen-value.abonado { color: #16a34a; }
+.abono-resumen-value.pendiente { color: #dc2626; }
+
+.abonos-progress {
+    height: 10px;
+    background: #eef0f2;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.abonos-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #29ABE2, #16a34a);
+    border-radius: 999px;
+    transition: width .4s ease;
+}
+
+.abonos-historial {
+    margin-bottom: 20px;
+}
+
+.abonos-historial-titulo {
+    font-size: 13px !important;
+    color: #64748b !important;
+    margin-bottom: 10px;
+}
+
+.abono-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #eef0f2;
+    border-radius: 10px;
+    margin-bottom: 8px;
+}
+
+.abono-item-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.abono-item-num {
+    font-weight: 700;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.abono-item-detalle {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.abono-item-monto {
+    font-weight: 800;
+    font-size: 15px;
+    color: #16a34a;
+}
+
+.abono-item-comp {
+    background: #e0f2fe;
+    border: none;
+    color: #0284c7;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s;
+}
+
+.abono-item-comp:hover { background: #bae6fd; }
+
+.abono-nuevo {
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 18px;
+}
+
+.abono-nuevo h4 {
+    font-size: 14px;
+    color: #1e293b;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.abono-pago-options {
+    margin-bottom: 14px;
+}
+
+.abono-nuevo .abono-input {
+    margin: 14px 0;
+}
+
+.abono-nuevo .abono-input label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+}
+
+.btn-abono-total {
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: #29ABE2;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.abono-nuevo .comprobante-col {
+    margin: 14px 0;
+}
+
+.abono-nuevo .btn-aprobar {
+    width: 100%;
+    margin-top: 8px;
+}

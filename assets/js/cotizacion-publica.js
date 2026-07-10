@@ -149,7 +149,15 @@ function renderCotizacion() {
 
     // Estado
     if (cotizacion.estado === "aprobada") {
-        mostrarAprobada();
+        const total = parseInt(cotizacion.total) || 0;
+        const pagado = parseInt(cotizacion.montoPagado) || 0;
+        const esCredito = cotizacion.modalidadPago === "credito";
+        // Si es contado y aun queda saldo, mantener el link vivo con la vista de abonos
+        if (!esCredito && pagado < total) {
+            mostrarAbonos();
+        } else {
+            mostrarAprobada();
+        }
     } else if (cotizacion.estado === "rechazada") {
         mostrarRechazada();
     }
@@ -373,9 +381,19 @@ btnAprobar.addEventListener("click", async () => {
                 // Contado: requiere metodo de pago y comprobante
                 const metodoPago = document.querySelector('input[name="metodoPago"]:checked').value;
                 const tipoPago   = document.querySelector('input[name="tipoPago"]:checked').value;
+                const total      = parseInt(data.total) || 0;
                 const montoAbono = tipoPago === "abono"
                     ? (parseInt(montoAbonoInp.value.replace(/,/g, "")) || 0)
-                    : data.total;
+                    : total;
+
+                // Registrar el primer pago como un abono dentro del historial de abonos.
+                const primerAbono = {
+                    monto: montoAbono,
+                    metodo: metodoPago,
+                    comprobante: comprobanteUrl,
+                    comprobanteNombre: archivoComprobante ? archivoComprobante.name : "",
+                    fecha: new Date().toISOString()
+                };
 
                 await setDoc(ref, {
                     ...data,
@@ -385,10 +403,20 @@ btnAprobar.addEventListener("click", async () => {
                     montoPagado: montoAbono,
                     comprobante: comprobanteUrl,
                     comprobanteNombre: archivoComprobante ? archivoComprobante.name : "",
+                    abonos: [primerAbono],
                     productosAdicionalesCotizar: productosAdicionales,
                     comentarioCliente: comentario,
                     fechaAprobacion: new Date().toISOString()
                 });
+
+                // Actualizar objeto local para reflejar en la vista de abonos
+                cotizacion = { ...data, estado: "aprobada", montoPagado: montoAbono, total, abonos: [primerAbono] };
+
+                // Si quedo saldo pendiente, mostrar la vista de abonos (link sigue vivo)
+                if (montoAbono < total) {
+                    mostrarAbonos();
+                    return;
+                }
             }
             mostrarAprobada();
         }
@@ -417,6 +445,235 @@ function mostrarRechazada() {
     statusBar.className = "cot-status-bar rechazada";
     statusBar.querySelector("i").className = "bi bi-x-circle";
     document.getElementById("cotStatusText").textContent = "Cotizacion rechazada";
+}
+
+// ===== VISTA DE ABONOS (saldo pendiente, link sigue vivo) =====
+let abonoComprobanteUrl = "";
+let abonoArchivo = null;
+
+function getAbonos() {
+    // Compatibilidad: si no hay array de abonos pero hay montoPagado, crear uno virtual
+    if (Array.isArray(cotizacion.abonos) && cotizacion.abonos.length > 0) {
+        return cotizacion.abonos;
+    }
+    const pagado = parseInt(cotizacion.montoPagado) || 0;
+    if (pagado > 0) {
+        return [{
+            monto: pagado,
+            metodo: cotizacion.metodoPago || "",
+            comprobante: cotizacion.comprobante || "",
+            comprobanteNombre: cotizacion.comprobanteNombre || "",
+            fecha: cotizacion.fechaAprobacion || ""
+        }];
+    }
+    return [];
+}
+
+function mostrarAbonos() {
+    document.getElementById("seccionDecision").style.display = "none";
+    document.getElementById("seccionAprobada").style.display = "none";
+    document.getElementById("seccionPagoCompleto").style.display = "none";
+
+    const total = parseInt(cotizacion.total) || 0;
+    const abonos = getAbonos();
+    const pagado = abonos.reduce((s, a) => s + (parseInt(a.monto) || 0), 0);
+    const saldo = Math.max(0, total - pagado);
+
+    // Barra de estado
+    const statusBar = document.getElementById("cotStatusBar");
+    statusBar.className = "cot-status-bar aprobada";
+    statusBar.querySelector("i").className = "bi bi-cash-coin";
+    document.getElementById("cotStatusText").textContent = saldo > 0
+        ? "Aprobada · Saldo pendiente $" + formatMoney(saldo)
+        : "Aprobada · Pago completo";
+
+    // Si ya no queda saldo, mostrar mensaje de pago completo
+    if (saldo <= 0) {
+        document.getElementById("seccionAbonos").style.display = "none";
+        document.getElementById("seccionPagoCompleto").style.display = "block";
+        return;
+    }
+
+    const seccion = document.getElementById("seccionAbonos");
+    seccion.style.display = "block";
+
+    // Resumen
+    document.getElementById("abonosTotal").textContent  = "$" + formatMoney(total);
+    document.getElementById("abonosPagado").textContent = "$" + formatMoney(pagado);
+    document.getElementById("abonosSaldo").textContent  = "$" + formatMoney(saldo);
+    const pct = total > 0 ? Math.min(100, Math.round((pagado / total) * 100)) : 0;
+    document.getElementById("abonosProgressBar").style.width = pct + "%";
+
+    // Historial de abonos
+    renderHistorialAbonos(abonos);
+
+    // Preparar formulario nuevo abono
+    setupNuevoAbono(saldo);
+}
+
+function renderHistorialAbonos(abonos) {
+    const cont = document.getElementById("abonosHistorial");
+    if (!abonos || abonos.length === 0) { cont.innerHTML = ""; return; }
+
+    cont.innerHTML = '<h4 class="abonos-historial-titulo"><i class="bi bi-clock-history"></i> Abonos realizados</h4>';
+    abonos.forEach((a, i) => {
+        const fecha = a.fecha ? new Date(a.fecha).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" }) : "-";
+        const metodo = a.metodo ? (a.metodo.charAt(0).toUpperCase() + a.metodo.slice(1)) : "-";
+        const item = document.createElement("div");
+        item.className = "abono-item";
+        item.innerHTML = `
+            <div class="abono-item-info">
+                <span class="abono-item-num">Abono ${i + 1}</span>
+                <span class="abono-item-detalle">${metodo} &bull; ${fecha}</span>
+            </div>
+            <span class="abono-item-monto">$${formatMoney(a.monto)}</span>
+            ${a.comprobante ? `<button class="abono-item-comp" data-url="${a.comprobante}"><i class="bi bi-receipt"></i></button>` : ""}
+        `;
+        cont.appendChild(item);
+    });
+
+    // Ver comprobante de cada abono
+    cont.querySelectorAll(".abono-item-comp").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.getElementById("imgModalImg").src = btn.dataset.url;
+            document.getElementById("imgModal").classList.add("show");
+        });
+    });
+}
+
+function setupNuevoAbono(saldo) {
+    // Reset estado
+    abonoComprobanteUrl = "";
+    abonoArchivo = null;
+
+    const montoInput = document.getElementById("montoNuevoAbono");
+    const btnRegistrar = document.getElementById("btnRegistrarAbono");
+    const preview = document.getElementById("abonoPreview");
+    const btnUpload = document.getElementById("uploadAbono");
+    const inputFile = document.getElementById("inputAbono");
+
+    montoInput.value = "";
+    preview.innerHTML = "";
+    btnUpload.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Subir comprobante';
+    btnRegistrar.disabled = true;
+
+    // Metodo de pago
+    document.querySelectorAll('input[name="metodoAbono"]').forEach(r => {
+        r.onchange = () => {
+            document.getElementById("abonoDatosDavivienda").style.display = r.value === "davivienda" ? "block" : "none";
+            document.getElementById("abonoDatosBancolombia").style.display = r.value === "bancolombia" ? "block" : "none";
+            document.getElementById("abonoDatosNequi").style.display = r.value === "nequi" ? "block" : "none";
+            validarNuevoAbono(saldo);
+        };
+    });
+
+    // Monto: formato miles + tope al saldo
+    montoInput.oninput = () => {
+        let raw = montoInput.value.replace(/[^0-9]/g, "");
+        let num = parseInt(raw) || 0;
+        if (num > saldo) num = saldo;
+        montoInput.value = num > 0 ? num.toLocaleString("en-US") : "";
+        validarNuevoAbono(saldo);
+    };
+
+    // Boton abonar saldo total
+    document.getElementById("btnAbonarSaldoTotal").onclick = () => {
+        montoInput.value = saldo.toLocaleString("en-US");
+        validarNuevoAbono(saldo);
+    };
+
+    // Upload comprobante
+    btnUpload.onclick = () => inputFile.click();
+    inputFile.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        abonoArchivo = file;
+        preview.innerHTML = '<span class="comp-status">Subiendo...</span>';
+        btnUpload.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.append("image", file);
+            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.success) {
+                abonoComprobanteUrl = data.data.url;
+                preview.innerHTML = `<img src="${abonoComprobanteUrl}" class="comp-thumb" alt="Comprobante" />`;
+                btnUpload.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar';
+                btnUpload.disabled = false;
+                preview.querySelector(".comp-thumb").addEventListener("click", () => {
+                    document.getElementById("imgModalImg").src = abonoComprobanteUrl;
+                    document.getElementById("imgModal").classList.add("show");
+                });
+                validarNuevoAbono(saldo);
+            } else {
+                preview.innerHTML = '<span class="comp-status error">Error</span>';
+                btnUpload.disabled = false;
+                abonoArchivo = null;
+            }
+        } catch (err) {
+            console.error(err);
+            preview.innerHTML = '<span class="comp-status error">Error</span>';
+            btnUpload.disabled = false;
+            abonoArchivo = null;
+        }
+    };
+
+    // Registrar abono
+    btnRegistrar.onclick = () => registrarAbono(saldo);
+}
+
+function validarNuevoAbono(saldo) {
+    const metodo = document.querySelector('input[name="metodoAbono"]:checked');
+    const monto = parseInt((document.getElementById("montoNuevoAbono").value || "").replace(/,/g, "")) || 0;
+    const btn = document.getElementById("btnRegistrarAbono");
+    btn.disabled = !(metodo && monto > 0 && monto <= saldo && abonoComprobanteUrl);
+}
+
+async function registrarAbono(saldo) {
+    const btn = document.getElementById("btnRegistrarAbono");
+    const metodo = document.querySelector('input[name="metodoAbono"]:checked').value;
+    const monto = parseInt(document.getElementById("montoNuevoAbono").value.replace(/,/g, "")) || 0;
+    if (monto <= 0 || monto > saldo || !abonoComprobanteUrl) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Registrando...';
+
+    try {
+        const ref = doc(db, "cotizaciones", cotId);
+        const snap = await getDoc(ref);
+        const data = snap.data();
+
+        const abonosPrevios = Array.isArray(data.abonos) ? data.abonos : getAbonos();
+        const nuevoAbono = {
+            monto,
+            metodo,
+            comprobante: abonoComprobanteUrl,
+            comprobanteNombre: abonoArchivo ? abonoArchivo.name : "",
+            fecha: new Date().toISOString()
+        };
+        const abonos = [...abonosPrevios, nuevoAbono];
+        const nuevoMontoPagado = abonos.reduce((s, a) => s + (parseInt(a.monto) || 0), 0);
+        const total = parseInt(data.total) || 0;
+        const completado = nuevoMontoPagado >= total;
+
+        await setDoc(ref, {
+            ...data,
+            abonos,
+            montoPagado: nuevoMontoPagado,
+            tipoPago: completado ? "completo" : "abono",
+            pagoRestanteCompletado: completado ? true : (data.pagoRestanteCompletado || false),
+            ...(completado ? { pagoRestanteFecha: new Date().toISOString() } : {})
+        });
+
+        // Actualizar objeto local y re-render
+        cotizacion = { ...data, abonos, montoPagado: nuevoMontoPagado, total };
+        mostrarAbonos();
+    } catch (err) {
+        console.error(err);
+        alert("Error al registrar el abono. Intenta de nuevo.");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> Registrar abono';
+    }
 }
 
 // Spinner
