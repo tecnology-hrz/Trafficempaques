@@ -215,12 +215,14 @@ const radios = document.querySelectorAll('input[name="metodoPago"]');
 const datosDavi  = document.getElementById("datosDavivienda");
 const datosBanco = document.getElementById("datosBancolombia");
 const datosNequi = document.getElementById("datosNequi");
+const datosEfectivo = document.getElementById("datosEfectivo");
 
 radios.forEach(radio => {
     radio.addEventListener("change", () => {
         datosDavi.style.display  = radio.value === "davivienda" ? "block" : "none";
         datosBanco.style.display = radio.value === "bancolombia" ? "block" : "none";
         datosNequi.style.display = radio.value === "nequi" ? "block" : "none";
+        datosEfectivo.style.display = radio.value === "efectivo" ? "block" : "none";
         checkCanApprove();
     });
 });
@@ -300,6 +302,7 @@ function checkCanApprove() {
     const aprobado   = btnAprobarCot.classList.contains("selected");
     const rechazado  = btnRechazarCot.classList.contains("selected");
     const esCredito  = cotizacion && cotizacion.modalidadPago === "credito";
+    const esEfectivo = metodoPago && metodoPago.value === "efectivo";
 
     // Si es abono, validar monto
     let abonoValido = true;
@@ -307,6 +310,9 @@ function checkCanApprove() {
         const monto = parseInt(montoAbonoInp.value.replace(/,/g, "")) || 0;
         abonoValido = monto > 0;
     }
+
+    // Efectivo no requiere comprobante
+    const comprobanteOk = esEfectivo ? true : !!comprobanteUrl;
 
     if (rechazado) {
         btnAprobar.disabled = false;
@@ -317,7 +323,7 @@ function checkCanApprove() {
         btnAprobar.disabled = false;
         btnAprobar.innerHTML = '<i class="bi bi-check-circle"></i> Aprobar cotizacion';
         btnAprobar.className = "btn-aprobar";
-    } else if (aprobado && metodoPago && comprobanteUrl && abonoValido) {
+    } else if (aprobado && metodoPago && comprobanteOk && abonoValido) {
         btnAprobar.disabled = false;
         btnAprobar.innerHTML = '<i class="bi bi-check-circle"></i> Aprobar y enviar cotizacion';
         btnAprobar.className = "btn-aprobar";
@@ -563,6 +569,7 @@ function setupNuevoAbono(saldo) {
             document.getElementById("abonoDatosDavivienda").style.display = r.value === "davivienda" ? "block" : "none";
             document.getElementById("abonoDatosBancolombia").style.display = r.value === "bancolombia" ? "block" : "none";
             document.getElementById("abonoDatosNequi").style.display = r.value === "nequi" ? "block" : "none";
+            document.getElementById("abonoDatosEfectivo").style.display = r.value === "efectivo" ? "block" : "none";
             validarNuevoAbono(saldo);
         };
     });
@@ -626,14 +633,17 @@ function validarNuevoAbono(saldo) {
     const metodo = document.querySelector('input[name="metodoAbono"]:checked');
     const monto = parseInt((document.getElementById("montoNuevoAbono").value || "").replace(/,/g, "")) || 0;
     const btn = document.getElementById("btnRegistrarAbono");
-    btn.disabled = !(metodo && monto > 0 && monto <= saldo && abonoComprobanteUrl);
+    const esEfectivo = metodo && metodo.value === "efectivo";
+    const comprobanteOk = esEfectivo ? true : !!abonoComprobanteUrl;
+    btn.disabled = !(metodo && monto > 0 && monto <= saldo && comprobanteOk);
 }
 
 async function registrarAbono(saldo) {
     const btn = document.getElementById("btnRegistrarAbono");
     const metodo = document.querySelector('input[name="metodoAbono"]:checked').value;
     const monto = parseInt(document.getElementById("montoNuevoAbono").value.replace(/,/g, "")) || 0;
-    if (monto <= 0 || monto > saldo || !abonoComprobanteUrl) return;
+    const esEfectivo = metodo === "efectivo";
+    if (monto <= 0 || monto > saldo || (!esEfectivo && !abonoComprobanteUrl)) return;
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Registrando...';

@@ -12,6 +12,12 @@ import { CATALOGO_DATA } from "./catalogo-data.js";
 const rol    = sessionStorage.getItem("userRol");
 const nombre = sessionStorage.getItem("userName");
 
+// Etapas que cada rol puede ver en el timeline de seguimiento.
+// Si un rol no esta listado aqui, ve todas las etapas de la orden.
+const PASOS_VISIBLES_POR_ROL = {
+    digital: ["impresion", "empaques", "terminado"]
+};
+
 if (!rol || !nombre) {
     window.location.href = "index.html";
 }
@@ -1817,7 +1823,14 @@ function renderOrdenesConFiltro(rolUsuario) {
     } else if (["diseno", "guillotina", "impresion", "troquelado", "vasos", "empaques"].includes(rolUsuario)) {
         // Roles de area: ven TODAS las ordenes en solo lectura (sin filtrar por tipo)
         renderOrdenesSoloLectura(ordenes, "ordenesPendientesLista");
-        renderDisenosRespondidos([], "ordenesDisenosLista", rolUsuario);
+        // Mostrar todos los diseños existentes para que las areas puedan verlos
+        const disenosArea = [];
+        ordenes.forEach(orden => {
+            const disenoId = orden.id + "-diseno";
+            const diseno = ordenesDisenoDB[disenoId];
+            if (diseno) disenosArea.push({ orden, diseno });
+        });
+        renderDisenosRespondidos(disenosArea, "ordenesDisenosLista", rolUsuario);
     } else {
         const tipoRol = rolUsuario;
         const misOrdenes = ordenes.filter(o => o.tipo === tipoRol);
@@ -1876,12 +1889,16 @@ function renderDisenosRespondidos(items, containerId, rolUsuario) {
             });
         });
 
+        const estadoBadge = diseno.estado === "respondida"
+            ? `<span class="diseno-estado-badge respondida"><i class="bi bi-check-circle"></i> ${aprobadas} aprobadas, ${rechazadas} rechazadas</span>`
+            : `<span class="diseno-estado-badge pendiente"><i class="bi bi-clock"></i> Pendiente</span>`;
+
         html += `
             <div class="diseno-lista-item">
                 <div class="diseno-lista-info">
                     <div class="diseno-lista-top">
                         <strong>${orden.numero}</strong>
-                        <span class="diseno-estado-badge respondida"><i class="bi bi-check-circle"></i> ${aprobadas} aprobadas, ${rechazadas} rechazadas</span>
+                        ${estadoBadge}
                     </div>
                     <span class="diseno-lista-sub">${orden.cliente} &bull; ${fechaStr}</span>
                 </div>
@@ -3106,6 +3123,31 @@ function getPasosOrden(orden) {
     return orden.tipo === "digital" ? PASOS_DIGITAL_SEG : PASOS_IMPRENTA_SEG;
 }
 
+// Devuelve las etapas visibles del timeline segun el rol del usuario.
+function getPasosVisibles(orden, rolUsuario) {
+    const todos = getPasosOrden(orden);
+    const permitidos = PASOS_VISIBLES_POR_ROL[rolUsuario];
+    if (!permitidos) return todos;
+    return todos.filter(p => permitidos.includes(p.key));
+}
+
+// Construye el HTML de los puntos del timeline. Solo dibuja las etapas
+// "visibles" para el rol, pero calcula completado/activo usando la posicion
+// real dentro de la secuencia completa de la orden.
+function buildTimelineDots(pasosCompletos, pasosVisibles, pasoActual) {
+    const idxActual = pasosCompletos.findIndex(p => p.key === pasoActual);
+    let html = "";
+    pasosVisibles.forEach((paso, i) => {
+        const idxReal = pasosCompletos.findIndex(p => p.key === paso.key);
+        const estado = idxReal < idxActual ? "completado" : idxReal === idxActual ? "activo" : "";
+        html += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
+        if (i < pasosVisibles.length - 1) {
+            html += `<div class="seg-step-line ${idxReal < idxActual ? "completado" : ""}"></div>`;
+        }
+    });
+    return html;
+}
+
 // Devuelve el seguimiento de un producto (item) dentro de la orden.
 // Si no existe aun, hereda el paso global de la orden (compatibilidad hacia atras).
 function getItemSeguimiento(orden, idx) {
@@ -3185,6 +3227,17 @@ let seguimientoFiltro = "todos";
 let seguimientoCache = [];
 
 function setupSeguimiento() {
+    // Ocultar botones de filtro de etapas que el rol no puede ver
+    const permitidosRol = PASOS_VISIBLES_POR_ROL[rol];
+    if (permitidosRol) {
+        document.querySelectorAll(".seg-filtro-btn").forEach(btn => {
+            const f = btn.dataset.filtro;
+            if (f !== "todos" && !permitidosRol.includes(f)) {
+                btn.style.display = "none";
+            }
+        });
+    }
+
     const filtros = document.querySelectorAll(".seg-filtro-btn");
     filtros.forEach(btn => {
         btn.addEventListener("click", () => {
@@ -3269,6 +3322,7 @@ function renderSeguimiento() {
             card.className = "seg-orden-card";
 
             const PASOS_SEGUIMIENTO = getPasosOrden(orden);
+            const PASOS_VISIBLES = getPasosVisibles(orden, rol);
             const items = orden.items || [];
 
             // Paso global = producto menos avanzado
@@ -3288,13 +3342,7 @@ function renderSeguimiento() {
             if (items.length === 0) {
                 // Compatibilidad: orden sin items detallados -> timeline global
                 const pasoActual = orden.pasoActual || "recibido";
-                const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
-                let timelineHtml = "";
-                PASOS_SEGUIMIENTO.forEach((paso, idx) => {
-                    let estado = idx < idxActual ? "completado" : idx === idxActual ? "activo" : "";
-                    timelineHtml += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
-                    if (idx < PASOS_SEGUIMIENTO.length - 1) timelineHtml += `<div class="seg-step-line ${idx < idxActual ? "completado" : ""}"></div>`;
-                });
+                const timelineHtml = buildTimelineDots(PASOS_SEGUIMIENTO, PASOS_VISIBLES, pasoActual);
                 const acciones = getAccionesItem(rol, pasoActual, PASOS_SEGUIMIENTO, orden.id, -1);
                 productosHtml = `
                     <div class="seg-timeline-mini">${timelineHtml}</div>
@@ -3304,14 +3352,8 @@ function renderSeguimiento() {
                 items.forEach((item, idx) => {
                     const seg = getItemSeguimiento(orden, idx);
                     const pasoActual = seg.pasoActual;
-                    const idxActual = PASOS_SEGUIMIENTO.findIndex(p => p.key === pasoActual);
 
-                    let timelineHtml = "";
-                    PASOS_SEGUIMIENTO.forEach((paso, i) => {
-                        let estado = i < idxActual ? "completado" : i === idxActual ? "activo" : "";
-                        timelineHtml += `<div class="seg-step-dot ${estado}" title="${paso.title}"><i class="bi ${estado === "completado" ? "bi-check-lg" : paso.icon}"></i></div>`;
-                        if (i < PASOS_SEGUIMIENTO.length - 1) timelineHtml += `<div class="seg-step-line ${i < idxActual ? "completado" : ""}"></div>`;
-                    });
+                    const timelineHtml = buildTimelineDots(PASOS_SEGUIMIENTO, PASOS_VISIBLES, pasoActual);
 
                     const acciones = getAccionesItem(rol, pasoActual, PASOS_SEGUIMIENTO, orden.id, idx);
                     const nombreProd = `<strong>${item.cantidad || 1}x</strong> ${item.producto || "Producto " + (idx + 1)}`;
