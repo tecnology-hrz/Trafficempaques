@@ -1,4 +1,5 @@
 import { db, doc, getDoc, setDoc } from "./auth.js";
+import { validarComprobante, mostrarAlertaComprobante } from "./comprobante-validador.js";
 
 const params = new URLSearchParams(window.location.search);
 const ordenId = params.get("id");
@@ -494,6 +495,32 @@ function setupPagoRestante(orden, saldoRestante) {
     inputFile.addEventListener("change", async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        if (!metodoSeleccionado) {
+            mostrarAlertaComprobante("Primero selecciona el metodo de pago antes de subir el comprobante.", "Falta el metodo de pago");
+            inputFile.value = "";
+            return;
+        }
+
+        // ===== Verificacion inteligente del comprobante (OCR) =====
+        btnUpload.disabled = true;
+        btnUpload.innerHTML = '<span class="spinner-seg"></span> Verificando...';
+        const resultado = await validarComprobante(file, {
+            entidad: metodoSeleccionado,
+            montoEsperado: saldoRestante,
+            onProgreso: (p) => {
+                btnUpload.innerHTML = '<span class="spinner-seg"></span> Verificando... ' + Math.round(p * 100) + '%';
+            }
+        });
+        if (!resultado.ok) {
+            mostrarAlertaComprobante(resultado.mensaje);
+            btnUpload.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Subir comprobante';
+            btnUpload.disabled = false;
+            inputFile.value = "";
+            comprobanteRestanteUrl = "";
+            validarPagoRestante();
+            return;
+        }
 
         btnUpload.disabled = true;
         btnUpload.innerHTML = '<span class="spinner-seg"></span> Subiendo...';

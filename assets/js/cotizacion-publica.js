@@ -1,4 +1,5 @@
 import { db, doc, getDoc, setDoc } from "./auth.js";
+import { validarComprobante, mostrarAlertaComprobante } from "./comprobante-validador.js";
 
 const params = new URLSearchParams(window.location.search);
 const cotId  = params.get("id");
@@ -236,10 +237,58 @@ let comprobanteUrl     = "";
 
 const IMGBB_KEY = "85c1345ba9104ab223ed72e168bb111d";
 
+// Calcula el monto que se va a pagar con el comprobante inicial.
+function getMontoPagoInicial() {
+    const total = parseInt(cotizacion && cotizacion.total) || 0;
+    const tipoPago = document.querySelector('input[name="tipoPago"]:checked');
+    if (tipoPago && tipoPago.value === "abono") {
+        return parseInt((montoAbonoInp.value || "").replace(/,/g, "")) || 0;
+    }
+    return total;
+}
+
 btnUploadComp.addEventListener("click", () => inputComp.click());
 inputComp.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const metodoSel = document.querySelector('input[name="metodoPago"]:checked');
+    if (!metodoSel) {
+        mostrarAlertaComprobante("Primero selecciona el metodo de pago antes de subir el comprobante.", "Falta el metodo de pago");
+        inputComp.value = "";
+        return;
+    }
+    const entidad = metodoSel.value;
+    const montoEsperado = getMontoPagoInicial();
+
+    if (entidad !== "efectivo" && montoEsperado <= 0) {
+        mostrarAlertaComprobante("Indica el monto del abono antes de subir el comprobante.", "Falta el monto");
+        inputComp.value = "";
+        return;
+    }
+
+    // ===== Verificacion inteligente del comprobante (OCR) =====
+    if (entidad !== "efectivo") {
+        compPreview.innerHTML = '<span class="comp-status">Verificando comprobante...</span>';
+        btnUploadComp.disabled = true;
+        const resultado = await validarComprobante(file, {
+            entidad,
+            montoEsperado,
+            onProgreso: (p) => {
+                compPreview.innerHTML = '<span class="comp-status">Verificando comprobante... ' + Math.round(p * 100) + '%</span>';
+            }
+        });
+        if (!resultado.ok) {
+            mostrarAlertaComprobante(resultado.mensaje);
+            compPreview.innerHTML = "";
+            btnUploadComp.disabled = false;
+            inputComp.value = "";
+            archivoComprobante = null;
+            comprobanteUrl = "";
+            checkCanApprove();
+            return;
+        }
+    }
 
     archivoComprobante = file;
     compPreview.innerHTML = '<span class="comp-status">Subiendo...</span>';
@@ -594,6 +643,45 @@ function setupNuevoAbono(saldo) {
     inputFile.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        const metodoSel = document.querySelector('input[name="metodoAbono"]:checked');
+        if (!metodoSel) {
+            mostrarAlertaComprobante("Primero selecciona el metodo de pago antes de subir el comprobante.", "Falta el metodo de pago");
+            inputFile.value = "";
+            return;
+        }
+        const entidad = metodoSel.value;
+        const montoAbonoEsperado = parseInt((montoInput.value || "").replace(/,/g, "")) || 0;
+
+        if (entidad !== "efectivo" && montoAbonoEsperado <= 0) {
+            mostrarAlertaComprobante("Indica el monto del abono antes de subir el comprobante.", "Falta el monto");
+            inputFile.value = "";
+            return;
+        }
+
+        // ===== Verificacion inteligente del comprobante (OCR) =====
+        if (entidad !== "efectivo") {
+            preview.innerHTML = '<span class="comp-status">Verificando comprobante...</span>';
+            btnUpload.disabled = true;
+            const resultado = await validarComprobante(file, {
+                entidad,
+                montoEsperado: montoAbonoEsperado,
+                onProgreso: (p) => {
+                    preview.innerHTML = '<span class="comp-status">Verificando comprobante... ' + Math.round(p * 100) + '%</span>';
+                }
+            });
+            if (!resultado.ok) {
+                mostrarAlertaComprobante(resultado.mensaje);
+                preview.innerHTML = "";
+                btnUpload.disabled = false;
+                inputFile.value = "";
+                abonoArchivo = null;
+                abonoComprobanteUrl = "";
+                validarNuevoAbono(saldo);
+                return;
+            }
+        }
+
         abonoArchivo = file;
         preview.innerHTML = '<span class="comp-status">Subiendo...</span>';
         btnUpload.disabled = true;
