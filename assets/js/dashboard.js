@@ -64,6 +64,9 @@ async function initDashboard(rol, nombre) {
         weekday: "short", day: "numeric", month: "short"
     });
 
+
+    // remisionFiltro: sel;
+
     if (rol !== "administrador" && rol !== "ventas" && rol !== "ordenes") {
         document.querySelectorAll("[data-role]").forEach(el => {
             const roles = el.dataset.role.split(",");
