@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Reglas para Firebase Storage del proyecto Traffic.
+// NOTA: esta app usa login propio (sessionStorage), no Firebase Auth,
+// por eso no se puede validar request.auth. Se limita por carpeta y tamano.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Documentos de ordenes de plancha: solo lectura publica y
+    // escritura de archivos de hasta 20 MB en la carpeta planchas/.
+    match /planchas/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource == null
+                   || request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // Bloquear todo lo demas por defecto.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

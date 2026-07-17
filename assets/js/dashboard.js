@@ -1,4 +1,4 @@
-﻿import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "./auth.js";
+﻿import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc, storage, storageRef, uploadBytes, getDownloadURL } from "./auth.js";
 import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
     cargarCatalogos, crearCotizacion, obtenerCotizaciones, eliminarCotizacion,
@@ -2323,9 +2323,13 @@ function renderDisenoProductos(items, esEdicion) {
                 </div>
                 <input type="file" class="diseno-file-input" data-idx="${idx}" accept="image/*" multiple hidden>
                 <div class="diseno-links-container" id="disenoLinks-${idx}"></div>
+                ${renderPlanchaOrdenHTML(item, idx)}
             </div>
         `;
         container.appendChild(card);
+
+        // Configurar eventos de la orden de planchas de este producto
+        setupPlanchaOrden(card, idx, item);
 
         // Si es edicion, cargar imagenes existentes
         if (esEdicion && item.imagenes && item.imagenes.length > 0) {
@@ -2376,6 +2380,287 @@ function renderDisenoProductos(items, esEdicion) {
             agregarLinkItem(linksContainer, "");
         });
     });
+}
+
+// ===== ORDEN DE PLANCHAS (por producto/diseño) =====
+// Opciones de la orden de plancha segun el formato solicitado.
+const PLANCHA_COLORES = ["C", "M", "Y", "K", "4x4"];
+const PLANCHA_TIPOS = [
+    { key: "ridNormal", label: "Rid Normal" },
+    { key: "ridDoblePinza", label: "Rid Doble Pinza" },
+    { key: "plancha14", label: "Plancha 1/4" },
+    { key: "plancha12", label: "Plancha 1/2" },
+    { key: "planchaPliego", label: "Plancha Pliego" }
+];
+
+function renderPlanchaOrdenHTML(item, idx) {
+    const p = item.ordenPlancha || {};
+    const colores = p.colores || {};
+    const tipos = p.tipos || {};
+
+    const coloresHtml = PLANCHA_COLORES.map(c => `
+        <label class="plancha-check">
+            <input type="checkbox" class="plancha-color-check" data-idx="${idx}" data-color="${c}" ${colores[c] ? "checked" : ""}>
+            <span class="plancha-check-dot"></span>
+            <span class="plancha-check-label">${c}</span>
+        </label>
+    `).join("");
+
+    const tiposHtml = PLANCHA_TIPOS.map(t => `
+        <label class="plancha-check plancha-check-row">
+            <span class="plancha-check-label">${t.label}</span>
+            <input type="checkbox" class="plancha-tipo-check" data-idx="${idx}" data-tipo="${t.key}" ${tipos[t.key] ? "checked" : ""}>
+            <span class="plancha-check-dot"></span>
+        </label>
+    `).join("");
+
+    const docHtml = p.documento
+        ? `<a href="${p.documento.url}" target="_blank" rel="noopener noreferrer" class="plancha-doc-link" data-idx="${idx}">
+               <i class="bi bi-file-earmark-arrow-down"></i> ${p.documento.nombre || "Documento adjunto"}
+           </a>
+           <button type="button" class="plancha-doc-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>`
+        : "";
+
+    return `
+        <div class="plancha-orden" id="planchaOrden-${idx}">
+            <div class="plancha-orden-header">
+                <i class="bi bi-layers-half"></i> Orden de Planchas
+            </div>
+            <div class="plancha-orden-body">
+                <div class="plancha-grupo">
+                    <span class="plancha-grupo-title">Colores</span>
+                    <div class="plancha-checks plancha-checks-inline">
+                        ${coloresHtml}
+                    </div>
+                </div>
+                <div class="plancha-grupo">
+                    <span class="plancha-grupo-title">Tipo de plancha</span>
+                    <div class="plancha-checks">
+                        ${tiposHtml}
+                    </div>
+                </div>
+                <div class="plancha-grupo plancha-grupo-full">
+                    <span class="plancha-grupo-title">Observaciones</span>
+                    <textarea class="plancha-observaciones" data-idx="${idx}" rows="2" placeholder="Notas u observaciones para esta plancha...">${p.observaciones || ""}</textarea>
+                </div>
+                <div class="plancha-grupo plancha-grupo-full">
+                    <span class="plancha-grupo-title">Disenador / Proveedor</span>
+                    <input type="text" class="plancha-disenador" data-idx="${idx}" placeholder="Nombre del disenador o proveedor" value="${p.disenador || ""}">
+                </div>
+                <div class="plancha-grupo plancha-grupo-full">
+                    <span class="plancha-grupo-title">Correo destino</span>
+                    <input type="email" class="plancha-correo" data-idx="${idx}" placeholder="correo@proveedor.com" value="${p.correo || ""}">
+                </div>
+                <div class="plancha-grupo plancha-grupo-full">
+                    <span class="plancha-grupo-title">Documento adjunto</span>
+                    <div class="plancha-doc-row" id="planchaDocRow-${idx}">
+                        <button type="button" class="btn-upload-plancha-doc" data-idx="${idx}">
+                            <i class="bi bi-paperclip"></i> Subir documento
+                        </button>
+                        ${docHtml}
+                    </div>
+                    <input type="file" class="plancha-doc-input" data-idx="${idx}" accept=".pdf,.jpg,.jpeg,.png,.ai,.psd,.eps,.tif,.tiff,application/pdf,image/*" hidden>
+                </div>
+                <div class="plancha-grupo plancha-grupo-full">
+                    <button type="button" class="btn-enviar-plancha" data-idx="${idx}">
+                        <i class="bi bi-envelope-arrow-up"></i> Enviar orden de plancha por correo
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Estado en memoria del documento subido por producto (para no perderlo al guardar)
+const planchaDocsSubidos = {}; // { idx: { url, nombre } }
+
+function setupPlanchaOrden(card, idx, item) {
+    // Cargar documento existente al estado en memoria
+    if (item.ordenPlancha && item.ordenPlancha.documento) {
+        planchaDocsSubidos[idx] = item.ordenPlancha.documento;
+    } else {
+        delete planchaDocsSubidos[idx];
+    }
+
+    const btnUploadDoc = card.querySelector(`.btn-upload-plancha-doc[data-idx="${idx}"]`);
+    const docInput = card.querySelector(`.plancha-doc-input[data-idx="${idx}"]`);
+
+    if (btnUploadDoc && docInput) {
+        btnUploadDoc.addEventListener("click", () => docInput.click());
+        docInput.addEventListener("change", (e) => subirDocumentoPlancha(e, idx));
+    }
+
+    // Boton quitar documento existente
+    const btnRemoveDoc = card.querySelector(`.plancha-doc-remove[data-idx="${idx}"]`);
+    if (btnRemoveDoc) {
+        btnRemoveDoc.addEventListener("click", () => {
+            delete planchaDocsSubidos[idx];
+            renderPlanchaDocRow(idx);
+        });
+    }
+
+    // Boton enviar por correo
+    const btnEnviar = card.querySelector(`.btn-enviar-plancha[data-idx="${idx}"]`);
+    if (btnEnviar) {
+        btnEnviar.addEventListener("click", () => enviarOrdenPlanchaCorreo(idx, item));
+    }
+}
+
+function renderPlanchaDocRow(idx) {
+    const row = document.getElementById(`planchaDocRow-${idx}`);
+    if (!row) return;
+    const docAdjunto = planchaDocsSubidos[idx];
+    const docHtml = docAdjunto
+        ? `<a href="${docAdjunto.url}" target="_blank" rel="noopener noreferrer" class="plancha-doc-link" data-idx="${idx}">
+               <i class="bi bi-file-earmark-arrow-down"></i> ${docAdjunto.nombre || "Documento adjunto"}
+           </a>
+           <button type="button" class="plancha-doc-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>`
+        : "";
+    row.innerHTML = `
+        <button type="button" class="btn-upload-plancha-doc" data-idx="${idx}">
+            <i class="bi bi-paperclip"></i> Subir documento
+        </button>
+        ${docHtml}
+    `;
+    // Re-enlazar eventos
+    const btnUploadDoc = row.querySelector(`.btn-upload-plancha-doc[data-idx="${idx}"]`);
+    const docInput = document.querySelector(`.plancha-doc-input[data-idx="${idx}"]`);
+    if (btnUploadDoc && docInput) {
+        btnUploadDoc.addEventListener("click", () => docInput.click());
+    }
+    const btnRemoveDoc = row.querySelector(`.plancha-doc-remove[data-idx="${idx}"]`);
+    if (btnRemoveDoc) {
+        btnRemoveDoc.addEventListener("click", () => {
+            delete planchaDocsSubidos[idx];
+            renderPlanchaDocRow(idx);
+        });
+    }
+}
+
+async function subirDocumentoPlancha(e, idx) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const row = document.getElementById(`planchaDocRow-${idx}`);
+    const btnUpload = row?.querySelector(".btn-upload-plancha-doc");
+    if (btnUpload) {
+        btnUpload.disabled = true;
+        btnUpload.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Subiendo...';
+    }
+
+    // Limite de tamano (20 MB) para coincidir con las reglas de Storage
+    if (file.size > 20 * 1024 * 1024) {
+        showNotif("Archivo muy grande", "El documento supera los 20 MB. Usa uno mas liviano.");
+        if (btnUpload) {
+            btnUpload.disabled = false;
+            btnUpload.innerHTML = '<i class="bi bi-paperclip"></i> Subir documento';
+        }
+        e.target.value = "";
+        return;
+    }
+
+    try {
+        const nombreLimpio = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const ruta = `planchas/${disenoOrdenActual.id}/${idx}/${Date.now()}_${nombreLimpio}`;
+        const sRef = storageRef(storage, ruta);
+
+        // Timeout para no quedarse "Subiendo..." indefinidamente si Storage
+        // no esta habilitado o las reglas rechazan la subida (CORS/preflight).
+        const subir = (async () => {
+            await uploadBytes(sRef, file);
+            return await getDownloadURL(sRef);
+        })();
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 30000)
+        );
+        const url = await Promise.race([subir, timeout]);
+
+        planchaDocsSubidos[idx] = { url, nombre: file.name, ruta };
+        renderPlanchaDocRow(idx);
+    } catch (err) {
+        console.error("Error subiendo documento de plancha:", err);
+        const msg = err && err.message === "timeout"
+            ? "La subida tardo demasiado. Verifica que Firebase Storage este habilitado y con reglas de escritura."
+            : "No se pudo subir el documento. Revisa la consola: probablemente Firebase Storage no esta habilitado.";
+        showNotif("Error al subir", msg);
+        if (btnUpload) {
+            btnUpload.disabled = false;
+            btnUpload.innerHTML = '<i class="bi bi-paperclip"></i> Subir documento';
+        }
+    }
+
+    e.target.value = "";
+}
+
+// Recolecta los datos de la orden de plancha de un producto desde el DOM
+function recogerOrdenPlancha(idx) {
+    const colores = {};
+    document.querySelectorAll(`.plancha-color-check[data-idx="${idx}"]`).forEach(chk => {
+        if (chk.checked) colores[chk.dataset.color] = true;
+    });
+    const tipos = {};
+    document.querySelectorAll(`.plancha-tipo-check[data-idx="${idx}"]`).forEach(chk => {
+        if (chk.checked) tipos[chk.dataset.tipo] = true;
+    });
+    const observaciones = (document.querySelector(`.plancha-observaciones[data-idx="${idx}"]`)?.value || "").trim();
+    const disenador = (document.querySelector(`.plancha-disenador[data-idx="${idx}"]`)?.value || "").trim();
+    const correo = (document.querySelector(`.plancha-correo[data-idx="${idx}"]`)?.value || "").trim();
+    const documento = planchaDocsSubidos[idx] || null;
+
+    return { colores, tipos, observaciones, disenador, correo, documento };
+}
+
+// Abre Gmail con el mensaje precargado para enviar la orden de plancha
+function enviarOrdenPlanchaCorreo(idx, item) {
+    const datos = recogerOrdenPlancha(idx);
+
+    if (!datos.correo) {
+        showNotif("Falta el correo", "Ingresa el correo destino para enviar la orden de plancha.");
+        return;
+    }
+
+    const orden = disenoOrdenActual;
+    const coloresSel = PLANCHA_COLORES.filter(c => datos.colores[c]);
+    const tiposSel = PLANCHA_TIPOS.filter(t => datos.tipos[t.key]).map(t => t.label);
+
+    const asunto = `Orden de Planchas - ${orden.numero} - ${item.producto}`;
+
+    const lineas = [];
+    lineas.push("Buen dia,");
+    lineas.push("");
+    lineas.push("Adjunto la orden de planchas con la siguiente informacion:");
+    lineas.push("");
+    lineas.push(`Orden: ${orden.numero}`);
+    lineas.push(`Cliente: ${orden.cliente}`);
+    lineas.push(`Producto: ${item.cantidad}x ${item.producto}`);
+    lineas.push(`Colores: ${coloresSel.join(", ") || "-"}`);
+    lineas.push(`Tipo de plancha: ${tiposSel.join(", ") || "-"}`);
+    if (datos.disenador) lineas.push(`Disenador / Proveedor: ${datos.disenador}`);
+    if (datos.observaciones) {
+        lineas.push("");
+        lineas.push("Observaciones:");
+        lineas.push(datos.observaciones);
+    }
+    if (datos.documento && datos.documento.url) {
+        lineas.push("");
+        lineas.push("Documento adjunto:");
+        lineas.push(datos.documento.url);
+    }
+    lineas.push("");
+    lineas.push("Quedo atento a cualquier inquietud.");
+    lineas.push("");
+    lineas.push("Saludos,");
+    lineas.push(sessionStorage.getItem("userName") || "Traffic Empaques");
+    lineas.push("Traffic Empaques - Publicidad");
+
+    const cuerpo = lineas.join("\n");
+
+    const gmailUrl = "https://mail.google.com/mail/?view=cm&fs=1"
+        + "&to=" + encodeURIComponent(datos.correo)
+        + "&su=" + encodeURIComponent(asunto)
+        + "&body=" + encodeURIComponent(cuerpo);
+
+    window.open(gmailUrl, "_blank", "noopener,noreferrer");
 }
 
 function agregarLinkItem(container, value) {
@@ -2512,7 +2797,8 @@ async function guardarOrdenDiseno(orden) {
             precioUnit: item.precioUnit || 0,
             precioTotal: item.precioTotal || 0,
             imagenes: imagenes,
-            pacdoraLinks: pacdoraLinks
+            pacdoraLinks: pacdoraLinks,
+            ordenPlancha: recogerOrdenPlancha(idx)
         });
     });
 

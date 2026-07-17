@@ -2295,6 +2295,229 @@ body {
     animation: spin 0.7s linear infinite;
 }
 
+/* ===== ORDEN DE PLANCHAS (por producto) ===== */
+.plancha-orden {
+    margin-top: 16px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fafbfc;
+}
+
+.plancha-orden-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+    background: #eef2f6;
+    border-bottom: 1px solid #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.plancha-orden-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+}
+
+.plancha-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plancha-grupo-full {
+    grid-column: 1 / -1;
+}
+
+.plancha-grupo-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+}
+
+.plancha-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plancha-checks-inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.plancha-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #334155;
+    user-select: none;
+}
+
+.plancha-check-row {
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.plancha-check input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.plancha-check-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #94a3b8;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+    flex-shrink: 0;
+}
+
+.plancha-check input:checked + .plancha-check-dot {
+    border-color: #29ABE2;
+    background: #29ABE2;
+    box-shadow: inset 0 0 0 3px #fff;
+}
+
+.plancha-check-label {
+    font-weight: 600;
+}
+
+.plancha-observaciones,
+.plancha-disenador,
+.plancha-correo {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 13px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.plancha-observaciones:focus,
+.plancha-disenador:focus,
+.plancha-correo:focus {
+    outline: none;
+    border-color: #29ABE2;
+}
+
+.plancha-doc-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-upload-plancha-doc {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-upload-plancha-doc:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+.btn-upload-plancha-doc .spin {
+    animation: spin 1s linear infinite;
+}
+
+.plancha-doc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #29ABE2;
+    text-decoration: none;
+    padding: 6px 10px;
+    background: #f0f9ff;
+    border-radius: 6px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plancha-doc-link:hover {
+    text-decoration: underline;
+}
+
+.plancha-doc-remove {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.plancha-doc-remove:hover {
+    background: #fecaca;
+}
+
+.btn-enviar-plancha {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    background: #29ABE2;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    width: 100%;
+}
+
+.btn-enviar-plancha:hover {
+    background: #1d95c9;
+}
+
+@media (max-width: 640px) {
+    .plancha-orden-body {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ===== ROL SELECTOR (usuarios) ===== */
 .rol-selector {
     display: grid;

@@ -10,6 +10,12 @@ import {
     getDoc,
     deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+    getStorage,
+    ref as storageRef,
+    uploadBytes,
+    getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBwv1vtzRLgaaJlQcEKb4e3_vjPAKx6wuU",
@@ -23,5 +29,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
-export { db, collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc };
+export {
+    db, collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc,
+    storage, storageRef, uploadBytes, getDownloadURL
+};
