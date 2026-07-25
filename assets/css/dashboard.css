@@ -4111,6 +4111,68 @@ body {
     .inventario-stat-num { font-size: 22px; }
 }
 
+/* Bloque de seleccion de carton en el modal de cantidad (guillotina) */
+.seg-carton-box {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid #bae6fd;
+    background: #f6fbfe;
+    border-radius: 10px;
+}
+
+.seg-carton-titulo {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a90c8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.seg-carton-box select,
+.seg-carton-box input {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 13px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: inherit;
+    box-sizing: border-box;
+    background: #fff;
+}
+
+.seg-carton-box select:focus,
+.seg-carton-box input:focus {
+    outline: none;
+    border-color: #29ABE2;
+}
+
+.seg-carton-disponible {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #059669;
+    margin: 8px 0;
+    font-weight: 600;
+}
+
+.seg-carton-disponible.agotado { color: #dc2626; }
+
+.seg-carton-alerta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px;
+}
+
 /* ===== SEGUIMIENTO ===== */
 .seguimiento-filtros {
     display: flex;
@@ -5085,6 +5147,20 @@ body {
 }
 
 .seg-cant-recibida i { color: #0284c7; }
+
+.seg-cant-carton {
+    font-size: 12.5px;
+    color: #7c3aed;
+    background: #f3effe;
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.seg-cant-carton i { color: #7c3aed; }
 
 .seg-cant-titulo {
     font-size: 11.5px;

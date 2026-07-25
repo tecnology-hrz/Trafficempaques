@@ -1193,6 +1193,23 @@
                     <label id="segCantidadLabel">Cantidad realizada / que envias</label>
                     <input type="number" id="segCantidadInput" min="0" placeholder="0" inputmode="numeric">
                 </div>
+
+                <!-- Selección de cartón desde inventario (solo etapa guillotina) -->
+                <div class="seg-carton-box" id="segCartonBox" style="display:none;">
+                    <div class="seg-carton-titulo"><i class="bi bi-boxes"></i> Cartón a utilizar</div>
+                    <div class="form-field">
+                        <label>Tipo de cartón</label>
+                        <select id="segCartonSelect">
+                            <option value="">-- Selecciona un cartón del inventario --</option>
+                        </select>
+                    </div>
+                    <div class="seg-carton-disponible" id="segCartonDisponible" style="display:none;"></div>
+                    <div class="form-field">
+                        <label>Pliegos a usar</label>
+                        <input type="number" id="segCartonPliegos" min="0" placeholder="0" inputmode="numeric">
+                    </div>
+                    <div class="seg-carton-alerta" id="segCartonAlerta" style="display:none;"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-cancel" id="segCantidadCancel">Cancelar</button>

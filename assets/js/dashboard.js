@@ -3465,9 +3465,9 @@ function getItemSeguimiento(orden, idx) {
     const its = orden.itemsSeguimiento || {};
     const entry = its[idx];
     if (entry && entry.pasoActual) {
-        return { pasoActual: entry.pasoActual, seguimiento: entry.seguimiento || {}, cantidades: entry.cantidades || {} };
+        return { pasoActual: entry.pasoActual, seguimiento: entry.seguimiento || {}, cantidades: entry.cantidades || {}, carton: entry.carton || null };
     }
-    return { pasoActual: orden.pasoActual || "recibido", seguimiento: {}, cantidades: {} };
+    return { pasoActual: orden.pasoActual || "recibido", seguimiento: {}, cantidades: {}, carton: null };
 }
 
 // Devuelve el mapa de cantidades registradas por paso para un producto (o la orden global).
@@ -3772,12 +3772,22 @@ function buildCantidadesHtml(orden, idx, PASOS, pasoActual, item) {
         recibidaHtml = `<div class="seg-cant-recibida"><i class="bi bi-box-arrow-in-down"></i> Recibido de ${anterior.title}: <strong>${cantidades[anterior.key]}</strong></div>`;
     }
 
-    if (filas.length === 0 && !recibidaHtml) return "";
+    // Carton usado en guillotina (si se registro)
+    let cartonHtml = "";
+    const cartonUsado = (idx === undefined || idx === null || idx < 0)
+        ? (orden.cartonSeguimiento || null)
+        : ((orden.itemsSeguimiento && orden.itemsSeguimiento[idx] && orden.itemsSeguimiento[idx].carton) || null);
+    if (cartonUsado && cartonUsado.tipo) {
+        cartonHtml = `<div class="seg-cant-carton"><i class="bi bi-boxes"></i> Cartón: <strong>${cartonUsado.tipo}${cartonUsado.tamano ? " (" + cartonUsado.tamano + ")" : ""}</strong> — ${cartonUsado.pliegos || 0} pliegos</div>`;
+    }
+
+    if (filas.length === 0 && !recibidaHtml && !cartonHtml) return "";
 
     return `
         <div class="seg-cantidades">
             ${recibidaHtml}
             ${filas.length > 0 ? `<div class="seg-cant-titulo">Cantidades por etapa (de ${ordenada} ordenadas)</div>${filas.join("")}` : ""}
+            ${cartonHtml}
         </div>
     `;
 }
@@ -3793,7 +3803,7 @@ function abrirModalCantidad(ordenId, nuevoPaso, itemIdx) {
     const items = orden.items || [];
     const hayItem = !(itemIdx === undefined || itemIdx === null || isNaN(itemIdx) || itemIdx < 0 || items.length === 0);
 
-    const seg = hayItem ? getItemSeguimiento(orden, itemIdx) : { pasoActual: orden.pasoActual || "recibido" };
+    const seg = hayItem ? getItemSeguimiento(orden, itemIdx) : { pasoActual: orden.pasoActual || "recibido", carton: orden.cartonSeguimiento || null };
     const pasoActual = seg.pasoActual;
     const idxActual = PASOS.findIndex(p => p.key === pasoActual);
     const pasoActualObj = PASOS[idxActual] || { title: pasoActual };
@@ -3839,8 +3849,86 @@ function abrirModalCantidad(ordenId, nuevoPaso, itemIdx) {
         ? yaRegistrada
         : (recibida !== null && recibida !== "" ? recibida : (ordenada > 0 ? ordenada : ""));
 
+    // Bloque de seleccion de carton: solo en la etapa de guillotina
+    prepararSegCarton(pasoActual, seg);
+
     document.getElementById("segCantidadOverlay").classList.add("show");
     setTimeout(() => { input.focus(); input.select(); }, 100);
+}
+
+// Prepara el bloque de seleccion de carton dentro del modal de cantidad.
+// Solo se muestra cuando el paso operativo es "guillotina".
+function prepararSegCarton(pasoActual, seg) {
+    const box = document.getElementById("segCartonBox");
+    if (!box) return;
+
+    if (pasoActual !== "guillotina") {
+        box.style.display = "none";
+        return;
+    }
+
+    box.style.display = "";
+    const select = document.getElementById("segCartonSelect");
+    const pliegosInput = document.getElementById("segCartonPliegos");
+    const alerta = document.getElementById("segCartonAlerta");
+    const dispo = document.getElementById("segCartonDisponible");
+
+    // Cargar opciones desde el inventario en memoria
+    select.innerHTML = '<option value="">-- Selecciona un cartón del inventario --</option>';
+    (inventarioDB || [])
+        .slice()
+        .sort((a, b) => (a.tipo || "").localeCompare(b.tipo || ""))
+        .forEach(i => {
+            const opt = document.createElement("option");
+            opt.value = i.id;
+            opt.textContent = `${i.tipo} - ${i.tamano} (${i.pliegos} pliegos)`;
+            select.appendChild(opt);
+        });
+
+    // Prefill si ya se habia registrado carton para este item
+    const cartonPrev = seg && seg.carton ? seg.carton : null;
+    select.value = cartonPrev && cartonPrev.id ? cartonPrev.id : "";
+    pliegosInput.value = cartonPrev && cartonPrev.pliegos != null ? cartonPrev.pliegos : "";
+    alerta.style.display = "none";
+
+    const mostrarDispo = () => {
+        const item = inventarioDB.find(i => i.id === select.value);
+        if (!item) { dispo.style.display = "none"; return; }
+        const disponibles = Number(item.pliegos) || 0;
+        dispo.style.display = "";
+        dispo.className = "seg-carton-disponible" + (disponibles <= 0 ? " agotado" : "");
+        dispo.innerHTML = disponibles > 0
+            ? `<i class="bi bi-check-circle"></i> Disponible: <strong>${disponibles.toLocaleString("es-CO")}</strong> pliegos`
+            : `<i class="bi bi-x-circle"></i> Sin stock disponible`;
+        validarSegCarton();
+    };
+
+    select.onchange = mostrarDispo;
+    pliegosInput.oninput = validarSegCarton;
+
+    if (select.value) mostrarDispo();
+}
+
+// Valida que los pliegos a usar no superen lo disponible. Devuelve true si es valido.
+function validarSegCarton() {
+    const select = document.getElementById("segCartonSelect");
+    const pliegosInput = document.getElementById("segCartonPliegos");
+    const alerta = document.getElementById("segCartonAlerta");
+    if (!select || !select.value) { alerta.style.display = "none"; return true; }
+
+    const item = inventarioDB.find(i => i.id === select.value);
+    const disponibles = item ? (Number(item.pliegos) || 0) : 0;
+    const usar = parseInt(pliegosInput.value, 10);
+
+    if (isNaN(usar) || usar <= 0) { alerta.style.display = "none"; return true; }
+
+    if (usar > disponibles) {
+        alerta.style.display = "";
+        alerta.innerHTML = `<i class="bi bi-exclamation-triangle"></i> No hay suficiente. Solo quedan ${disponibles.toLocaleString("es-CO")} pliegos.`;
+        return false;
+    }
+    alerta.style.display = "none";
+    return true;
 }
 
 function setupSegCantidadModal() {
@@ -3856,8 +3944,27 @@ function setupSegCantidadModal() {
         const input = document.getElementById("segCantidadInput");
         const cantidad = input.value === "" ? null : (parseInt(input.value) || 0);
         const { ordenId, nuevoPaso, itemIdx, pasoActual } = segCantidadCtx;
+
+        // Si estamos en guillotina y se selecciono carton, validar stock
+        let cartonInfo = null;
+        if (pasoActual === "guillotina") {
+            const select = document.getElementById("segCartonSelect");
+            const pliegosInput = document.getElementById("segCartonPliegos");
+            if (select && select.value) {
+                if (!validarSegCarton()) return; // bloquea si no hay stock suficiente
+                const item = inventarioDB.find(i => i.id === select.value);
+                const usar = parseInt(pliegosInput.value, 10);
+                cartonInfo = {
+                    id: select.value,
+                    tipo: item ? item.tipo : "",
+                    tamano: item ? item.tamano : "",
+                    pliegos: isNaN(usar) ? 0 : usar
+                };
+            }
+        }
+
         cerrar();
-        await actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, { paso: pasoActual, cantidad });
+        await actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, { paso: pasoActual, cantidad, carton: cartonInfo });
     });
 
     const input = document.getElementById("segCantidadInput");
@@ -3877,14 +3984,19 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, cantidadInfo) {
         const PASOS = data.tipo === "digital" ? PASOS_DIGITAL_SEG : PASOS_IMPRENTA_SEG;
 
         // Si no hay indice de producto valido (orden sin items detallados): comportamiento global
-        if (itemIdx === undefined || itemIdx === null || isNaN(itemIdx) || itemIdx < 0 || items.length === 0) {
+        if (itemIdx === undefined || itemIdx === null || isNaN(itemIdx) || items.length === 0 || itemIdx < 0) {
             const seguimiento = data.seguimiento || {};
             seguimiento[nuevoPaso] = new Date().toISOString();
             const cantidadesSeguimiento = data.cantidadesSeguimiento || {};
             if (cantidadInfo && cantidadInfo.paso && cantidadInfo.cantidad !== null && cantidadInfo.cantidad !== undefined) {
                 cantidadesSeguimiento[cantidadInfo.paso] = cantidadInfo.cantidad;
             }
-            await setDoc(ref, { ...data, pasoActual: nuevoPaso, seguimiento, cantidadesSeguimiento });
+            const nuevaData = { ...data, pasoActual: nuevoPaso, seguimiento, cantidadesSeguimiento };
+            if (cantidadInfo && cantidadInfo.carton) {
+                nuevaData.cartonSeguimiento = cantidadInfo.carton;
+                await descontarCartonInventario(cantidadInfo.carton, data.cartonSeguimiento);
+            }
+            await setDoc(ref, nuevaData);
             cargarSeguimiento();
             return;
         }
@@ -3908,6 +4020,12 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, cantidadInfo) {
         entry.cantidades = entry.cantidades || {};
         if (cantidadInfo && cantidadInfo.paso && cantidadInfo.cantidad !== null && cantidadInfo.cantidad !== undefined) {
             entry.cantidades[cantidadInfo.paso] = cantidadInfo.cantidad;
+        }
+
+        // Registrar el carton usado en guillotina y descontar del inventario
+        if (cantidadInfo && cantidadInfo.carton) {
+            await descontarCartonInventario(cantidadInfo.carton, entry.carton);
+            entry.carton = cantidadInfo.carton;
         }
 
         // Paso global de la orden = producto MENOS avanzado
@@ -4908,6 +5026,48 @@ function renderTablaInventario(busqueda) {
             });
         });
     });
+}
+
+// Descuenta pliegos del inventario cuando se usa carton en guillotina.
+// Si ya se habia descontado antes (edicion), ajusta solo la diferencia.
+// cartonNuevo: { id, pliegos, ... }  cartonPrevio: registro anterior (o undefined)
+async function descontarCartonInventario(cartonNuevo, cartonPrevio) {
+    if (!cartonNuevo || !cartonNuevo.id) return;
+    try {
+        const usarNuevo = Number(cartonNuevo.pliegos) || 0;
+
+        // Si en la edicion previa se uso otro carton distinto, devolver esos pliegos
+        if (cartonPrevio && cartonPrevio.id && cartonPrevio.id !== cartonNuevo.id) {
+            await ajustarStockCarton(cartonPrevio.id, Number(cartonPrevio.pliegos) || 0); // devolver
+            await ajustarStockCarton(cartonNuevo.id, -usarNuevo); // descontar
+            return;
+        }
+
+        // Mismo carton (o primera vez): descontar solo la diferencia
+        const usarPrevio = (cartonPrevio && cartonPrevio.id === cartonNuevo.id) ? (Number(cartonPrevio.pliegos) || 0) : 0;
+        const delta = usarNuevo - usarPrevio; // positivo = descontar mas
+        if (delta !== 0) await ajustarStockCarton(cartonNuevo.id, -delta);
+    } catch (err) {
+        console.error("Error descontando carton del inventario:", err);
+    }
+}
+
+// Suma (o resta) pliegos al stock de un carton. `cambio` puede ser negativo.
+async function ajustarStockCarton(cartonId, cambio) {
+    const ref = doc(db, "inventarioCarton", cartonId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const nuevoStock = Math.max(0, (Number(data.pliegos) || 0) + cambio);
+    await setDoc(ref, {
+        ...data,
+        pliegos: nuevoStock,
+        fechaActualizacion: new Date().toISOString(),
+        actualizadoPor: sessionStorage.getItem("userName") || data.actualizadoPor || ""
+    });
+    // Refrescar cache local si el inventario esta cargado
+    const local = inventarioDB.find(i => i.id === cartonId);
+    if (local) local.pliegos = nuevoStock;
 }
 
 // ===== SECCIÓN CATÁLOGO ADMIN =====
