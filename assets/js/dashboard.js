@@ -8,6 +8,12 @@ import {
     getFormatMoney, getParseMoney
 } from "./cotizador.js";
 import { CATALOGO_DATA } from "./catalogo-data.js";
+import { EMAILJS_CONFIG } from "../../config/emailjs-config.js";
+
+// Inicializar EmailJS (SDK cargado desde el CDN en dashboard.html)
+if (window.emailjs && EMAILJS_CONFIG.publicKey) {
+    window.emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
+}
 
 // Verificar sesion
 const rol    = sessionStorage.getItem("userRol");
@@ -150,6 +156,12 @@ async function initDashboard(rol, nombre) {
         cargarFinanzas();
     }
 
+    // Inventario de carton: admin y guillotina
+    if (rol === "administrador" || rol === "guillotina") {
+        setupInventario();
+        cargarInventario();
+    }
+
     // Seguimiento: visible para todos los roles
     setupSeguimiento();
     setupSegCantidadModal();
@@ -246,7 +258,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", inventario: "Inventario" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -2414,13 +2426,6 @@ function renderPlanchaOrdenHTML(item, idx) {
         </label>
     `).join("");
 
-    const docHtml = p.documento
-        ? `<a href="${p.documento.url}" target="_blank" rel="noopener noreferrer" class="plancha-doc-link" data-idx="${idx}">
-               <i class="bi bi-file-earmark-arrow-down"></i> ${p.documento.nombre || "Documento adjunto"}
-           </a>
-           <button type="button" class="plancha-doc-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>`
-        : "";
-
     return `
         <div class="plancha-orden" id="planchaOrden-${idx}">
             <div class="plancha-orden-header">
@@ -2452,14 +2457,9 @@ function renderPlanchaOrdenHTML(item, idx) {
                     <input type="email" class="plancha-correo" data-idx="${idx}" placeholder="correo@proveedor.com" value="${p.correo || ""}">
                 </div>
                 <div class="plancha-grupo plancha-grupo-full">
-                    <span class="plancha-grupo-title">Documento adjunto</span>
-                    <div class="plancha-doc-row" id="planchaDocRow-${idx}">
-                        <button type="button" class="btn-upload-plancha-doc" data-idx="${idx}">
-                            <i class="bi bi-paperclip"></i> Subir documento
-                        </button>
-                        ${docHtml}
-                    </div>
-                    <input type="file" class="plancha-doc-input" data-idx="${idx}" accept=".pdf,.jpg,.jpeg,.png,.ai,.psd,.eps,.tif,.tiff,application/pdf,image/*" hidden>
+                    <span class="plancha-grupo-title">Link del documento (Google Drive)</span>
+                    <input type="url" class="plancha-doc-link-input" data-idx="${idx}" placeholder="https://drive.google.com/file/d/.../view" value="${p.documento && p.documento.url ? p.documento.url : ""}">
+                    <span class="plancha-doc-hint"><i class="bi bi-info-circle"></i> El documento debe ser publico (cualquier persona con el enlace puede ver).</span>
                 </div>
                 <div class="plancha-grupo plancha-grupo-full">
                     <button type="button" class="btn-enviar-plancha" data-idx="${idx}">
@@ -2471,34 +2471,7 @@ function renderPlanchaOrdenHTML(item, idx) {
     `;
 }
 
-// Estado en memoria del documento subido por producto (para no perderlo al guardar)
-const planchaDocsSubidos = {}; // { idx: { url, nombre } }
-
 function setupPlanchaOrden(card, idx, item) {
-    // Cargar documento existente al estado en memoria
-    if (item.ordenPlancha && item.ordenPlancha.documento) {
-        planchaDocsSubidos[idx] = item.ordenPlancha.documento;
-    } else {
-        delete planchaDocsSubidos[idx];
-    }
-
-    const btnUploadDoc = card.querySelector(`.btn-upload-plancha-doc[data-idx="${idx}"]`);
-    const docInput = card.querySelector(`.plancha-doc-input[data-idx="${idx}"]`);
-
-    if (btnUploadDoc && docInput) {
-        btnUploadDoc.addEventListener("click", () => docInput.click());
-        docInput.addEventListener("change", (e) => subirDocumentoPlancha(e, idx));
-    }
-
-    // Boton quitar documento existente
-    const btnRemoveDoc = card.querySelector(`.plancha-doc-remove[data-idx="${idx}"]`);
-    if (btnRemoveDoc) {
-        btnRemoveDoc.addEventListener("click", () => {
-            delete planchaDocsSubidos[idx];
-            renderPlanchaDocRow(idx);
-        });
-    }
-
     // Boton enviar por correo
     const btnEnviar = card.querySelector(`.btn-enviar-plancha[data-idx="${idx}"]`);
     if (btnEnviar) {
@@ -2506,90 +2479,30 @@ function setupPlanchaOrden(card, idx, item) {
     }
 }
 
-function renderPlanchaDocRow(idx) {
-    const row = document.getElementById(`planchaDocRow-${idx}`);
-    if (!row) return;
-    const docAdjunto = planchaDocsSubidos[idx];
-    const docHtml = docAdjunto
-        ? `<a href="${docAdjunto.url}" target="_blank" rel="noopener noreferrer" class="plancha-doc-link" data-idx="${idx}">
-               <i class="bi bi-file-earmark-arrow-down"></i> ${docAdjunto.nombre || "Documento adjunto"}
-           </a>
-           <button type="button" class="plancha-doc-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>`
-        : "";
-    row.innerHTML = `
-        <button type="button" class="btn-upload-plancha-doc" data-idx="${idx}">
-            <i class="bi bi-paperclip"></i> Subir documento
-        </button>
-        ${docHtml}
-    `;
-    // Re-enlazar eventos
-    const btnUploadDoc = row.querySelector(`.btn-upload-plancha-doc[data-idx="${idx}"]`);
-    const docInput = document.querySelector(`.plancha-doc-input[data-idx="${idx}"]`);
-    if (btnUploadDoc && docInput) {
-        btnUploadDoc.addEventListener("click", () => docInput.click());
-    }
-    const btnRemoveDoc = row.querySelector(`.plancha-doc-remove[data-idx="${idx}"]`);
-    if (btnRemoveDoc) {
-        btnRemoveDoc.addEventListener("click", () => {
-            delete planchaDocsSubidos[idx];
-            renderPlanchaDocRow(idx);
-        });
-    }
+// Extrae el ID de un archivo de Google Drive desde distintos formatos de link.
+function extraerIdDrive(url) {
+    if (!url) return "";
+    const limpio = url.trim();
+    let m = limpio.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+    if (m && m[1]) return m[1];
+    m = limpio.match(/[?&]id=([^&]+)/);
+    if (m && m[1]) return m[1];
+    return "";
 }
 
-async function subirDocumentoPlancha(e, idx) {
-    const file = e.target.files[0];
-    if (!file) return;
+// Normaliza un link de Google Drive a una URL de descarga/vista directa.
+// Si no es de Drive, devuelve el link tal cual.
+function normalizarLinkDrive(url) {
+    const id = extraerIdDrive(url);
+    if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
+    return url ? url.trim() : "";
+}
 
-    const row = document.getElementById(`planchaDocRow-${idx}`);
-    const btnUpload = row?.querySelector(".btn-upload-plancha-doc");
-    if (btnUpload) {
-        btnUpload.disabled = true;
-        btnUpload.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Subiendo...';
-    }
-
-    // Limite de tamano (20 MB) para coincidir con las reglas de Storage
-    if (file.size > 20 * 1024 * 1024) {
-        showNotif("Archivo muy grande", "El documento supera los 20 MB. Usa uno mas liviano.");
-        if (btnUpload) {
-            btnUpload.disabled = false;
-            btnUpload.innerHTML = '<i class="bi bi-paperclip"></i> Subir documento';
-        }
-        e.target.value = "";
-        return;
-    }
-
-    try {
-        const nombreLimpio = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const ruta = `planchas/${disenoOrdenActual.id}/${idx}/${Date.now()}_${nombreLimpio}`;
-        const sRef = storageRef(storage, ruta);
-
-        // Timeout para no quedarse "Subiendo..." indefinidamente si Storage
-        // no esta habilitado o las reglas rechazan la subida (CORS/preflight).
-        const subir = (async () => {
-            await uploadBytes(sRef, file);
-            return await getDownloadURL(sRef);
-        })();
-        const timeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 30000)
-        );
-        const url = await Promise.race([subir, timeout]);
-
-        planchaDocsSubidos[idx] = { url, nombre: file.name, ruta };
-        renderPlanchaDocRow(idx);
-    } catch (err) {
-        console.error("Error subiendo documento de plancha:", err);
-        const msg = err && err.message === "timeout"
-            ? "La subida tardo demasiado. Verifica que Firebase Storage este habilitado y con reglas de escritura."
-            : "No se pudo subir el documento. Revisa la consola: probablemente Firebase Storage no esta habilitado.";
-        showNotif("Error al subir", msg);
-        if (btnUpload) {
-            btnUpload.disabled = false;
-            btnUpload.innerHTML = '<i class="bi bi-paperclip"></i> Subir documento';
-        }
-    }
-
-    e.target.value = "";
+// Devuelve una URL de miniatura (preview) del documento de Drive.
+// Si no es de Drive, devuelve cadena vacia (sin preview).
+function previewLinkDrive(url) {
+    const id = extraerIdDrive(url);
+    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w600` : "";
 }
 
 // Recolecta los datos de la orden de plancha de un producto desde el DOM
@@ -2605,13 +2518,73 @@ function recogerOrdenPlancha(idx) {
     const observaciones = (document.querySelector(`.plancha-observaciones[data-idx="${idx}"]`)?.value || "").trim();
     const disenador = (document.querySelector(`.plancha-disenador[data-idx="${idx}"]`)?.value || "").trim();
     const correo = (document.querySelector(`.plancha-correo[data-idx="${idx}"]`)?.value || "").trim();
-    const documento = planchaDocsSubidos[idx] || null;
+    const linkDoc = (document.querySelector(`.plancha-doc-link-input[data-idx="${idx}"]`)?.value || "").trim();
+    const documento = linkDoc ? { url: linkDoc } : null;
 
     return { colores, tipos, observaciones, disenador, correo, documento };
 }
 
-// Abre Gmail con el mensaje precargado para enviar la orden de plancha
-function enviarOrdenPlanchaCorreo(idx, item) {
+// Construye el cuerpo HTML de la orden de plancha para el correo
+function construirHtmlOrdenPlancha({ orden, item, coloresSel, tiposSel, datos, remitente }) {
+    const fila = (etiqueta, valor) => `
+        <tr>
+            <td style="padding:8px 12px;background:#f0f9ff;font-weight:600;color:#334;border:1px solid #e3e8f0;width:38%;vertical-align:top;word-break:break-word;">${etiqueta}</td>
+            <td style="padding:8px 12px;color:#222;border:1px solid #e3e8f0;word-break:break-word;">${valor || "-"}</td>
+        </tr>`;
+
+    const obsHtml = datos.observaciones
+        ? `<div style="margin-top:18px;">
+               <p style="margin:0 0 6px;font-weight:600;color:#334;">Observaciones</p>
+               <p style="margin:0;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#444;white-space:pre-wrap;">${datos.observaciones}</p>
+           </div>`
+        : "";
+
+    const docUrl = (datos.documento && datos.documento.url) ? normalizarLinkDrive(datos.documento.url) : "";
+    const docPreview = (datos.documento && datos.documento.url) ? previewLinkDrive(datos.documento.url) : "";
+    const previewHtml = docPreview
+        ? `<div style="margin-top:18px;text-align:center;">
+               <p style="margin:0 0 8px;font-weight:600;color:#334;text-align:left;">Vista previa</p>
+               <a href="${docUrl}" target="_blank" style="display:inline-block;">
+                   <img src="${docPreview}" alt="Vista previa del documento" style="max-width:100%;width:100%;height:auto;border:1px solid #e3e8f0;border-radius:8px;display:block;">
+               </a>
+           </div>`
+        : "";
+    const docHtml = docUrl
+        ? `${previewHtml}
+           <div style="margin-top:18px;">
+               <a href="${docUrl}" target="_blank"
+                  style="display:inline-block;background:#29ABE2;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
+                   Descargar documento
+               </a>
+           </div>`
+        : "";
+
+    return `
+    <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e3e8f0;border-radius:12px;overflow:hidden;">
+        <div style="background:#29ABE2;padding:22px 24px;">
+            <h1 style="margin:0;color:#fff;font-size:20px;">Orden de Planchas</h1>
+            <p style="margin:4px 0 0;color:#e8f7fd;font-size:13px;">Traffic Empaques - Publicidad</p>
+        </div>
+        <div style="padding:24px;">
+            <p style="margin:0 0 18px;color:#444;">Buen día,<br>Adjunto la orden de planchas con la siguiente información:</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                ${fila("Orden", orden.numero)}
+                ${fila("Cliente", orden.cliente)}
+                ${fila("Producto", `${item.cantidad}x ${item.producto}`)}
+                ${fila("Colores", coloresSel.join(", "))}
+                ${fila("Tipo de plancha", tiposSel.join(", "))}
+                ${datos.disenador ? fila("Diseñador / Proveedor", datos.disenador) : ""}
+            </table>
+            ${obsHtml}
+            ${docHtml}
+            <p style="margin:24px 0 0;color:#444;">Quedo atento a cualquier inquietud.</p>
+            <p style="margin:16px 0 0;color:#444;">Saludos,<br><strong>${remitente}</strong><br>Traffic Empaques - Publicidad</p>
+        </div>
+    </div>`;
+}
+
+// Envia automaticamente la orden de plancha por correo usando EmailJS
+async function enviarOrdenPlanchaCorreo(idx, item) {
     const datos = recogerOrdenPlancha(idx);
 
     if (!datos.correo) {
@@ -2619,48 +2592,84 @@ function enviarOrdenPlanchaCorreo(idx, item) {
         return;
     }
 
+    // Validar formato del correo antes de enviar (EmailJS rechaza direcciones invalidas)
+    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.correo);
+    if (!correoValido) {
+        showNotif("Correo invalido", `"${datos.correo}" no es una direccion valida. Revisa que tenga @ y el dominio (ej: nombre@gmail.com).`);
+        return;
+    }
+
+    if (!window.emailjs) {
+        showNotif("EmailJS no disponible", "No se pudo cargar el servicio de correo. Revisa tu conexion e intenta de nuevo.");
+        return;
+    }
+
     const orden = disenoOrdenActual;
     const coloresSel = PLANCHA_COLORES.filter(c => datos.colores[c]);
     const tiposSel = PLANCHA_TIPOS.filter(t => datos.tipos[t.key]).map(t => t.label);
-
+    const remitente = sessionStorage.getItem("userName") || "Traffic Empaques";
     const asunto = `Orden de Planchas - ${orden.numero} - ${item.producto}`;
 
-    const lineas = [];
-    lineas.push("Buen dia,");
-    lineas.push("");
-    lineas.push("Adjunto la orden de planchas con la siguiente informacion:");
-    lineas.push("");
-    lineas.push(`Orden: ${orden.numero}`);
-    lineas.push(`Cliente: ${orden.cliente}`);
-    lineas.push(`Producto: ${item.cantidad}x ${item.producto}`);
-    lineas.push(`Colores: ${coloresSel.join(", ") || "-"}`);
-    lineas.push(`Tipo de plancha: ${tiposSel.join(", ") || "-"}`);
+    const cuerpoHtml = construirHtmlOrdenPlancha({ orden, item, coloresSel, tiposSel, datos, remitente });
+
+    // Cuerpo de texto plano como respaldo
+    const lineas = [
+        "Buen dia,",
+        "",
+        "Adjunto la orden de planchas con la siguiente informacion:",
+        "",
+        `Orden: ${orden.numero}`,
+        `Cliente: ${orden.cliente}`,
+        `Producto: ${item.cantidad}x ${item.producto}`,
+        `Colores: ${coloresSel.join(", ") || "-"}`,
+        `Tipo de plancha: ${tiposSel.join(", ") || "-"}`
+    ];
     if (datos.disenador) lineas.push(`Disenador / Proveedor: ${datos.disenador}`);
-    if (datos.observaciones) {
-        lineas.push("");
-        lineas.push("Observaciones:");
-        lineas.push(datos.observaciones);
+    if (datos.observaciones) { lineas.push("", "Observaciones:", datos.observaciones); }
+    const docUrlTexto = (datos.documento && datos.documento.url) ? normalizarLinkDrive(datos.documento.url) : "";
+    if (docUrlTexto) { lineas.push("", "Documento:", docUrlTexto); }
+    lineas.push("", "Quedo atento a cualquier inquietud.", "", "Saludos,", remitente, "Traffic Empaques - Publicidad");
+    const cuerpoTexto = lineas.join("\n");
+
+    // Parametros que recibe la plantilla de EmailJS
+    const params = {
+        to_email:     datos.correo,
+        subject:      asunto,
+        from_name:    remitente,
+        orden:        orden.numero,
+        cliente:      orden.cliente,
+        producto:     `${item.cantidad}x ${item.producto}`,
+        colores:      coloresSel.join(", ") || "-",
+        tipo_plancha: tiposSel.join(", ") || "-",
+        disenador:    datos.disenador || "-",
+        observaciones: datos.observaciones || "-",
+        documento_url: docUrlTexto,
+        documento_preview: (datos.documento && datos.documento.url) ? previewLinkDrive(datos.documento.url) : "",
+        message:      cuerpoTexto,
+        message_html: cuerpoHtml
+    };
+
+    // Feedback visual en el boton
+    const btn = document.querySelector(`.btn-enviar-plancha[data-idx="${idx}"]`);
+    const btnHtmlOriginal = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Enviando...';
     }
-    if (datos.documento && datos.documento.url) {
-        lineas.push("");
-        lineas.push("Documento adjunto:");
-        lineas.push(datos.documento.url);
+
+    try {
+        await window.emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, params);
+        showNotif("Correo enviado", `La orden de plancha se envio a ${datos.correo}.`);
+    } catch (err) {
+        console.error("Error enviando orden de plancha con EmailJS:", err);
+        const detalle = (err && (err.text || err.message)) || "Revisa las credenciales de EmailJS.";
+        showNotif("No se pudo enviar", detalle);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = btnHtmlOriginal || '<i class="bi bi-envelope-arrow-up"></i> Enviar orden de plancha por correo';
+        }
     }
-    lineas.push("");
-    lineas.push("Quedo atento a cualquier inquietud.");
-    lineas.push("");
-    lineas.push("Saludos,");
-    lineas.push(sessionStorage.getItem("userName") || "Traffic Empaques");
-    lineas.push("Traffic Empaques - Publicidad");
-
-    const cuerpo = lineas.join("\n");
-
-    const gmailUrl = "https://mail.google.com/mail/?view=cm&fs=1"
-        + "&to=" + encodeURIComponent(datos.correo)
-        + "&su=" + encodeURIComponent(asunto)
-        + "&body=" + encodeURIComponent(cuerpo);
-
-    window.open(gmailUrl, "_blank", "noopener,noreferrer");
 }
 
 function agregarLinkItem(container, value) {
@@ -4707,6 +4716,198 @@ async function guardarClienteDesdeCotzacion(datos) {
     });
     // Recargar
     await cargarClientes();
+}
+
+// ===== SECCION INVENTARIO GUILLOTINA (carton) =====
+let inventarioDB = [];
+let inventarioEditandoId = null;
+
+function setupInventario() {
+    const overlay = document.getElementById("inventarioModalOverlay");
+    const btnClose = document.getElementById("inventarioModalClose");
+    const btnCancel = document.getElementById("inventarioModalCancel");
+    const btnSave = document.getElementById("inventarioModalSave");
+    const btnNuevo = document.getElementById("btnNuevoInventario");
+    const buscarInput = document.getElementById("inventarioBuscar");
+
+    if (btnNuevo) btnNuevo.addEventListener("click", () => abrirModalInventario());
+    if (btnClose) btnClose.addEventListener("click", cerrarModalInventario);
+    if (btnCancel) btnCancel.addEventListener("click", cerrarModalInventario);
+    if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) cerrarModalInventario(); });
+    if (btnSave) btnSave.addEventListener("click", guardarInventario);
+
+    if (buscarInput) {
+        buscarInput.addEventListener("input", () => {
+            renderTablaInventario(buscarInput.value.trim().toLowerCase());
+        });
+    }
+}
+
+function abrirModalInventario(item) {
+    inventarioEditandoId = item ? item.id : null;
+    document.getElementById("inventarioModalTitle").textContent = item ? "Editar Cartón" : "Agregar Cartón";
+    document.getElementById("inventarioModalSave").innerHTML = item
+        ? '<i class="bi bi-check-lg"></i> Guardar cambios'
+        : '<i class="bi bi-check-lg"></i> Guardar cartón';
+
+    document.getElementById("inventarioModalTipo").value = item ? item.tipo || "" : "";
+    document.getElementById("inventarioModalTamano").value = item ? item.tamano || "" : "";
+    document.getElementById("inventarioModalPliegos").value = item ? (item.pliegos ?? "") : "";
+    document.getElementById("inventarioModalNotas").value = item ? item.notas || "" : "";
+
+    // Sugerencias de tipos ya existentes
+    const datalist = document.getElementById("inventarioTiposList");
+    if (datalist) {
+        const tipos = [...new Set(inventarioDB.map(i => i.tipo).filter(Boolean))];
+        datalist.innerHTML = tipos.map(t => `<option value="${t}"></option>`).join("");
+    }
+
+    document.getElementById("inventarioModalOverlay").classList.add("show");
+    setTimeout(() => document.getElementById("inventarioModalTipo").focus(), 100);
+}
+
+function cerrarModalInventario() {
+    document.getElementById("inventarioModalOverlay").classList.remove("show");
+    inventarioEditandoId = null;
+}
+
+async function guardarInventario() {
+    const tipo = document.getElementById("inventarioModalTipo").value.trim();
+    const tamano = document.getElementById("inventarioModalTamano").value.trim();
+    const pliegosRaw = document.getElementById("inventarioModalPliegos").value.trim();
+    const notas = document.getElementById("inventarioModalNotas").value.trim();
+
+    if (!tipo || !tamano || pliegosRaw === "") {
+        showNotif("Campos requeridos", "Completa tipo de cartón, tamaño y cantidad de pliegos.");
+        return;
+    }
+
+    const pliegos = parseInt(pliegosRaw, 10);
+    if (isNaN(pliegos) || pliegos < 0) {
+        showNotif("Cantidad invalida", "La cantidad de pliegos debe ser un numero mayor o igual a 0.");
+        return;
+    }
+
+    const data = {
+        tipo, tamano, pliegos, notas,
+        actualizadoPor: sessionStorage.getItem("userName") || "",
+        fechaActualizacion: new Date().toISOString()
+    };
+
+    const id = inventarioEditandoId
+        || (tipo + "-" + tamano).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Date.now().toString(36);
+
+    try {
+        if (inventarioEditandoId) {
+            const ref = doc(db, "inventarioCarton", id);
+            const snap = await getDoc(ref);
+            data.fechaCreacion = snap.exists() ? (snap.data().fechaCreacion || data.fechaActualizacion) : data.fechaActualizacion;
+        } else {
+            data.fechaCreacion = data.fechaActualizacion;
+        }
+        await setDoc(doc(db, "inventarioCarton", id), data);
+        cerrarModalInventario();
+        cargarInventario();
+    } catch (err) {
+        console.error("Error guardando inventario:", err);
+        showNotif("Error", "No se pudo guardar el cartón.");
+    }
+}
+
+async function cargarInventario() {
+    try {
+        const snap = await getDocs(collection(db, "inventarioCarton"));
+        inventarioDB = [];
+        snap.forEach(d => inventarioDB.push({ id: d.id, ...d.data() }));
+        inventarioDB.sort((a, b) =>
+            (a.tipo || "").localeCompare(b.tipo || "") || (a.tamano || "").localeCompare(b.tamano || "")
+        );
+        const buscar = document.getElementById("inventarioBuscar");
+        renderTablaInventario(buscar ? buscar.value.trim().toLowerCase() : "");
+    } catch (err) {
+        console.error("Error cargando inventario:", err);
+    }
+}
+
+function renderResumenInventario() {
+    const cont = document.getElementById("inventarioResumen");
+    if (!cont) return;
+    const totalPliegos = inventarioDB.reduce((s, i) => s + (Number(i.pliegos) || 0), 0);
+    const totalTipos = new Set(inventarioDB.map(i => i.tipo).filter(Boolean)).size;
+    const totalRegistros = inventarioDB.length;
+    cont.innerHTML = `
+        <div class="inventario-stat">
+            <span class="inventario-stat-num">${totalPliegos.toLocaleString("es-CO")}</span>
+            <span class="inventario-stat-label"><i class="bi bi-layers"></i> Pliegos en total</span>
+        </div>
+        <div class="inventario-stat">
+            <span class="inventario-stat-num">${totalTipos}</span>
+            <span class="inventario-stat-label"><i class="bi bi-tags"></i> Tipos de cartón</span>
+        </div>
+        <div class="inventario-stat">
+            <span class="inventario-stat-num">${totalRegistros}</span>
+            <span class="inventario-stat-label"><i class="bi bi-box-seam"></i> Registros</span>
+        </div>
+    `;
+}
+
+function renderTablaInventario(busqueda) {
+    renderResumenInventario();
+    const tbody = document.getElementById("inventarioTablaBody");
+    if (!tbody) return;
+
+    let filtrados = inventarioDB;
+    if (busqueda) {
+        filtrados = filtrados.filter(i =>
+            (i.tipo || "").toLowerCase().includes(busqueda) ||
+            (i.tamano || "").toLowerCase().includes(busqueda) ||
+            (i.notas || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    if (filtrados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="tabla-empty">No hay cartón registrado</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtrados.map(i => {
+        const fecha = i.fechaActualizacion
+            ? new Date(i.fechaActualizacion).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })
+            : "-";
+        const pliegos = Number(i.pliegos) || 0;
+        const bajo = pliegos <= 10 ? ' inventario-pliegos-bajo' : '';
+        const notasHtml = i.notas ? `<div class="inventario-notas">${i.notas}</div>` : '';
+        return `
+            <tr>
+                <td><strong>${i.tipo || "-"}</strong>${notasHtml}</td>
+                <td>${i.tamano || "-"}</td>
+                <td><span class="inventario-pliegos-badge${bajo}">${pliegos.toLocaleString("es-CO")}</span></td>
+                <td>${fecha}</td>
+                <td>
+                    <div class="clientes-acciones">
+                        <button class="btn-icon btn-edit-inventario" data-id="${i.id}"><i class="bi bi-pencil"></i></button>
+                        <button class="btn-icon btn-delete-inventario" data-id="${i.id}" data-nombre="${i.tipo} ${i.tamano}"><i class="bi bi-trash3"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    tbody.querySelectorAll(".btn-edit-inventario").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const item = inventarioDB.find(i => i.id === btn.dataset.id);
+            if (item) abrirModalInventario(item);
+        });
+    });
+
+    tbody.querySelectorAll(".btn-delete-inventario").forEach(btn => {
+        btn.addEventListener("click", () => {
+            showConfirm("Eliminar cartón", `¿Eliminar "${btn.dataset.nombre}" del inventario? Esta accion no se puede deshacer.`, async () => {
+                await deleteDoc(doc(db, "inventarioCarton", btn.dataset.id));
+                cargarInventario();
+            });
+        });
+    });
 }
 
 // ===== SECCIÓN CATÁLOGO ADMIN =====

@@ -2402,7 +2402,8 @@ body {
 
 .plancha-observaciones,
 .plancha-disenador,
-.plancha-correo {
+.plancha-correo,
+.plancha-doc-link-input {
     width: 100%;
     padding: 9px 12px;
     font-size: 13px;
@@ -2415,9 +2416,21 @@ body {
 
 .plancha-observaciones:focus,
 .plancha-disenador:focus,
-.plancha-correo:focus {
+.plancha-correo:focus,
+.plancha-doc-link-input:focus {
     outline: none;
     border-color: #29ABE2;
+}
+
+.plancha-doc-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.plancha-doc-hint i {
+    color: #29ABE2;
 }
 
 .plancha-doc-row {
@@ -2448,6 +2461,10 @@ body {
 }
 
 .btn-upload-plancha-doc .spin {
+    animation: spin 1s linear infinite;
+}
+
+.btn-enviar-plancha .spin {
     animation: spin 1s linear infinite;
 }
 
@@ -4026,6 +4043,72 @@ body {
     }
     .clientes-tabla { font-size: 12px; }
     .clientes-tabla thead th, .clientes-tabla tbody td { padding: 10px 8px; }
+}
+
+/* ===== INVENTARIO GUILLOTINA ===== */
+.inventario-resumen {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.inventario-stat {
+    background: #fff;
+    border: 1px solid #eef0f3;
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.inventario-stat-num {
+    font-size: 26px;
+    font-weight: 700;
+    color: #29ABE2;
+    line-height: 1;
+}
+
+.inventario-stat-label {
+    font-size: 13px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inventario-stat-label i { color: #29ABE2; }
+
+.inventario-pliegos-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    color: #1a90c8;
+    background: #edf8fd;
+}
+
+.inventario-pliegos-badge.inventario-pliegos-bajo {
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.inventario-notas {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+    font-weight: 400;
+}
+
+@media (max-width: 640px) {
+    .inventario-resumen { grid-template-columns: 1fr; gap: 10px; }
+    .inventario-stat { flex-direction: row; align-items: center; justify-content: space-between; }
+    .inventario-stat-num { font-size: 22px; }
 }
 
 /* ===== SEGUIMIENTO ===== */

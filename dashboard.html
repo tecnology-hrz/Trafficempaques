@@ -59,6 +59,10 @@
                 <i class="bi bi-grid-3x3-gap"></i>
                 <span>Catálogo</span>
             </a>
+            <a class="nav-item" data-section="inventario" data-role="administrador,guillotina">
+                <i class="bi bi-boxes"></i>
+                <span>Inventario</span>
+            </a>
         </nav>
         <div class="sidebar-footer">
             <div class="user-info">
@@ -956,6 +960,80 @@
                 <div class="cat-admin-grid" id="catAdminGrid"></div>
             </div>
 
+            <!-- ===== SECCION: INVENTARIO GUILLOTINA (admin y guillotina) ===== -->
+            <div class="section" id="section-inventario">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-boxes"></i> Inventario de Cartón</h2>
+                    <div class="clientes-header-actions">
+                        <div class="clientes-search-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="inventarioBuscar" placeholder="Buscar carton o tamaño...">
+                        </div>
+                        <button class="btn-primary" id="btnNuevoInventario">
+                            <i class="bi bi-plus-lg"></i> Agregar cartón
+                        </button>
+                    </div>
+                </div>
+
+                <div class="inventario-resumen" id="inventarioResumen"></div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="clientes-tabla-wrap">
+                            <table class="clientes-tabla inventario-tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo de cartón</th>
+                                        <th>Tamaño</th>
+                                        <th>Pliegos</th>
+                                        <th>Actualizado</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventarioTablaBody">
+                                    <tr><td colspan="5" class="tabla-empty">Cargando inventario...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===== MODAL INVENTARIO CARTÓN ===== -->
+    <div class="modal-overlay" id="inventarioModalOverlay">
+        <div class="modal modal-cliente">
+            <div class="modal-header">
+                <h3 id="inventarioModalTitle">Agregar Cartón</h3>
+                <button class="modal-close" id="inventarioModalClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid-modal">
+                    <div class="modal-field" style="grid-column:1/-1;">
+                        <label>Tipo de cartón *</label>
+                        <input type="text" id="inventarioModalTipo" placeholder="Ej: Kraft, Dúplex, Propalcote 240g" list="inventarioTiposList">
+                        <datalist id="inventarioTiposList"></datalist>
+                    </div>
+                    <div class="modal-field">
+                        <label>Tamaño (pliego) *</label>
+                        <input type="text" id="inventarioModalTamano" placeholder="Ej: 70x100 cm">
+                    </div>
+                    <div class="modal-field">
+                        <label>Cantidad de pliegos *</label>
+                        <input type="number" id="inventarioModalPliegos" placeholder="0" min="0" inputmode="numeric">
+                    </div>
+                    <div class="modal-field" style="grid-column:1/-1;">
+                        <label>Observaciones</label>
+                        <input type="text" id="inventarioModalNotas" placeholder="Notas opcionales">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="inventarioModalCancel">Cancelar</button>
+                <button class="btn-save" id="inventarioModalSave"><i class="bi bi-check-lg"></i> Guardar cartón</button>
+            </div>
         </div>
     </div>
 
@@ -1501,6 +1579,10 @@
             <i class="bi bi-sliders"></i>
             <span>Config</span>
         </a>
+        <a class="bottom-nav-item" data-section="inventario" data-role="administrador,guillotina">
+            <i class="bi bi-boxes"></i>
+            <span>Inventario</span>
+        </a>
         <a class="bottom-nav-item" data-section="catalogo-admin" data-role="administrador">
             <i class="bi bi-grid-3x3-gap"></i>
             <span>Catálogo</span>
@@ -1544,6 +1626,8 @@
     </div>
 
     <script src="assets/js/pdf-export.js"></script>
+    <!-- EmailJS: envio automatico de ordenes de plancha por correo -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script type="module" src="assets/js/dashboard.js"></script>
 </body>
 </html>
