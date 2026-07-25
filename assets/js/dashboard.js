@@ -4889,7 +4889,12 @@ function cerrarModalInventario() {
     inventarioEditandoId = null;
 }
 
+let inventarioGuardando = false;
+
 async function guardarInventario() {
+    // Evitar doble creacion por doble clic mientras se guarda
+    if (inventarioGuardando) return;
+
     const tipo = document.getElementById("inventarioModalTipo").value.trim();
     const tamano = document.getElementById("inventarioModalTamano").value.trim();
     const pliegosRaw = document.getElementById("inventarioModalPliegos").value.trim();
@@ -4915,6 +4920,15 @@ async function guardarInventario() {
     const id = inventarioEditandoId
         || (tipo + "-" + tamano).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Date.now().toString(36);
 
+    // Bloquear boton y marcar en curso
+    inventarioGuardando = true;
+    const btnSave = document.getElementById("inventarioModalSave");
+    const btnHtml = btnSave ? btnSave.innerHTML : "";
+    if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Guardando...';
+    }
+
     try {
         if (inventarioEditandoId) {
             const ref = doc(db, "inventarioCarton", id);
@@ -4929,6 +4943,12 @@ async function guardarInventario() {
     } catch (err) {
         console.error("Error guardando inventario:", err);
         showNotif("Error", "No se pudo guardar el cartón.");
+    } finally {
+        inventarioGuardando = false;
+        if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerHTML = btnHtml || '<i class="bi bi-check-lg"></i> Guardar cartón';
+        }
     }
 }
 

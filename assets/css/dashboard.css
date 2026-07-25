@@ -2468,6 +2468,10 @@ body {
     animation: spin 1s linear infinite;
 }
 
+#inventarioModalSave .spin {
+    animation: spin 1s linear infinite;
+}
+
 .plancha-doc-link {
     display: inline-flex;
     align-items: center;
