@@ -4109,10 +4109,164 @@ body {
     font-weight: 400;
 }
 
+.inventario-resumen { grid-template-columns: repeat(4, 1fr); }
+
+.inventario-stat-alerta { border-color: #fecaca; background: #fff7f7; }
+.inventario-stat-alerta .inventario-stat-num,
+.inventario-stat-alerta .inventario-stat-label i { color: #dc2626; }
+
+/* ---- Filtros de movimientos ---- */
+.inv-mov-filtros {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+.inv-mov-filtros .clientes-search-wrap { flex: 1; min-width: 220px; }
+
+.inv-mov-select {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0 14px;
+    height: 42px;
+    font-size: 14px;
+    color: #334155;
+    background: #fff;
+    cursor: pointer;
+    min-width: 190px;
+}
+.inv-mov-select:focus { outline: none; border-color: #29ABE2; }
+
+.inv-mov-resumen-filtro {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    background: #f5fbff;
+    border: 1px solid #bae6fd;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #475569;
+}
+.inv-mov-resumen-filtro span { display: inline-flex; align-items: center; gap: 6px; }
+.inv-mov-resumen-filtro i { color: #29ABE2; }
+.inv-mov-resumen-filtro strong { color: #0f172a; }
+
+/* ---- Badges de tipo de movimiento ---- */
+.inv-mov-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.inv-mov-badge.mov-salida  { color: #b91c1c; background: #fef2f2; }
+.inv-mov-badge.mov-entrada { color: #15803d; background: #f0fdf4; }
+.inv-mov-badge.mov-ajuste  { color: #b45309; background: #fffbeb; }
+
+.inv-mov-pliegos { font-weight: 700; }
+.inv-mov-pliegos.mov-salida  { color: #dc2626; }
+.inv-mov-pliegos.mov-entrada { color: #16a34a; }
+.inv-mov-pliegos.mov-ajuste  { color: #d97706; }
+.inv-mov-motivo { color: #94a3b8; font-size: 13px; }
+
+/* ---- Analisis y gastos ---- */
+.inv-analisis-periodo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.inv-analisis-periodo label { font-size: 14px; color: #64748b; font-weight: 600; }
+.inv-analisis-loading, .inv-analisis-empty {
+    color: #94a3b8;
+    font-size: 14px;
+    padding: 18px;
+    text-align: center;
+}
+
+.inv-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+.inv-kpi {
+    background: #fff;
+    border: 1px solid #eef0f3;
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.inv-kpi-gasto { border-color: #bae6fd; background: #f5fbff; }
+.inv-kpi-label {
+    font-size: 13px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.inv-kpi-label i { color: #29ABE2; }
+.inv-kpi-num { font-size: 24px; font-weight: 700; color: #1e293b; line-height: 1; }
+.inv-kpi-gasto .inv-kpi-num { color: #0284c7; }
+
+.inv-analisis-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+.inv-analisis-card {
+    background: #fff;
+    border: 1px solid #eef0f3;
+    border-radius: 12px;
+    padding: 18px;
+}
+.inv-analisis-card h4 {
+    margin: 0 0 14px;
+    font-size: 14px;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.inv-analisis-card h4 i { color: #29ABE2; }
+
+.inv-rank-row { margin-bottom: 12px; }
+.inv-rank-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+.inv-rank-name { font-size: 13px; color: #475569; font-weight: 600; }
+.inv-rank-val { font-size: 12px; color: #64748b; white-space: nowrap; }
+.inv-rank-extra { color: #0284c7; font-weight: 600; margin-left: 4px; }
+.inv-bar-track { height: 7px; background: #eef2f6; border-radius: 6px; overflow: hidden; }
+.inv-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #29ABE2, #0284c7);
+    border-radius: 6px;
+    min-width: 3px;
+}
+
+@media (max-width: 900px) {
+    .inv-kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .inv-analisis-cards { grid-template-columns: 1fr; }
+    .inventario-resumen { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 640px) {
     .inventario-resumen { grid-template-columns: 1fr; gap: 10px; }
     .inventario-stat { flex-direction: row; align-items: center; justify-content: space-between; }
     .inventario-stat-num { font-size: 22px; }
+    .inv-kpi-row { grid-template-columns: 1fr; }
+    .inv-mov-select { width: 100%; }
 }
 
 /* Bloque de seleccion de carton en el modal de cantidad (guillotina) */

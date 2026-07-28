@@ -3994,7 +3994,9 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, cantidadInfo) {
             const nuevaData = { ...data, pasoActual: nuevoPaso, seguimiento, cantidadesSeguimiento };
             if (cantidadInfo && cantidadInfo.carton) {
                 nuevaData.cartonSeguimiento = cantidadInfo.carton;
-                await descontarCartonInventario(cantidadInfo.carton, data.cartonSeguimiento);
+                await descontarCartonInventario(cantidadInfo.carton, data.cartonSeguimiento, {
+                    numero: data.numero, id: ordenId, cotizacionId: data.cotizacionId || ordenId, cliente: data.cliente
+                });
             }
             await setDoc(ref, nuevaData);
             cargarSeguimiento();
@@ -4024,7 +4026,9 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, cantidadInfo) {
 
         // Registrar el carton usado en guillotina y descontar del inventario
         if (cantidadInfo && cantidadInfo.carton) {
-            await descontarCartonInventario(cantidadInfo.carton, entry.carton);
+            await descontarCartonInventario(cantidadInfo.carton, entry.carton, {
+                numero: data.numero, id: ordenId, cotizacionId: data.cotizacionId || ordenId, cliente: data.cliente
+            });
             entry.carton = cantidadInfo.carton;
         }
 
@@ -4839,6 +4843,9 @@ async function guardarClienteDesdeCotzacion(datos) {
 // ===== SECCION INVENTARIO GUILLOTINA (carton) =====
 let inventarioDB = [];
 let inventarioEditandoId = null;
+let inventarioPliegosOriginal = 0; // pliegos antes de editar (para registrar ajuste manual)
+let movimientosDB = [];
+let movimientosCargados = false;
 
 function setupInventario() {
     const overlay = document.getElementById("inventarioModalOverlay");
@@ -4859,10 +4866,41 @@ function setupInventario() {
             renderTablaInventario(buscarInput.value.trim().toLowerCase());
         });
     }
+
+    // Tabs de la seccion inventario (Existencias / Movimientos / Analisis)
+    const tabBar = document.getElementById("inventarioTabBar");
+    if (tabBar) {
+        tabBar.querySelectorAll(".tab-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                if (btn.dataset.tab === "invMovimientos") cargarMovimientos();
+                if (btn.dataset.tab === "invAnalisis") renderAnalisisInventario();
+            });
+        });
+    }
+
+    const movBuscar = document.getElementById("invMovBuscar");
+    const movTipo = document.getElementById("invMovTipo");
+    const movUsuario = document.getElementById("invMovUsuario");
+    const movArea = document.getElementById("invMovArea");
+    const movOrden = document.getElementById("invMovOrden");
+    const movCarton = document.getElementById("invMovCarton");
+    if (movBuscar) movBuscar.addEventListener("input", renderTablaMovimientos);
+    if (movTipo) movTipo.addEventListener("change", renderTablaMovimientos);
+    if (movUsuario) movUsuario.addEventListener("change", renderTablaMovimientos);
+    if (movArea) movArea.addEventListener("change", renderTablaMovimientos);
+    if (movOrden) movOrden.addEventListener("change", renderTablaMovimientos);
+    if (movCarton) movCarton.addEventListener("change", renderTablaMovimientos);
+
+    const btnLimpiar = document.getElementById("btnLimpiarFiltrosMov");
+    if (btnLimpiar) btnLimpiar.addEventListener("click", limpiarFiltrosMovimientos);
+
+    const periodoSel = document.getElementById("invAnalisisPeriodo");
+    if (periodoSel) periodoSel.addEventListener("change", renderAnalisisInventario);
 }
 
 function abrirModalInventario(item) {
     inventarioEditandoId = item ? item.id : null;
+    inventarioPliegosOriginal = item ? (Number(item.pliegos) || 0) : 0;
     document.getElementById("inventarioModalTitle").textContent = item ? "Editar Cartón" : "Agregar Cartón";
     document.getElementById("inventarioModalSave").innerHTML = item
         ? '<i class="bi bi-check-lg"></i> Guardar cambios'
@@ -4871,6 +4909,8 @@ function abrirModalInventario(item) {
     document.getElementById("inventarioModalTipo").value = item ? item.tipo || "" : "";
     document.getElementById("inventarioModalTamano").value = item ? item.tamano || "" : "";
     document.getElementById("inventarioModalPliegos").value = item ? (item.pliegos ?? "") : "";
+    document.getElementById("inventarioModalCosto").value = item ? (item.costo ?? "") : "";
+    document.getElementById("inventarioModalMinimo").value = item ? (item.minimo ?? "") : "";
     document.getElementById("inventarioModalNotas").value = item ? item.notas || "" : "";
 
     // Sugerencias de tipos ya existentes
@@ -4898,6 +4938,8 @@ async function guardarInventario() {
     const tipo = document.getElementById("inventarioModalTipo").value.trim();
     const tamano = document.getElementById("inventarioModalTamano").value.trim();
     const pliegosRaw = document.getElementById("inventarioModalPliegos").value.trim();
+    const costoRaw = document.getElementById("inventarioModalCosto").value.trim();
+    const minimoRaw = document.getElementById("inventarioModalMinimo").value.trim();
     const notas = document.getElementById("inventarioModalNotas").value.trim();
 
     if (!tipo || !tamano || pliegosRaw === "") {
@@ -4911,8 +4953,11 @@ async function guardarInventario() {
         return;
     }
 
+    const costo = costoRaw === "" ? 0 : (parseFloat(costoRaw) || 0);
+    const minimo = minimoRaw === "" ? 10 : (parseInt(minimoRaw, 10) || 0);
+
     const data = {
-        tipo, tamano, pliegos, notas,
+        tipo, tamano, pliegos, costo, minimo, notas,
         actualizadoPor: sessionStorage.getItem("userName") || "",
         fechaActualizacion: new Date().toISOString()
     };
@@ -4938,7 +4983,28 @@ async function guardarInventario() {
             data.fechaCreacion = data.fechaActualizacion;
         }
         await setDoc(doc(db, "inventarioCarton", id), data);
+
+        // Registrar movimiento de trazabilidad
+        const diff = pliegos - inventarioPliegosOriginal;
+        if (!inventarioEditandoId) {
+            // Alta de carton nuevo = entrada inicial
+            if (pliegos > 0) {
+                await registrarMovimientoInventario({
+                    tipoMov: "entrada", cartonId: id, cartonTipo: tipo, cartonTamano: tamano,
+                    pliegos, costoUnit: costo, motivo: "Alta de cartón en inventario"
+                });
+            }
+        } else if (diff !== 0) {
+            // Ajuste manual de stock (entrada si sube, ajuste si baja)
+            await registrarMovimientoInventario({
+                tipoMov: diff > 0 ? "entrada" : "ajuste", cartonId: id, cartonTipo: tipo, cartonTamano: tamano,
+                pliegos: Math.abs(diff), costoUnit: costo,
+                motivo: diff > 0 ? "Reposición / ajuste manual (+)" : "Ajuste manual de stock (-)"
+            });
+        }
+
         cerrarModalInventario();
+        movimientosCargados = false;
         cargarInventario();
     } catch (err) {
         console.error("Error guardando inventario:", err);
@@ -4972,19 +5038,24 @@ function renderResumenInventario() {
     if (!cont) return;
     const totalPliegos = inventarioDB.reduce((s, i) => s + (Number(i.pliegos) || 0), 0);
     const totalTipos = new Set(inventarioDB.map(i => i.tipo).filter(Boolean)).size;
-    const totalRegistros = inventarioDB.length;
+    const valorTotal = inventarioDB.reduce((s, i) => s + (Number(i.pliegos) || 0) * (Number(i.costo) || 0), 0);
+    const bajoStock = inventarioDB.filter(i => (Number(i.pliegos) || 0) <= (i.minimo != null ? Number(i.minimo) : 10)).length;
     cont.innerHTML = `
         <div class="inventario-stat">
             <span class="inventario-stat-num">${totalPliegos.toLocaleString("es-CO")}</span>
             <span class="inventario-stat-label"><i class="bi bi-layers"></i> Pliegos en total</span>
         </div>
         <div class="inventario-stat">
+            <span class="inventario-stat-num">${formatMoney(valorTotal)}</span>
+            <span class="inventario-stat-label"><i class="bi bi-cash-stack"></i> Valor del inventario</span>
+        </div>
+        <div class="inventario-stat">
             <span class="inventario-stat-num">${totalTipos}</span>
             <span class="inventario-stat-label"><i class="bi bi-tags"></i> Tipos de cartón</span>
         </div>
-        <div class="inventario-stat">
-            <span class="inventario-stat-num">${totalRegistros}</span>
-            <span class="inventario-stat-label"><i class="bi bi-box-seam"></i> Registros</span>
+        <div class="inventario-stat${bajoStock > 0 ? ' inventario-stat-alerta' : ''}">
+            <span class="inventario-stat-num">${bajoStock}</span>
+            <span class="inventario-stat-label"><i class="bi bi-exclamation-triangle"></i> Bajo stock</span>
         </div>
     `;
 }
@@ -5004,7 +5075,7 @@ function renderTablaInventario(busqueda) {
     }
 
     if (filtrados.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="tabla-empty">No hay cartón registrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">No hay cartón registrado</td></tr>';
         return;
     }
 
@@ -5013,13 +5084,18 @@ function renderTablaInventario(busqueda) {
             ? new Date(i.fechaActualizacion).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })
             : "-";
         const pliegos = Number(i.pliegos) || 0;
-        const bajo = pliegos <= 10 ? ' inventario-pliegos-bajo' : '';
+        const minimo = i.minimo != null ? Number(i.minimo) : 10;
+        const costo = Number(i.costo) || 0;
+        const valor = pliegos * costo;
+        const bajo = pliegos <= minimo ? ' inventario-pliegos-bajo' : '';
         const notasHtml = i.notas ? `<div class="inventario-notas">${i.notas}</div>` : '';
         return `
             <tr>
                 <td><strong>${i.tipo || "-"}</strong>${notasHtml}</td>
                 <td>${i.tamano || "-"}</td>
                 <td><span class="inventario-pliegos-badge${bajo}">${pliegos.toLocaleString("es-CO")}</span></td>
+                <td>${costo > 0 ? formatMoney(costo) : "-"}</td>
+                <td>${valor > 0 ? formatMoney(valor) : "-"}</td>
                 <td>${fecha}</td>
                 <td>
                     <div class="clientes-acciones">
@@ -5051,7 +5127,8 @@ function renderTablaInventario(busqueda) {
 // Descuenta pliegos del inventario cuando se usa carton en guillotina.
 // Si ya se habia descontado antes (edicion), ajusta solo la diferencia.
 // cartonNuevo: { id, pliegos, ... }  cartonPrevio: registro anterior (o undefined)
-async function descontarCartonInventario(cartonNuevo, cartonPrevio) {
+// orden: datos de trazabilidad { numero, id, cotizacionId, cliente }
+async function descontarCartonInventario(cartonNuevo, cartonPrevio, orden) {
     if (!cartonNuevo || !cartonNuevo.id) return;
     try {
         const usarNuevo = Number(cartonNuevo.pliegos) || 0;
@@ -5060,16 +5137,42 @@ async function descontarCartonInventario(cartonNuevo, cartonPrevio) {
         if (cartonPrevio && cartonPrevio.id && cartonPrevio.id !== cartonNuevo.id) {
             await ajustarStockCarton(cartonPrevio.id, Number(cartonPrevio.pliegos) || 0); // devolver
             await ajustarStockCarton(cartonNuevo.id, -usarNuevo); // descontar
+            await registrarConsumoCarton(cartonNuevo, usarNuevo, orden);
             return;
         }
 
         // Mismo carton (o primera vez): descontar solo la diferencia
         const usarPrevio = (cartonPrevio && cartonPrevio.id === cartonNuevo.id) ? (Number(cartonPrevio.pliegos) || 0) : 0;
         const delta = usarNuevo - usarPrevio; // positivo = descontar mas
-        if (delta !== 0) await ajustarStockCarton(cartonNuevo.id, -delta);
+        if (delta !== 0) {
+            await ajustarStockCarton(cartonNuevo.id, -delta);
+            // Registrar solo el consumo adicional (delta positivo). Si se corrige a la baja, es un ajuste.
+            await registrarConsumoCarton(cartonNuevo, delta, orden);
+        }
     } catch (err) {
         console.error("Error descontando carton del inventario:", err);
     }
+}
+
+// Registra el movimiento de consumo (salida) asociando cliente, orden y usuario.
+async function registrarConsumoCarton(carton, pliegos, orden) {
+    if (!pliegos) return;
+    const item = inventarioDB.find(i => i.id === carton.id);
+    const costoUnit = item ? (Number(item.costo) || 0) : 0;
+    const positivo = pliegos > 0;
+    await registrarMovimientoInventario({
+        tipoMov: positivo ? "salida" : "ajuste",
+        cartonId: carton.id,
+        cartonTipo: carton.tipo || (item ? item.tipo : ""),
+        cartonTamano: carton.tamano || (item ? item.tamano : ""),
+        pliegos: Math.abs(pliegos),
+        costoUnit,
+        cliente: orden ? (orden.cliente || "") : "",
+        ordenNumero: orden ? (orden.numero || "") : "",
+        ordenId: orden ? (orden.id || "") : "",
+        cotizacionId: orden ? (orden.cotizacionId || orden.id || "") : "",
+        motivo: positivo ? "Consumo en guillotina" : "Corrección de consumo (guillotina)"
+    });
 }
 
 // Suma (o resta) pliegos al stock de un carton. `cambio` puede ser negativo.
@@ -5088,6 +5191,305 @@ async function ajustarStockCarton(cartonId, cambio) {
     // Refrescar cache local si el inventario esta cargado
     const local = inventarioDB.find(i => i.id === cartonId);
     if (local) local.pliegos = nuevoStock;
+}
+
+// ===== MOVIMIENTOS DE INVENTARIO (trazabilidad de consumo, entradas y ajustes) =====
+// Registra un movimiento en la coleccion "inventarioMovimientos".
+// mov: { tipoMov: 'salida'|'entrada'|'ajuste', cartonId, cartonTipo, cartonTamano,
+//        pliegos, costoUnit, cliente, ordenNumero, ordenId, cotizacionId, motivo }
+async function registrarMovimientoInventario(mov) {
+    try {
+        const costoUnit = Number(mov.costoUnit) || 0;
+        const pliegos = Number(mov.pliegos) || 0;
+        const registro = {
+            tipoMov: mov.tipoMov || "salida",
+            cartonId: mov.cartonId || "",
+            cartonTipo: mov.cartonTipo || "",
+            cartonTamano: mov.cartonTamano || "",
+            pliegos,
+            costoUnit,
+            costoTotal: pliegos * costoUnit,
+            cliente: mov.cliente || "",
+            ordenNumero: mov.ordenNumero || "",
+            ordenId: mov.ordenId || "",
+            cotizacionId: mov.cotizacionId || "",
+            motivo: mov.motivo || "",
+            usuario: sessionStorage.getItem("userName") || "",
+            usuarioRol: sessionStorage.getItem("userRol") || "",
+            fecha: new Date().toISOString()
+        };
+        const movId = "mov-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+        await setDoc(doc(db, "inventarioMovimientos", movId), registro);
+        movimientosCargados = false;
+    } catch (err) {
+        console.error("Error registrando movimiento de inventario:", err);
+    }
+}
+
+async function cargarMovimientos(force) {
+    if (movimientosCargados && !force) { renderTablaMovimientos(); return; }
+    const tbody = document.getElementById("invMovTablaBody");
+    try {
+        const snap = await getDocs(collection(db, "inventarioMovimientos"));
+        movimientosDB = [];
+        snap.forEach(d => movimientosDB.push({ id: d.id, ...d.data() }));
+        movimientosDB.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+        movimientosCargados = true;
+        poblarFiltrosMovimientos();
+        renderTablaMovimientos();
+    } catch (err) {
+        console.error("Error cargando movimientos:", err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">No se pudieron cargar los movimientos</td></tr>';
+    }
+}
+
+const MOV_META = {
+    salida:  { label: "Consumo",  icon: "bi-arrow-up-right", clase: "mov-salida" },
+    entrada: { label: "Entrada",  icon: "bi-arrow-down-left", clase: "mov-entrada" },
+    ajuste:  { label: "Ajuste",   icon: "bi-sliders", clase: "mov-ajuste" }
+};
+
+// Etiquetas legibles para las areas/roles de trabajo
+const AREA_LABELS = {
+    administrador: "Administrador", guillotina: "Guillotina", impresion: "Impresión",
+    troquelado: "Troquelado", vasos: "Vasos", empaques: "Empaques",
+    digital: "Digital", imprenta: "Imprenta", diseno: "Diseño",
+    ventas: "Ventas", ordenes: "Órdenes"
+};
+const areaLabel = (rol) => AREA_LABELS[rol] || (rol || "Sin área");
+
+// Rellena los selects de usuario, area, orden y carton con los valores presentes
+// en los movimientos, conservando la seleccion actual.
+function poblarFiltrosMovimientos() {
+    const setOpts = (id, valores, placeholder) => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const prev = sel.value;
+        const opts = valores
+            .filter(v => v.val !== "" && v.val != null)
+            .sort((a, b) => a.label.localeCompare(b.label))
+            .map(v => `<option value="${v.val}">${v.label}</option>`).join("");
+        sel.innerHTML = `<option value="">${placeholder}</option>` + opts;
+        if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    };
+
+    const usuarios = [...new Set(movimientosDB.map(m => m.usuario).filter(Boolean))]
+        .map(u => ({ val: u, label: u }));
+    const areas = [...new Set(movimientosDB.map(m => m.usuarioRol).filter(Boolean))]
+        .map(a => ({ val: a, label: areaLabel(a) }));
+    const cartones = [...new Set(movimientosDB.map(m => m.cartonTipo).filter(Boolean))]
+        .map(c => ({ val: c, label: c }));
+
+    // Ordenes: usar ordenId como valor y el numero (+cliente) como etiqueta
+    const ordenMap = {};
+    movimientosDB.forEach(m => {
+        const key = m.ordenId || m.ordenNumero;
+        if (key && !ordenMap[key]) {
+            ordenMap[key] = "Orden " + (m.ordenNumero || key) + (m.cliente ? " · " + m.cliente : "");
+        }
+    });
+    const ordenes = Object.entries(ordenMap).map(([val, label]) => ({ val, label }));
+
+    setOpts("invMovUsuario", usuarios, "Todos los usuarios");
+    setOpts("invMovArea", areas, "Todas las áreas");
+    setOpts("invMovOrden", ordenes, "Todas las órdenes");
+    setOpts("invMovCarton", cartones, "Todos los cartones");
+}
+
+function limpiarFiltrosMovimientos() {
+    ["invMovBuscar", "invMovTipo", "invMovUsuario", "invMovArea", "invMovOrden", "invMovCarton"]
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+    renderTablaMovimientos();
+}
+
+function renderTablaMovimientos() {
+    const tbody = document.getElementById("invMovTablaBody");
+    if (!tbody) return;
+
+    const busqueda = (document.getElementById("invMovBuscar")?.value || "").trim().toLowerCase();
+    const tipoFiltro = document.getElementById("invMovTipo")?.value || "";
+    const usuarioFiltro = document.getElementById("invMovUsuario")?.value || "";
+    const areaFiltro = document.getElementById("invMovArea")?.value || "";
+    const ordenFiltro = document.getElementById("invMovOrden")?.value || "";
+    const cartonFiltro = document.getElementById("invMovCarton")?.value || "";
+
+    let lista = movimientosDB.slice();
+    if (tipoFiltro) lista = lista.filter(m => m.tipoMov === tipoFiltro);
+    if (usuarioFiltro) lista = lista.filter(m => m.usuario === usuarioFiltro);
+    if (areaFiltro) lista = lista.filter(m => m.usuarioRol === areaFiltro);
+    if (ordenFiltro) lista = lista.filter(m => (m.ordenId || m.ordenNumero) === ordenFiltro);
+    if (cartonFiltro) lista = lista.filter(m => m.cartonTipo === cartonFiltro);
+    if (busqueda) {
+        lista = lista.filter(m =>
+            (m.cliente || "").toLowerCase().includes(busqueda) ||
+            (m.ordenNumero || "").toLowerCase().includes(busqueda) ||
+            (m.cartonTipo || "").toLowerCase().includes(busqueda) ||
+            (m.cartonTamano || "").toLowerCase().includes(busqueda) ||
+            (m.usuario || "").toLowerCase().includes(busqueda) ||
+            (m.motivo || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    renderResumenFiltroMov(lista);
+
+    if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">No hay movimientos que coincidan con los filtros</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = lista.map(m => {
+        const meta = MOV_META[m.tipoMov] || MOV_META.salida;
+        const fecha = m.fecha
+            ? new Date(m.fecha).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+            : "-";
+        const signo = m.tipoMov === "entrada" ? "+" : "−";
+        const pliegos = Number(m.pliegos) || 0;
+        const clienteOrden = m.cliente || m.ordenNumero
+            ? `<strong>${m.cliente || "-"}</strong>${m.ordenNumero ? `<div class="inventario-notas">Orden ${m.ordenNumero}</div>` : ""}`
+            : `<span class="inv-mov-motivo">${m.motivo || "-"}</span>`;
+        const costo = Number(m.costoTotal) || 0;
+        return `
+            <tr>
+                <td>${fecha}</td>
+                <td><span class="inv-mov-badge ${meta.clase}"><i class="bi ${meta.icon}"></i> ${meta.label}</span></td>
+                <td><strong>${m.cartonTipo || "-"}</strong><div class="inventario-notas">${m.cartonTamano || ""}</div></td>
+                <td><span class="inv-mov-pliegos ${meta.clase}">${signo}${pliegos.toLocaleString("es-CO")}</span></td>
+                <td>${clienteOrden}</td>
+                <td>${m.usuario || "-"}${m.usuarioRol ? `<div class="inventario-notas">${areaLabel(m.usuarioRol)}</div>` : ""}</td>
+                <td>${costo > 0 ? formatMoney(costo) : "-"}</td>
+            </tr>
+        `;
+    }).join("");
+}
+
+// Muestra un resumen de lo filtrado: total de movimientos, pliegos y costo.
+function renderResumenFiltroMov(lista) {
+    const cont = document.getElementById("invMovResumenFiltro");
+    if (!cont) return;
+
+    const hayFiltro = ["invMovBuscar", "invMovTipo", "invMovUsuario", "invMovArea", "invMovOrden", "invMovCarton"]
+        .some(id => (document.getElementById(id)?.value || "") !== "");
+
+    if (!hayFiltro) { cont.style.display = "none"; return; }
+
+    const totalPliegos = lista.reduce((s, m) => {
+        const p = Number(m.pliegos) || 0;
+        return s + (m.tipoMov === "entrada" ? 0 : p); // solo cuenta consumo/ajuste como salida
+    }, 0);
+    const totalCosto = lista.filter(m => m.tipoMov !== "entrada").reduce((s, m) => s + (Number(m.costoTotal) || 0), 0);
+
+    cont.style.display = "";
+    cont.innerHTML = `
+        <span><i class="bi bi-funnel"></i> <strong>${lista.length}</strong> movimiento(s)</span>
+        <span><i class="bi bi-layers"></i> <strong>${totalPliegos.toLocaleString("es-CO")}</strong> pliegos consumidos</span>
+        <span><i class="bi bi-cash-coin"></i> <strong>${formatMoney(totalCosto)}</strong> en consumo</span>
+    `;
+}
+
+// ===== ANALISIS Y GASTOS DE INVENTARIO =====
+async function renderAnalisisInventario() {
+    const grid = document.getElementById("invAnalisisGrid");
+    if (!grid) return;
+    grid.innerHTML = '<div class="inv-analisis-loading">Calculando...</div>';
+
+    if (!movimientosCargados) await cargarMovimientos();
+
+    const dias = parseInt(document.getElementById("invAnalisisPeriodo")?.value || "30", 10);
+    const desde = dias > 0 ? Date.now() - dias * 24 * 60 * 60 * 1000 : 0;
+
+    const enRango = movimientosDB.filter(m => {
+        const t = m.fecha ? new Date(m.fecha).getTime() : 0;
+        return t >= desde;
+    });
+
+    const salidas = enRango.filter(m => m.tipoMov === "salida");
+    const entradas = enRango.filter(m => m.tipoMov === "entrada");
+
+    const pliegosConsumidos = salidas.reduce((s, m) => s + (Number(m.pliegos) || 0), 0);
+    const gastoConsumo = salidas.reduce((s, m) => s + (Number(m.costoTotal) || 0), 0);
+    const gastoEntradas = entradas.reduce((s, m) => s + (Number(m.costoTotal) || 0), 0);
+
+    // Ranking por cliente (consumo)
+    const porCliente = {};
+    salidas.forEach(m => {
+        const k = m.cliente || "Sin cliente";
+        if (!porCliente[k]) porCliente[k] = { pliegos: 0, costo: 0 };
+        porCliente[k].pliegos += Number(m.pliegos) || 0;
+        porCliente[k].costo += Number(m.costoTotal) || 0;
+    });
+    const rankingClientes = Object.entries(porCliente)
+        .sort((a, b) => b[1].pliegos - a[1].pliegos).slice(0, 6);
+
+    // Ranking por tipo de carton
+    const porTipo = {};
+    salidas.forEach(m => {
+        const k = m.cartonTipo || "Sin tipo";
+        porTipo[k] = (porTipo[k] || 0) + (Number(m.pliegos) || 0);
+    });
+    const rankingTipos = Object.entries(porTipo)
+        .sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+    // Consumo por usuario
+    const porUsuario = {};
+    salidas.forEach(m => {
+        const k = m.usuario || "Desconocido";
+        porUsuario[k] = (porUsuario[k] || 0) + (Number(m.pliegos) || 0);
+    });
+    const rankingUsuarios = Object.entries(porUsuario)
+        .sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+    const maxCliente = rankingClientes.length ? rankingClientes[0][1].pliegos : 0;
+    const maxTipo = rankingTipos.length ? rankingTipos[0][1] : 0;
+    const maxUsuario = rankingUsuarios.length ? rankingUsuarios[0][1] : 0;
+
+    const barra = (val, max) => `<div class="inv-bar-track"><div class="inv-bar-fill" style="width:${max > 0 ? Math.round(val / max * 100) : 0}%"></div></div>`;
+
+    const listaRanking = (items, max, fmt) => items.length
+        ? items.map(([nombre, val]) => {
+            const num = typeof val === "object" ? val.pliegos : val;
+            const extra = typeof val === "object" && val.costo ? `<span class="inv-rank-extra">${formatMoney(val.costo)}</span>` : "";
+            return `
+                <div class="inv-rank-row">
+                    <div class="inv-rank-head"><span class="inv-rank-name">${nombre}</span><span class="inv-rank-val">${num.toLocaleString("es-CO")} pl. ${extra}</span></div>
+                    ${barra(num, max)}
+                </div>`;
+        }).join("")
+        : '<div class="inv-analisis-empty">Sin datos en el periodo</div>';
+
+    grid.innerHTML = `
+        <div class="inv-kpi-row">
+            <div class="inv-kpi">
+                <span class="inv-kpi-label"><i class="bi bi-layers"></i> Pliegos consumidos</span>
+                <span class="inv-kpi-num">${pliegosConsumidos.toLocaleString("es-CO")}</span>
+            </div>
+            <div class="inv-kpi inv-kpi-gasto">
+                <span class="inv-kpi-label"><i class="bi bi-cash-coin"></i> Gasto en consumo</span>
+                <span class="inv-kpi-num">${formatMoney(gastoConsumo)}</span>
+            </div>
+            <div class="inv-kpi">
+                <span class="inv-kpi-label"><i class="bi bi-box-arrow-in-down"></i> Invertido en compras</span>
+                <span class="inv-kpi-num">${formatMoney(gastoEntradas)}</span>
+            </div>
+            <div class="inv-kpi">
+                <span class="inv-kpi-label"><i class="bi bi-arrow-left-right"></i> Movimientos</span>
+                <span class="inv-kpi-num">${enRango.length.toLocaleString("es-CO")}</span>
+            </div>
+        </div>
+        <div class="inv-analisis-cards">
+            <div class="inv-analisis-card">
+                <h4><i class="bi bi-people"></i> Consumo por cliente</h4>
+                ${listaRanking(rankingClientes, maxCliente)}
+            </div>
+            <div class="inv-analisis-card">
+                <h4><i class="bi bi-tags"></i> Consumo por tipo de cartón</h4>
+                ${listaRanking(rankingTipos, maxTipo)}
+            </div>
+            <div class="inv-analisis-card">
+                <h4><i class="bi bi-person-badge"></i> Consumo por usuario</h4>
+                ${listaRanking(rankingUsuarios, maxUsuario)}
+            </div>
+        </div>
+    `;
 }
 
 // ===== SECCIÓN CATÁLOGO ADMIN =====

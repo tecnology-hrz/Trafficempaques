@@ -977,25 +977,110 @@
 
                 <div class="inventario-resumen" id="inventarioResumen"></div>
 
-                <div class="card">
-                    <div class="card-body">
-                        <div class="clientes-tabla-wrap">
-                            <table class="clientes-tabla inventario-tabla">
-                                <thead>
-                                    <tr>
-                                        <th>Tipo de cartón</th>
-                                        <th>Tamaño</th>
-                                        <th>Pliegos</th>
-                                        <th>Actualizado</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="inventarioTablaBody">
-                                    <tr><td colspan="5" class="tabla-empty">Cargando inventario...</td></tr>
-                                </tbody>
-                            </table>
+                <div class="tab-bar" id="inventarioTabBar">
+                    <button class="tab-btn active" data-tab="invStock">
+                        <i class="bi bi-boxes"></i> Existencias
+                    </button>
+                    <button class="tab-btn" data-tab="invMovimientos">
+                        <i class="bi bi-arrow-left-right"></i> Movimientos
+                    </button>
+                    <button class="tab-btn" data-tab="invAnalisis">
+                        <i class="bi bi-graph-up-arrow"></i> Análisis y gastos
+                    </button>
+                </div>
+
+                <!-- TAB: EXISTENCIAS -->
+                <div class="tab-content active" id="tab-invStock">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="clientes-tabla-wrap">
+                                <table class="clientes-tabla inventario-tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo de cartón</th>
+                                            <th>Tamaño</th>
+                                            <th>Pliegos</th>
+                                            <th>Costo/pliego</th>
+                                            <th>Valor</th>
+                                            <th>Actualizado</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inventarioTablaBody">
+                                        <tr><td colspan="7" class="tabla-empty">Cargando inventario...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- TAB: MOVIMIENTOS (historial de consumo y entradas) -->
+                <div class="tab-content" id="tab-invMovimientos">
+                    <div class="inv-mov-filtros">
+                        <div class="clientes-search-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="invMovBuscar" placeholder="Buscar cliente, orden, cartón o usuario...">
+                        </div>
+                        <select id="invMovTipo" class="inv-mov-select">
+                            <option value="">Todos los movimientos</option>
+                            <option value="salida">Solo consumo (salidas)</option>
+                            <option value="entrada">Solo entradas</option>
+                            <option value="ajuste">Solo ajustes</option>
+                        </select>
+                        <select id="invMovUsuario" class="inv-mov-select">
+                            <option value="">Todos los usuarios</option>
+                        </select>
+                        <select id="invMovArea" class="inv-mov-select">
+                            <option value="">Todas las áreas</option>
+                        </select>
+                        <select id="invMovOrden" class="inv-mov-select">
+                            <option value="">Todas las órdenes</option>
+                        </select>
+                        <select id="invMovCarton" class="inv-mov-select">
+                            <option value="">Todos los cartones</option>
+                        </select>
+                        <button class="btn-secondary" id="btnLimpiarFiltrosMov" title="Limpiar todos los filtros">
+                            <i class="bi bi-x-circle"></i> Limpiar
+                        </button>
+                    </div>
+                    <div class="inv-mov-resumen-filtro" id="invMovResumenFiltro"></div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="clientes-tabla-wrap">
+                                <table class="clientes-tabla inventario-mov-tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Tipo</th>
+                                            <th>Cartón</th>
+                                            <th>Pliegos</th>
+                                            <th>Cliente / Orden</th>
+                                            <th>Usuario</th>
+                                            <th>Costo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="invMovTablaBody">
+                                        <tr><td colspan="7" class="tabla-empty">Cargando movimientos...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: ANÁLISIS Y GASTOS -->
+                <div class="tab-content" id="tab-invAnalisis">
+                    <div class="inv-analisis-periodo">
+                        <label>Periodo:</label>
+                        <select id="invAnalisisPeriodo" class="inv-mov-select">
+                            <option value="30">Últimos 30 días</option>
+                            <option value="90">Últimos 90 días</option>
+                            <option value="365">Último año</option>
+                            <option value="0">Todo el historial</option>
+                        </select>
+                    </div>
+                    <div class="inv-analisis-grid" id="invAnalisisGrid"></div>
                 </div>
             </div>
 
@@ -1023,6 +1108,14 @@
                     <div class="modal-field">
                         <label>Cantidad de pliegos *</label>
                         <input type="number" id="inventarioModalPliegos" placeholder="0" min="0" inputmode="numeric">
+                    </div>
+                    <div class="modal-field">
+                        <label>Costo por pliego</label>
+                        <input type="number" id="inventarioModalCosto" placeholder="0" min="0" step="any" inputmode="decimal">
+                    </div>
+                    <div class="modal-field">
+                        <label>Stock mínimo (alerta)</label>
+                        <input type="number" id="inventarioModalMinimo" placeholder="10" min="0" inputmode="numeric">
                     </div>
                     <div class="modal-field" style="grid-column:1/-1;">
                         <label>Observaciones</label>
