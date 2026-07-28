@@ -5277,8 +5277,16 @@ function poblarFiltrosMovimientos() {
         .map(u => ({ val: u, label: u }));
     const areas = [...new Set(movimientosDB.map(m => m.usuarioRol).filter(Boolean))]
         .map(a => ({ val: a, label: areaLabel(a) }));
-    const cartones = [...new Set(movimientosDB.map(m => m.cartonTipo).filter(Boolean))]
-        .map(c => ({ val: c, label: c }));
+    // Cartones: distinguir por tipo + tamaño. El valor combina ambos con "||".
+    const cartonMap = {};
+    movimientosDB.forEach(m => {
+        if (!m.cartonTipo) return;
+        const val = (m.cartonTipo || "") + "||" + (m.cartonTamano || "");
+        if (!cartonMap[val]) {
+            cartonMap[val] = m.cartonTipo + (m.cartonTamano ? " · " + m.cartonTamano : "");
+        }
+    });
+    const cartones = Object.entries(cartonMap).map(([val, label]) => ({ val, label }));
 
     // Ordenes: usar ordenId como valor y el numero (+cliente) como etiqueta
     const ordenMap = {};
@@ -5318,7 +5326,7 @@ function renderTablaMovimientos() {
     if (usuarioFiltro) lista = lista.filter(m => m.usuario === usuarioFiltro);
     if (areaFiltro) lista = lista.filter(m => m.usuarioRol === areaFiltro);
     if (ordenFiltro) lista = lista.filter(m => (m.ordenId || m.ordenNumero) === ordenFiltro);
-    if (cartonFiltro) lista = lista.filter(m => m.cartonTipo === cartonFiltro);
+    if (cartonFiltro) lista = lista.filter(m => ((m.cartonTipo || "") + "||" + (m.cartonTamano || "")) === cartonFiltro);
     if (busqueda) {
         lista = lista.filter(m =>
             (m.cliente || "").toLowerCase().includes(busqueda) ||
@@ -5420,14 +5428,16 @@ async function renderAnalisisInventario() {
     const rankingClientes = Object.entries(porCliente)
         .sort((a, b) => b[1].pliegos - a[1].pliegos).slice(0, 6);
 
-    // Ranking por tipo de carton
+    // Ranking por tipo + tamaño de carton (para distinguir mismo tipo con distintos tamaños)
     const porTipo = {};
     salidas.forEach(m => {
-        const k = m.cartonTipo || "Sin tipo";
+        const tipo = m.cartonTipo || "Sin tipo";
+        const tam = m.cartonTamano ? " · " + m.cartonTamano : "";
+        const k = tipo + tam;
         porTipo[k] = (porTipo[k] || 0) + (Number(m.pliegos) || 0);
     });
     const rankingTipos = Object.entries(porTipo)
-        .sort((a, b) => b[1] - a[1]).slice(0, 6);
+        .sort((a, b) => b[1] - a[1]).slice(0, 8);
 
     // Consumo por usuario
     const porUsuario = {};
@@ -5481,7 +5491,7 @@ async function renderAnalisisInventario() {
                 ${listaRanking(rankingClientes, maxCliente)}
             </div>
             <div class="inv-analisis-card">
-                <h4><i class="bi bi-tags"></i> Consumo por tipo de cartón</h4>
+                <h4><i class="bi bi-tags"></i> Consumo por cartón y tamaño</h4>
                 ${listaRanking(rankingTipos, maxTipo)}
             </div>
             <div class="inv-analisis-card">
