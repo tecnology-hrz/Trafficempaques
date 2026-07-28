@@ -974,6 +974,32 @@ body {
 .cot-estado.aprobada  { background: #ecfdf5; color: #059669; }
 .cot-estado.rechazada { background: #fef2f2; color: #dc2626; }
 
+/* Badge modalidad de pago */
+.cot-modalidad {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.cot-modalidad.contado { background: #eff6ff; color: #2563eb; }
+.cot-modalidad.credito { background: #fdf4ff; color: #a21caf; }
+
+.cot-pago-pend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fef2f2;
+    color: #dc2626;
+}
+
 .cot-list-actions {
     display: flex;
     gap: 6px;
@@ -1298,6 +1324,163 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+/* ===== REGISTRO DE PAGO (comprobante credito) ===== */
+.detalle-registro-pago {
+    background: #fdf4ff;
+    border: 1px solid #f0d9f7;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+}
+
+.detalle-registro-pago h4 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #a21caf;
+    margin: 0 0 6px;
+}
+
+.detalle-registro-info {
+    font-size: 12px;
+    color: #86198f;
+    margin: 0 0 14px;
+}
+
+.registro-pago-campos {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.registro-pago-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.registro-pago-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+}
+
+.registro-pago-field select,
+.registro-pago-field input {
+    padding: 9px 12px;
+    border: 2px solid #ecdcf0;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fff;
+}
+
+.registro-pago-field select:focus,
+.registro-pago-field input:focus {
+    outline: none;
+    border-color: #c026d3;
+}
+
+.registro-pago-upload {
+    margin-bottom: 12px;
+}
+
+.btn-registro-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border: 2px dashed #c026d3;
+    background: #fff;
+    color: #a21caf;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-registro-upload:hover { background: #faf0fc; }
+.btn-registro-upload:disabled { opacity: 0.6; cursor: default; }
+
+.registro-pago-preview {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.registro-comp-img {
+    width: 54px;
+    height: 54px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+}
+
+.registro-comp-nombre {
+    font-size: 12px;
+    color: #555;
+    word-break: break-all;
+}
+
+.registro-status {
+    font-size: 12px;
+    color: #86198f;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.registro-status.registro-error { color: #dc2626; }
+
+.btn-guardar-pago {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #c026d3;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.btn-guardar-pago:hover { background: #a21caf; }
+.btn-guardar-pago:disabled { background: #d8b4de; cursor: default; }
+
+/* Boton registrar pago en la lista */
+.btn-registrar-pago {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 8px;
+    background: #c026d3;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-registrar-pago:hover { background: #a21caf; }
+
+/* Resaltado temporal al abrir el registro de pago */
+.registro-pago-resaltado {
+    animation: registroPulse 1.6s ease;
+}
+
+@keyframes registroPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192, 38, 211, 0); }
+    30% { box-shadow: 0 0 0 4px rgba(192, 38, 211, 0.35); }
 }
 
 .btn-accion {

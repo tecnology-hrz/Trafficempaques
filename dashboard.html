@@ -121,6 +121,11 @@
                             <option value="aprobada">Aprobada</option>
                             <option value="rechazada">Rechazada</option>
                         </select>
+                        <select id="cotizacionesFiltroModalidad">
+                            <option value="">Contado y credito</option>
+                            <option value="contado">Contado</option>
+                            <option value="credito">Credito</option>
+                        </select>
                     </div>
                     <div class="card">
                         <div class="card-body" id="listaCotizaciones">
@@ -1193,6 +1198,38 @@
                         <span class="detalle-label">Pago</span>
                         <span class="detalle-value" id="cotDetallePago"></span>
                     </div>
+                </div>
+
+                <!-- Registrar pago / comprobante (cotizaciones a credito) -->
+                <div class="detalle-registro-pago" id="cotDetalleRegistroPago" style="display:none;">
+                    <h4><i class="bi bi-receipt-cutoff"></i> Registrar pago</h4>
+                    <p class="detalle-registro-info">Sube el comprobante del pago para dejar constancia antes de enviar a produccion.</p>
+                    <div class="registro-pago-campos">
+                        <div class="registro-pago-field">
+                            <label>Metodo de pago</label>
+                            <select id="cotRegistroMetodo">
+                                <option value="">Selecciona...</option>
+                                <option value="davivienda">Davivienda</option>
+                                <option value="bancolombia">Bancolombia</option>
+                                <option value="nequi">Nequi</option>
+                                <option value="efectivo">Efectivo</option>
+                            </select>
+                        </div>
+                        <div class="registro-pago-field">
+                            <label>Monto pagado</label>
+                            <input type="text" id="cotRegistroMonto" placeholder="0" inputmode="numeric">
+                        </div>
+                    </div>
+                    <div class="registro-pago-upload">
+                        <button type="button" class="btn-registro-upload" id="btnRegistroComprobante">
+                            <i class="bi bi-cloud-arrow-up"></i> Subir comprobante
+                        </button>
+                        <input type="file" id="inputRegistroComprobante" accept="image/*" hidden>
+                        <div class="registro-pago-preview" id="registroComprobantePreview"></div>
+                    </div>
+                    <button type="button" class="btn-guardar-pago" id="btnGuardarPagoCredito" disabled>
+                        <i class="bi bi-check-circle"></i> Guardar pago
+                    </button>
                 </div>
 
                 <div class="detalle-acciones" id="cotDetalleAcciones">

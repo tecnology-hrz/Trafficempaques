@@ -596,8 +596,10 @@ function setupCotizador() {
     // Filtros de cotizaciones
     const inputBuscar = document.getElementById("cotizacionesBuscar");
     const selectEstado = document.getElementById("cotizacionesFiltroEstado");
+    const selectModalidad = document.getElementById("cotizacionesFiltroModalidad");
     if (inputBuscar) inputBuscar.addEventListener("input", () => renderListaCotizaciones());
     if (selectEstado) selectEstado.addEventListener("change", () => renderListaCotizaciones());
+    if (selectModalidad) selectModalidad.addEventListener("change", () => renderListaCotizaciones());
 
 
     // Filtros de diseños
@@ -1354,6 +1356,7 @@ function renderListaCotizaciones() {
     const container = document.getElementById("listaCotizaciones");
     const busqueda = (document.getElementById("cotizacionesBuscar")?.value || "").trim().toLowerCase();
     const filtroEstado = document.getElementById("cotizacionesFiltroEstado")?.value || "";
+    const filtroModalidad = document.getElementById("cotizacionesFiltroModalidad")?.value || "";
 
     let lista = cotizacionesListaCache;
 
@@ -1373,6 +1376,11 @@ function renderListaCotizaciones() {
         lista = lista.filter(c => c.estado === filtroEstado);
     }
 
+    // Filtrar por modalidad de pago (contado / credito)
+    if (filtroModalidad) {
+        lista = lista.filter(c => (c.modalidadPago || "contado") === filtroModalidad);
+    }
+
     if (lista.length === 0) {
         container.innerHTML = '<div class="empty-state"><i class="bi bi-file-earmark-text"></i><p>No se encontraron cotizaciones</p></div>';
         return;
@@ -1387,6 +1395,14 @@ function renderListaCotizaciones() {
 
             const yaEnviada = (cot.estadoProduccion || "").trim().length > 0;
             const esAprobada = cot.estado === "aprobada";
+            const modalidad = cot.modalidadPago || "contado";
+            const esCredito = modalidad === "credito";
+            // Credito aprobado sin comprobante registrado = pago pendiente por gestionar
+            const pagoPendiente = esCredito && esAprobada && !cot.comprobante;
+
+            // Badge de modalidad de pago (contado / credito)
+            const badgeModalidad = `<span class="cot-modalidad ${modalidad}"><i class="bi ${esCredito ? "bi-hourglass-split" : "bi-cash-coin"}"></i> ${esCredito ? "Credito" : "Contado"}</span>`;
+            const badgePagoPend = pagoPendiente ? `<span class="cot-pago-pend"><i class="bi bi-exclamation-circle"></i> Pago pendiente</span>` : "";
 
             // Boton enviar a produccion
             let btnEnviarHtml = "";
@@ -1396,15 +1412,21 @@ function renderListaCotizaciones() {
                 btnEnviarHtml = `<span class="badge-enviada"><i class="bi bi-check-circle"></i> Enviada</span>`;
             }
 
+            // Boton registrar pago (credito aprobado sin comprobante)
+            const btnRegistrarPagoHtml = pagoPendiente
+                ? `<button class="btn-registrar-pago" data-id="${cot.id}"><i class="bi bi-receipt-cutoff"></i> Registrar pago</button>`
+                : "";
+
             const item = document.createElement("div");
             item.className = "cot-list-item";
             item.innerHTML = `
                 <div class="cot-list-info">
-                    <span class="cot-list-numero">${cot.numero} <span class="cot-estado ${cot.estado}">${cot.estado}</span></span>
+                    <span class="cot-list-numero">${cot.numero} <span class="cot-estado ${cot.estado}">${cot.estado}</span> ${badgeModalidad} ${badgePagoPend}</span>
                     <span class="cot-list-cliente">${cot.cliente} &bull; ${cot.tipo} &bull; ${fechaStr}</span>
                 </div>
                 <div class="cot-list-right">
                     <span class="cot-list-total">$${formatMoneyLocal(cot.total)}</span>
+                    ${btnRegistrarPagoHtml}
                     ${btnEnviarHtml}
                     <button class="btn-copiar-link" data-link="${link}">
                         <i class="bi bi-link-45deg"></i> Copiar link
@@ -1423,6 +1445,21 @@ function renderListaCotizaciones() {
             e.stopPropagation();
             const id = btn.dataset.id;
             await abrirDetalleAprobada(id);
+        });
+    });
+
+    // Registrar pago (credito) - abre el detalle y enfoca la seccion de pago
+    container.querySelectorAll(".btn-registrar-pago").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            await abrirDetalleAprobada(id);
+            const seccion = document.getElementById("cotDetalleRegistroPago");
+            if (seccion && seccion.style.display !== "none") {
+                seccion.scrollIntoView({ behavior: "smooth", block: "center" });
+                seccion.classList.add("registro-pago-resaltado");
+                setTimeout(() => seccion.classList.remove("registro-pago-resaltado"), 1600);
+            }
         });
     });
 
@@ -3268,7 +3305,128 @@ async function abrirDetalleAprobada(id) {
         }
     }
 
+    // Registrar pago / comprobante (para cotizaciones a credito sin comprobante)
+    configurarRegistroPago(cot);
+
     document.getElementById("cotDetalleOverlay").classList.add("show");
+}
+
+// Permite registrar el pago (metodo, monto y comprobante) de una cotizacion,
+// util sobre todo para las cotizaciones a credito que se aprueban sin pago.
+function configurarRegistroPago(cot) {
+    const seccion = document.getElementById("cotDetalleRegistroPago");
+    if (!seccion) return;
+
+    const esCredito = (cot.modalidadPago || "contado") === "credito";
+    // Mostrar solo cuando aun no hay comprobante registrado (credito o contado pendiente)
+    if (cot.comprobante || !esCredito) {
+        seccion.style.display = "none";
+        return;
+    }
+
+    seccion.style.display = "block";
+
+    const selMetodo = document.getElementById("cotRegistroMetodo");
+    const inpMonto = document.getElementById("cotRegistroMonto");
+    const btnUpload = document.getElementById("btnRegistroComprobante");
+    const inputFile = document.getElementById("inputRegistroComprobante");
+    const preview = document.getElementById("registroComprobantePreview");
+    const btnGuardar = document.getElementById("btnGuardarPagoCredito");
+
+    // Reset de estado
+    selMetodo.value = "";
+    inpMonto.value = cot.total ? formatMoneyLocal(cot.total) : "";
+    preview.innerHTML = "";
+    btnGuardar.disabled = true;
+    let comprobanteUrl = "";
+
+    // Formatear monto con separadores mientras se escribe
+    inpMonto.oninput = () => {
+        const num = parseInt((inpMonto.value || "").replace(/\D/g, "")) || 0;
+        inpMonto.value = num ? formatMoneyLocal(num) : "";
+        actualizarBtnGuardar();
+    };
+    selMetodo.onchange = actualizarBtnGuardar;
+
+    function actualizarBtnGuardar() {
+        const metodo = selMetodo.value;
+        const monto = parseInt((inpMonto.value || "").replace(/\D/g, "")) || 0;
+        btnGuardar.disabled = !(metodo && monto > 0 && comprobanteUrl);
+    }
+
+    btnUpload.onclick = () => inputFile.click();
+    inputFile.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const metodo = selMetodo.value;
+        if (!metodo) {
+            showNotif("Falta el metodo", "Selecciona el metodo de pago antes de subir el comprobante");
+            inputFile.value = "";
+            return;
+        }
+        preview.innerHTML = '<span class="registro-status"><i class="bi bi-arrow-repeat"></i> Subiendo...</span>';
+        btnUpload.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.append("image", file);
+            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                comprobanteUrl = data.data.url;
+                preview.innerHTML = `<img src="${comprobanteUrl}" class="registro-comp-img" alt="Comprobante"><span class="registro-comp-nombre">${file.name}</span>`;
+            } else {
+                preview.innerHTML = '<span class="registro-status registro-error">No se pudo subir. Intenta de nuevo.</span>';
+            }
+        } catch (err) {
+            console.error(err);
+            preview.innerHTML = '<span class="registro-status registro-error">Error al subir el comprobante.</span>';
+        }
+        btnUpload.disabled = false;
+        inputFile.value = "";
+        actualizarBtnGuardar();
+    };
+
+    btnGuardar.onclick = async () => {
+        const metodo = selMetodo.value;
+        const monto = parseInt((inpMonto.value || "").replace(/\D/g, "")) || 0;
+        if (!metodo || monto <= 0 || !comprobanteUrl) return;
+
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
+        try {
+            const ref = doc(db, "cotizaciones", cot.id);
+            const snap = await getDoc(ref);
+            const data = snap.data();
+            const total = parseInt(data.total) || 0;
+            const abono = {
+                monto: monto,
+                metodo: metodo,
+                comprobante: comprobanteUrl,
+                fecha: new Date().toISOString()
+            };
+            const abonosPrev = Array.isArray(data.abonos) ? data.abonos : [];
+            await setDoc(ref, {
+                ...data,
+                metodoPago: metodo,
+                tipoPago: monto >= total ? "completo" : "abono",
+                montoPagado: monto,
+                comprobante: comprobanteUrl,
+                abonos: [...abonosPrev, abono]
+            });
+            showNotif("Pago registrado", "El comprobante quedo guardado en la cotizacion " + data.numero);
+            document.getElementById("cotDetalleOverlay").classList.remove("show");
+            // Refrescar la lista para reflejar el cambio
+            cargarListaCotizaciones();
+        } catch (err) {
+            console.error(err);
+            showNotif("Error", "No se pudo registrar el pago. Intenta de nuevo.");
+            btnGuardar.disabled = false;
+        }
+        btnGuardar.innerHTML = '<i class="bi bi-check-circle"></i> Guardar pago';
+    };
 }
 
 // Devuelve los items de una cotizacion que corresponden a un tipo de produccion.
