@@ -2494,9 +2494,17 @@ function renderPlanchaOrdenHTML(item, idx) {
                     <input type="email" class="plancha-correo" data-idx="${idx}" placeholder="correo@proveedor.com" value="${p.correo || ""}">
                 </div>
                 <div class="plancha-grupo plancha-grupo-full">
-                    <span class="plancha-grupo-title">Link del documento (Google Drive)</span>
-                    <input type="url" class="plancha-doc-link-input" data-idx="${idx}" placeholder="https://drive.google.com/file/d/.../view" value="${p.documento && p.documento.url ? p.documento.url : ""}">
-                    <span class="plancha-doc-hint"><i class="bi bi-info-circle"></i> El documento debe ser publico (cualquier persona con el enlace puede ver).</span>
+                    <span class="plancha-grupo-title">Documento (PDF o imagen)</span>
+                    <div class="plancha-doc-row">
+                        <button type="button" class="btn-upload-plancha-doc" data-idx="${idx}">
+                            <i class="bi bi-cloud-arrow-up"></i> Subir documento
+                        </button>
+                        <input type="file" class="plancha-doc-file" data-idx="${idx}" accept=".pdf,image/*" hidden>
+                    </div>
+                    <div class="plancha-doc-preview" id="planchaDocPreview-${idx}">${renderPlanchaDocChip(idx, p.documento)}</div>
+                    <input type="hidden" class="plancha-doc-url" data-idx="${idx}" value="${p.documento && p.documento.url ? p.documento.url : ""}">
+                    <input type="hidden" class="plancha-doc-name" data-idx="${idx}" value="${p.documento && p.documento.name ? p.documento.name : ""}">
+                    <span class="plancha-doc-hint"><i class="bi bi-info-circle"></i> Sube un PDF o imagen (max 20 MB); el proveedor podra descargarlo desde el correo.</span>
                 </div>
                 <div class="plancha-grupo plancha-grupo-full">
                     <button type="button" class="btn-enviar-plancha" data-idx="${idx}">
@@ -2514,32 +2522,111 @@ function setupPlanchaOrden(card, idx, item) {
     if (btnEnviar) {
         btnEnviar.addEventListener("click", () => enviarOrdenPlanchaCorreo(idx, item));
     }
+
+    // Subida de documento a Firebase Storage
+    const btnDoc = card.querySelector(`.btn-upload-plancha-doc[data-idx="${idx}"]`);
+    const fileDoc = card.querySelector(`.plancha-doc-file[data-idx="${idx}"]`);
+    if (btnDoc && fileDoc) {
+        btnDoc.addEventListener("click", () => fileDoc.click());
+        fileDoc.addEventListener("change", (e) => subirDocumentoPlancha(e, idx));
+    }
+
+    // Conectar boton de eliminar del chip inicial (si viene documento guardado)
+    conectarQuitarDocPlancha(idx);
 }
 
-// Extrae el ID de un archivo de Google Drive desde distintos formatos de link.
-function extraerIdDrive(url) {
-    if (!url) return "";
-    const limpio = url.trim();
-    let m = limpio.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-    if (m && m[1]) return m[1];
-    m = limpio.match(/[?&]id=([^&]+)/);
-    if (m && m[1]) return m[1];
-    return "";
+// Genera el "chip" que muestra el documento subido con opciones ver/quitar.
+function renderPlanchaDocChip(idx, documento) {
+    if (!documento || !documento.url) return "";
+    const nombre = documento.name || "Documento";
+    return `
+        <a href="${documento.url}" target="_blank" class="plancha-doc-link" title="${nombre}">
+            <i class="bi bi-file-earmark-arrow-down"></i> ${nombre}
+        </a>
+        <button type="button" class="plancha-doc-remove" data-idx="${idx}" title="Quitar documento">
+            <i class="bi bi-x"></i>
+        </button>`;
 }
 
-// Normaliza un link de Google Drive a una URL de descarga/vista directa.
-// Si no es de Drive, devuelve el link tal cual.
-function normalizarLinkDrive(url) {
-    const id = extraerIdDrive(url);
-    if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
-    return url ? url.trim() : "";
+// Conecta el boton de quitar documento del chip actual.
+function conectarQuitarDocPlancha(idx) {
+    const preview = document.getElementById(`planchaDocPreview-${idx}`);
+    if (!preview) return;
+    const btnRemove = preview.querySelector(".plancha-doc-remove");
+    if (btnRemove) {
+        btnRemove.addEventListener("click", () => {
+            preview.innerHTML = "";
+            const urlInput = document.querySelector(`.plancha-doc-url[data-idx="${idx}"]`);
+            const nameInput = document.querySelector(`.plancha-doc-name[data-idx="${idx}"]`);
+            if (urlInput) urlInput.value = "";
+            if (nameInput) nameInput.value = "";
+        });
+    }
 }
 
-// Devuelve una URL de miniatura (preview) del documento de Drive.
-// Si no es de Drive, devuelve cadena vacia (sin preview).
-function previewLinkDrive(url) {
-    const id = extraerIdDrive(url);
-    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w600` : "";
+// Sube el documento seleccionado a Firebase Storage (carpeta planchas/) y
+// guarda la URL de descarga en los inputs ocultos.
+async function subirDocumentoPlancha(e, idx) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const MAX = 20 * 1024 * 1024; // 20 MB (coincide con storage.rules)
+    if (file.size > MAX) {
+        showNotif("Archivo muy grande", "El documento supera los 20 MB. Comprimelo o usa uno mas liviano.");
+        e.target.value = "";
+        return;
+    }
+
+    const btn = document.querySelector(`.btn-upload-plancha-doc[data-idx="${idx}"]`);
+    const btnHtml = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Subiendo...';
+    }
+
+    try {
+        // Nombre unico para evitar colisiones
+        const limpio = file.name.replace(/[^\w.\-]+/g, "_");
+        const ruta = `planchas/${Date.now()}_${limpio}`;
+        const ref = storageRef(storage, ruta);
+        // Las imagenes se dejan "inline" para que se vea la vista previa en el correo.
+        // Los PDF y demas documentos se marcan como "attachment" para que el boton
+        // "Descargar documento" realmente descargue el archivo (y no solo lo abra).
+        const esImg = (file.type || "").startsWith("image/");
+        const metadata = {
+            contentType: file.type || "application/octet-stream",
+            contentDisposition: esImg
+                ? `inline; filename="${limpio}"`
+                : `attachment; filename="${limpio}"`
+        };
+        await uploadBytes(ref, file, metadata);
+        const url = await getDownloadURL(ref);
+
+        // Guardar en inputs ocultos
+        const urlInput = document.querySelector(`.plancha-doc-url[data-idx="${idx}"]`);
+        const nameInput = document.querySelector(`.plancha-doc-name[data-idx="${idx}"]`);
+        if (urlInput) urlInput.value = url;
+        if (nameInput) nameInput.value = file.name;
+
+        // Mostrar chip con el documento
+        const preview = document.getElementById(`planchaDocPreview-${idx}`);
+        if (preview) {
+            preview.innerHTML = renderPlanchaDocChip(idx, { url, name: file.name });
+            conectarQuitarDocPlancha(idx);
+        }
+
+        showNotif("Documento subido", "El documento quedo guardado y se incluira en el correo.");
+    } catch (err) {
+        console.error("Error subiendo documento de plancha:", err);
+        const detalle = (err && (err.message || err.code)) || "Intenta de nuevo.";
+        showNotif("No se pudo subir", detalle);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = btnHtml || '<i class="bi bi-cloud-arrow-up"></i> Subir documento';
+        }
+        e.target.value = "";
+    }
 }
 
 // Recolecta los datos de la orden de plancha de un producto desde el DOM
@@ -2555,8 +2642,9 @@ function recogerOrdenPlancha(idx) {
     const observaciones = (document.querySelector(`.plancha-observaciones[data-idx="${idx}"]`)?.value || "").trim();
     const disenador = (document.querySelector(`.plancha-disenador[data-idx="${idx}"]`)?.value || "").trim();
     const correo = (document.querySelector(`.plancha-correo[data-idx="${idx}"]`)?.value || "").trim();
-    const linkDoc = (document.querySelector(`.plancha-doc-link-input[data-idx="${idx}"]`)?.value || "").trim();
-    const documento = linkDoc ? { url: linkDoc } : null;
+    const docUrl = (document.querySelector(`.plancha-doc-url[data-idx="${idx}"]`)?.value || "").trim();
+    const docName = (document.querySelector(`.plancha-doc-name[data-idx="${idx}"]`)?.value || "").trim();
+    const documento = docUrl ? { url: docUrl, name: docName || "Documento" } : null;
 
     return { colores, tipos, observaciones, disenador, correo, documento };
 }
@@ -2576,8 +2664,11 @@ function construirHtmlOrdenPlancha({ orden, item, coloresSel, tiposSel, datos, r
            </div>`
         : "";
 
-    const docUrl = (datos.documento && datos.documento.url) ? normalizarLinkDrive(datos.documento.url) : "";
-    const docPreview = (datos.documento && datos.documento.url) ? previewLinkDrive(datos.documento.url) : "";
+    const docUrl = (datos.documento && datos.documento.url) ? datos.documento.url : "";
+    const docNombre = (datos.documento && datos.documento.name) ? datos.documento.name : "";
+    // Vista previa solo si el documento es una imagen (Firebase sirve la URL directa).
+    const esImagen = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(docNombre) || /\.(png|jpe?g|gif|webp|bmp|svg)/i.test(docUrl);
+    const docPreview = esImagen ? docUrl : "";
     const previewHtml = docPreview
         ? `<div style="margin-top:18px;text-align:center;">
                <p style="margin:0 0 8px;font-weight:600;color:#334;text-align:left;">Vista previa</p>
@@ -2663,7 +2754,7 @@ async function enviarOrdenPlanchaCorreo(idx, item) {
     ];
     if (datos.disenador) lineas.push(`Disenador / Proveedor: ${datos.disenador}`);
     if (datos.observaciones) { lineas.push("", "Observaciones:", datos.observaciones); }
-    const docUrlTexto = (datos.documento && datos.documento.url) ? normalizarLinkDrive(datos.documento.url) : "";
+    const docUrlTexto = (datos.documento && datos.documento.url) ? datos.documento.url : "";
     if (docUrlTexto) { lineas.push("", "Documento:", docUrlTexto); }
     lineas.push("", "Quedo atento a cualquier inquietud.", "", "Saludos,", remitente, "Traffic Empaques - Publicidad");
     const cuerpoTexto = lineas.join("\n");
@@ -2681,7 +2772,8 @@ async function enviarOrdenPlanchaCorreo(idx, item) {
         disenador:    datos.disenador || "-",
         observaciones: datos.observaciones || "-",
         documento_url: docUrlTexto,
-        documento_preview: (datos.documento && datos.documento.url) ? previewLinkDrive(datos.documento.url) : "",
+        documento_nombre: (datos.documento && datos.documento.name) ? datos.documento.name : "",
+        documento_preview: /\.(png|jpe?g|gif|webp|bmp|svg)/i.test(docUrlTexto) ? docUrlTexto : "",
         message:      cuerpoTexto,
         message_html: cuerpoHtml
     };

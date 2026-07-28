@@ -2585,8 +2585,7 @@ body {
 
 .plancha-observaciones,
 .plancha-disenador,
-.plancha-correo,
-.plancha-doc-link-input {
+.plancha-correo {
     width: 100%;
     padding: 9px 12px;
     font-size: 13px;
@@ -2599,10 +2598,20 @@ body {
 
 .plancha-observaciones:focus,
 .plancha-disenador:focus,
-.plancha-correo:focus,
-.plancha-doc-link-input:focus {
+.plancha-correo:focus {
     outline: none;
     border-color: #29ABE2;
+}
+
+.plancha-doc-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.plancha-doc-preview:empty {
+    display: none;
 }
 
 .plancha-doc-hint {
