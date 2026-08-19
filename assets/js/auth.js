@@ -14,7 +14,10 @@ import {
     getStorage,
     ref as storageRef,
     uploadBytes,
-    getDownloadURL
+    getDownloadURL,
+    listAll,
+    getMetadata,
+    deleteObject
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
@@ -33,5 +36,5 @@ const storage = getStorage(app);
 
 export {
     db, collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc,
-    storage, storageRef, uploadBytes, getDownloadURL
+    storage, storageRef, uploadBytes, getDownloadURL, listAll, getMetadata, deleteObject
 };

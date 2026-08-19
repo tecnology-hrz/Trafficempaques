@@ -63,6 +63,10 @@
                 <i class="bi bi-boxes"></i>
                 <span>Inventario</span>
             </a>
+            <a class="nav-item" data-section="documentos" data-role="administrador">
+                <i class="bi bi-folder2-open"></i>
+                <span>Documentos</span>
+            </a>
         </nav>
         <div class="sidebar-footer">
             <div class="user-info">
@@ -1089,6 +1093,53 @@
                 </div>
             </div>
 
+            <!-- ===== SECCION: DOCUMENTOS (solo admin) ===== -->
+            <div class="section" id="section-documentos">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-folder2-open"></i> Documentos del sistema</h2>
+                    <button class="btn-primary" id="btnRecargarDocumentos">
+                        <i class="bi bi-arrow-repeat"></i> Recargar
+                    </button>
+                </div>
+
+                <div class="docs-resumen" id="docsResumen"></div>
+
+                <div class="cotizaciones-filtros">
+                    <div class="input-wrapper filtro-busqueda">
+                        <i class="bi bi-search input-icon"></i>
+                        <input type="text" id="documentosBuscar" placeholder="Buscar por nombre, orden o cliente...">
+                    </div>
+                    <select id="documentosFiltroTipo">
+                        <option value="">Todos los tipos</option>
+                        <option value="pdf">PDF</option>
+                        <option value="imagen">Imagenes</option>
+                        <option value="otro">Otros</option>
+                    </select>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="clientes-tabla-wrap">
+                            <table class="clientes-tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Documento</th>
+                                        <th>Tipo</th>
+                                        <th>Tamaño</th>
+                                        <th>Orden / Cliente</th>
+                                        <th>Subido</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documentosTablaBody">
+                                    <tr><td colspan="6" class="tabla-empty">Cargando documentos...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -1370,6 +1421,51 @@
                 <a id="pacdoraOpenExternal" href="" target="_blank" rel="noopener noreferrer" class="btn-pacdora-external">
                     <i class="bi bi-box-arrow-up-right"></i> Abrir en nueva pestaña
                 </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL PREVISUALIZAR DOCUMENTO ===== -->
+    <div class="docprev-modal" id="docPrevModal">
+        <div class="docprev-content">
+            <div class="docprev-header">
+                <div class="docprev-titulo">
+                    <i class="bi bi-file-earmark" id="docPrevIcono"></i>
+                    <div class="docprev-titulo-texto">
+                        <span class="docprev-nombre" id="docPrevNombre">Documento</span>
+                        <span class="docprev-meta" id="docPrevMeta"></span>
+                    </div>
+                </div>
+                <div class="docprev-header-acciones">
+                    <button class="docprev-btn-icon" id="docPrevZoomOut" title="Reducir"><i class="bi bi-zoom-out"></i></button>
+                    <span class="docprev-zoom-nivel" id="docPrevZoomNivel">100%</span>
+                    <button class="docprev-btn-icon" id="docPrevZoomIn" title="Ampliar"><i class="bi bi-zoom-in"></i></button>
+                    <button class="docprev-btn-icon" id="docPrevZoomReset" title="Restablecer zoom"><i class="bi bi-arrow-counterclockwise"></i></button>
+                    <button class="docprev-close" id="docPrevClose" title="Cerrar"><i class="bi bi-x-lg"></i></button>
+                </div>
+            </div>
+
+            <div class="docprev-body" id="docPrevBody">
+                <div class="docprev-loading" id="docPrevLoading">
+                    <span class="spinner-sm"></span>
+                    <p>Cargando documento...</p>
+                </div>
+                <div class="docprev-visor" id="docPrevVisor"></div>
+            </div>
+
+            <div class="docprev-footer">
+                <span class="docprev-footer-info" id="docPrevInfo"></span>
+                <div class="docprev-footer-acciones">
+                    <button class="docprev-btn" id="docPrevCopiar">
+                        <i class="bi bi-link-45deg"></i> Copiar link
+                    </button>
+                    <button class="docprev-btn" id="docPrevDescargar">
+                        <i class="bi bi-download"></i> Descargar
+                    </button>
+                    <a class="docprev-btn" id="docPrevNuevaPestana" href="" target="_blank" rel="noopener noreferrer">
+                        <i class="bi bi-box-arrow-up-right"></i> Nueva pestaña
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -1729,6 +1825,10 @@
         <a class="bottom-nav-item" data-section="inventario" data-role="administrador,guillotina">
             <i class="bi bi-boxes"></i>
             <span>Inventario</span>
+        </a>
+        <a class="bottom-nav-item" data-section="documentos" data-role="administrador">
+            <i class="bi bi-folder2-open"></i>
+            <span>Documentos</span>
         </a>
         <a class="bottom-nav-item" data-section="catalogo-admin" data-role="administrador">
             <i class="bi bi-grid-3x3-gap"></i>

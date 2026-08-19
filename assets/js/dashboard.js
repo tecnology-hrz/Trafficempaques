@@ -1,4 +1,4 @@
-﻿import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc, storage, storageRef, uploadBytes, getDownloadURL } from "./auth.js";
+﻿import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc, storage, storageRef, uploadBytes, getDownloadURL, listAll, getMetadata, deleteObject } from "./auth.js";
 import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
     cargarCatalogos, crearCotizacion, obtenerCotizaciones, eliminarCotizacion,
@@ -148,6 +148,8 @@ async function initDashboard(rol, nombre) {
         setupCatalogoAdmin();
         setupPapelera();
         cargarPapelera();
+        setupDocumentos();
+        cargarDocumentos();
     }
 
     // Ventas: finanzas propias
@@ -258,7 +260,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", inventario: "Inventario" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", inventario: "Inventario", documentos: "Documentos" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -6604,4 +6606,398 @@ function wirePapeleraBotones(container) {
             });
         });
     });
+}
+
+// ===== SECCION DOCUMENTOS (solo admin) =====
+// Lista los archivos subidos a Firebase Storage (carpeta planchas/) y los cruza
+// con las ordenes de diseño para saber a que orden/cliente pertenece cada uno.
+let documentosCache = [];
+
+function setupDocumentos() {
+    const btnRecargar = document.getElementById("btnRecargarDocumentos");
+    if (btnRecargar) btnRecargar.addEventListener("click", () => cargarDocumentos());
+
+    const inputBuscar = document.getElementById("documentosBuscar");
+    if (inputBuscar) inputBuscar.addEventListener("input", () => renderDocumentos());
+
+    const selectTipo = document.getElementById("documentosFiltroTipo");
+    if (selectTipo) selectTipo.addEventListener("change", () => renderDocumentos());
+
+    setupDocPreviewModal();
+}
+
+// Clasifica el documento por extension para el filtro de tipo.
+function clasificarDocumento(nombre, contentType) {
+    const ct = (contentType || "").toLowerCase();
+    if (ct === "application/pdf" || /\.pdf$/i.test(nombre)) return "pdf";
+    if (ct.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(nombre)) return "imagen";
+    return "otro";
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return "-";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+async function cargarDocumentos() {
+    const tbody = document.getElementById("documentosTablaBody");
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6" class="tabla-empty">Cargando documentos...</td></tr>';
+
+    try {
+        // Mapa url -> { numero, cliente } tomado de las ordenes de diseño
+        const refsPorUrl = {};
+        const snapDiseno = await getDocs(collection(db, "ordenesDiseno"));
+        snapDiseno.forEach(d => {
+            const data = d.data();
+            (data.items || []).forEach(item => {
+                const docu = item.ordenPlancha && item.ordenPlancha.documento;
+                if (docu && docu.url) {
+                    refsPorUrl[docu.url] = {
+                        numero: data.numero || "",
+                        cliente: data.cliente || "",
+                        tipo: data.tipo || "",
+                        producto: item.producto || ""
+                    };
+                }
+            });
+        });
+
+        // Listar los archivos reales de Storage
+        const carpeta = storageRef(storage, "planchas");
+        const listado = await listAll(carpeta);
+
+        const documentos = await Promise.all(listado.items.map(async (itemRef) => {
+            try {
+                const [meta, url] = await Promise.all([
+                    getMetadata(itemRef),
+                    getDownloadURL(itemRef)
+                ]);
+                const vinculo = refsPorUrl[url] || null;
+                return {
+                    path: itemRef.fullPath,
+                    nombre: meta.name || itemRef.name,
+                    url,
+                    size: meta.size || 0,
+                    contentType: meta.contentType || "",
+                    fecha: meta.timeCreated || "",
+                    clase: clasificarDocumento(meta.name || itemRef.name, meta.contentType),
+                    orden: vinculo ? vinculo.numero : "",
+                    cliente: vinculo ? vinculo.cliente : "",
+                    producto: vinculo ? vinculo.producto : ""
+                };
+            } catch (err) {
+                console.error("Error leyendo metadata de", itemRef.fullPath, err);
+                return null;
+            }
+        }));
+
+        documentosCache = documentos.filter(Boolean);
+        documentosCache.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+
+        renderDocumentos();
+    } catch (err) {
+        console.error("Error cargando documentos:", err);
+        tbody.innerHTML = '<tr><td colspan="6" class="tabla-empty">Error al cargar los documentos</td></tr>';
+    }
+}
+
+function renderDocumentos() {
+    const tbody = document.getElementById("documentosTablaBody");
+    const resumen = document.getElementById("docsResumen");
+    if (!tbody) return;
+
+    let lista = [...documentosCache];
+    const busqueda = (document.getElementById("documentosBuscar")?.value || "").trim().toLowerCase();
+    const filtroTipo = document.getElementById("documentosFiltroTipo")?.value || "";
+
+    if (busqueda) {
+        lista = lista.filter(d =>
+            (d.nombre || "").toLowerCase().includes(busqueda) ||
+            (d.orden || "").toLowerCase().includes(busqueda) ||
+            (d.cliente || "").toLowerCase().includes(busqueda) ||
+            (d.producto || "").toLowerCase().includes(busqueda)
+        );
+    }
+
+    if (filtroTipo) {
+        lista = lista.filter(d => d.clase === filtroTipo);
+    }
+
+    // Resumen (sobre el total, no sobre el filtro)
+    if (resumen) {
+        const total = documentosCache.length;
+        const pesoTotal = documentosCache.reduce((acc, d) => acc + (d.size || 0), 0);
+        const pdfs = documentosCache.filter(d => d.clase === "pdf").length;
+        const imgs = documentosCache.filter(d => d.clase === "imagen").length;
+        resumen.innerHTML = `
+            <div class="docs-resumen-item"><span class="docs-resumen-label">Documentos</span><span class="docs-resumen-valor">${total}</span></div>
+            <div class="docs-resumen-item"><span class="docs-resumen-label">PDF</span><span class="docs-resumen-valor">${pdfs}</span></div>
+            <div class="docs-resumen-item"><span class="docs-resumen-label">Imagenes</span><span class="docs-resumen-valor">${imgs}</span></div>
+            <div class="docs-resumen-item"><span class="docs-resumen-label">Espacio usado</span><span class="docs-resumen-valor">${formatBytes(pesoTotal)}</span></div>
+        `;
+    }
+
+    if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="tabla-empty">No se encontraron documentos</td></tr>';
+        return;
+    }
+
+    const iconos = { pdf: "bi-file-earmark-pdf", imagen: "bi-file-earmark-image", otro: "bi-file-earmark" };
+    const etiquetas = { pdf: "PDF", imagen: "Imagen", otro: "Otro" };
+
+    tbody.innerHTML = lista.map(d => {
+        const fecha = d.fecha ? new Date(d.fecha).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "-";
+        const vinculo = d.orden
+            ? `<strong>${d.orden}</strong>${d.cliente ? " &bull; " + d.cliente : ""}`
+            : '<span class="docs-sin-vinculo">Sin orden asociada</span>';
+        return `
+            <tr>
+                <td>
+                    <button class="docs-nombre docs-nombre-btn" data-path="${d.path}" title="Previsualizar ${d.nombre}">
+                        <i class="bi ${iconos[d.clase]}"></i>
+                        <span>${d.nombre}</span>
+                    </button>
+                </td>
+                <td><span class="docs-tipo-badge ${d.clase}">${etiquetas[d.clase]}</span></td>
+                <td>${formatBytes(d.size)}</td>
+                <td>${vinculo}</td>
+                <td>${fecha}</td>
+                <td>
+                    <div class="docs-acciones">
+                        <button class="docs-btn-ver" data-path="${d.path}">
+                            <i class="bi bi-eye"></i> Ver
+                        </button>
+                        <button class="docs-btn-copiar" data-url="${d.url}">
+                            <i class="bi bi-link-45deg"></i> Link
+                        </button>
+                        <button class="docs-btn-eliminar" data-path="${d.path}" data-name="${d.nombre}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    // Previsualizar (boton Ver y nombre del documento)
+    tbody.querySelectorAll(".docs-btn-ver, .docs-nombre-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const documento = documentosCache.find(d => d.path === btn.dataset.path);
+            if (documento) abrirPreviewDocumento(documento);
+        });
+    });
+
+    // Copiar link
+    tbody.querySelectorAll(".docs-btn-copiar").forEach(btn => {
+        btn.addEventListener("click", () => {
+            copyToClipboard(btn.dataset.url).then(() => {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+                setTimeout(() => { btn.innerHTML = original; }, 2000);
+            });
+        });
+    });
+
+    // Eliminar documento de Storage
+    tbody.querySelectorAll(".docs-btn-eliminar").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const path = btn.dataset.path;
+            const name = btn.dataset.name;
+            showConfirm("Eliminar documento", `Eliminar "${name}" de forma permanente? Los correos ya enviados dejaran de poder descargarlo.`, async () => {
+                try {
+                    await deleteObject(storageRef(storage, path));
+                    documentosCache = documentosCache.filter(d => d.path !== path);
+                    renderDocumentos();
+                    showNotif("Documento eliminado", "El archivo se borro del almacenamiento.");
+                } catch (err) {
+                    console.error("Error eliminando documento:", err);
+                    showNotif("No se pudo eliminar", (err && (err.message || err.code)) || "Intenta de nuevo.");
+                }
+            });
+        });
+    });
+}
+
+// ===== PREVISUALIZADOR DE DOCUMENTOS =====
+// Los PDF se suben a Storage con contentDisposition "attachment" para que el
+// boton del correo los descargue. Ese mismo header hace que un iframe apuntando
+// a la URL directa dispare la descarga en vez de mostrar el archivo. Para poder
+// previsualizarlo sin tocar el comportamiento del correo, se descarga el archivo
+// como blob y se muestra desde una URL local (blob:), que no lleva ese header.
+let docPrevActual = null;
+let docPrevBlobUrl = null;
+let docPrevZoom = 1;
+
+function setupDocPreviewModal() {
+    const modal = document.getElementById("docPrevModal");
+    if (!modal) return;
+
+    const cerrar = () => cerrarPreviewDocumento();
+
+    document.getElementById("docPrevClose")?.addEventListener("click", cerrar);
+    modal.addEventListener("click", (e) => { if (e.target === modal) cerrar(); });
+
+    // Cerrar con Escape
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modal.classList.contains("show")) cerrar();
+    });
+
+    // Zoom
+    document.getElementById("docPrevZoomIn")?.addEventListener("click", () => aplicarZoomDoc(docPrevZoom + 0.25));
+    document.getElementById("docPrevZoomOut")?.addEventListener("click", () => aplicarZoomDoc(docPrevZoom - 0.25));
+    document.getElementById("docPrevZoomReset")?.addEventListener("click", () => aplicarZoomDoc(1));
+
+    // Copiar link (siempre la URL publica de Storage, no la blob local)
+    document.getElementById("docPrevCopiar")?.addEventListener("click", (e) => {
+        if (!docPrevActual) return;
+        const btn = e.currentTarget;
+        copyToClipboard(docPrevActual.url).then(() => {
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+            setTimeout(() => { btn.innerHTML = original; }, 2000);
+        });
+    });
+
+    // Descargar
+    document.getElementById("docPrevDescargar")?.addEventListener("click", () => {
+        if (!docPrevActual) return;
+        const a = document.createElement("a");
+        a.href = docPrevBlobUrl || docPrevActual.url;
+        a.download = docPrevActual.nombre || "documento";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
+}
+
+function aplicarZoomDoc(nivel) {
+    docPrevZoom = Math.min(3, Math.max(0.25, nivel));
+    const contenido = document.querySelector("#docPrevVisor .docprev-zoomable");
+    if (contenido) contenido.style.transform = `scale(${docPrevZoom})`;
+    const label = document.getElementById("docPrevZoomNivel");
+    if (label) label.textContent = Math.round(docPrevZoom * 100) + "%";
+}
+
+// Muestra u oculta los controles de zoom (solo aplican a imagenes)
+function toggleZoomControlsDoc(mostrar) {
+    ["docPrevZoomIn", "docPrevZoomOut", "docPrevZoomReset", "docPrevZoomNivel"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = mostrar ? "" : "none";
+    });
+}
+
+async function abrirPreviewDocumento(documento) {
+    const modal = document.getElementById("docPrevModal");
+    const visor = document.getElementById("docPrevVisor");
+    const loading = document.getElementById("docPrevLoading");
+    if (!modal || !visor) return;
+
+    docPrevActual = documento;
+    docPrevZoom = 1;
+
+    // Encabezado
+    const iconos = { pdf: "bi-file-earmark-pdf", imagen: "bi-file-earmark-image", otro: "bi-file-earmark" };
+    const icono = document.getElementById("docPrevIcono");
+    if (icono) icono.className = "bi " + (iconos[documento.clase] || "bi-file-earmark");
+
+    document.getElementById("docPrevNombre").textContent = documento.nombre;
+
+    const etiquetas = { pdf: "PDF", imagen: "Imagen", otro: "Archivo" };
+    const partesMeta = [etiquetas[documento.clase] || "Archivo", formatBytes(documento.size)];
+    if (documento.orden) partesMeta.push(documento.orden);
+    if (documento.cliente) partesMeta.push(documento.cliente);
+    document.getElementById("docPrevMeta").textContent = partesMeta.join("  •  ");
+
+    const fecha = documento.fecha
+        ? new Date(documento.fecha).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })
+        : "";
+    document.getElementById("docPrevInfo").textContent = fecha ? "Subido el " + fecha : "";
+
+    const linkExterno = document.getElementById("docPrevNuevaPestana");
+    if (linkExterno) linkExterno.href = documento.url;
+
+    // Estado inicial: mostrando spinner
+    visor.innerHTML = "";
+    if (loading) loading.style.display = "flex";
+    toggleZoomControlsDoc(documento.clase === "imagen");
+    modal.classList.add("show");
+
+    // Liberar cualquier blob de una vista anterior
+    liberarBlobDoc();
+
+    try {
+        // Se descarga el archivo y se sirve como blob local para evitar que el
+        // header attachment de Storage fuerce la descarga dentro del iframe.
+        const res = await fetch(documento.url);
+        if (!res.ok) throw new Error("No se pudo descargar el archivo (" + res.status + ")");
+        const blob = await res.blob();
+
+        // El tipo real puede venir vacio desde Storage; se corrige para que el
+        // navegador sepa como renderizarlo.
+        const tipoReal = documento.clase === "pdf" ? "application/pdf" : (blob.type || documento.contentType);
+        const blobTipado = tipoReal && blob.type !== tipoReal ? blob.slice(0, blob.size, tipoReal) : blob;
+        docPrevBlobUrl = URL.createObjectURL(blobTipado);
+
+        if (loading) loading.style.display = "none";
+
+        if (documento.clase === "imagen") {
+            visor.innerHTML = `<div class="docprev-zoomable"><img src="${docPrevBlobUrl}" alt="${documento.nombre}"></div>`;
+        } else if (documento.clase === "pdf") {
+            visor.innerHTML = `<iframe src="${docPrevBlobUrl}" title="${documento.nombre}"></iframe>`;
+        } else {
+            // Tipos que el navegador no sabe mostrar (zip, ai, psd, etc.)
+            visor.innerHTML = `
+                <div class="docprev-no-preview">
+                    <i class="bi bi-file-earmark-x"></i>
+                    <h4>Sin vista previa disponible</h4>
+                    <p>Este tipo de archivo no se puede mostrar en el navegador. Descargalo para abrirlo con el programa correspondiente.</p>
+                </div>`;
+        }
+    } catch (err) {
+        // Si el fetch falla (normalmente por CORS del bucket), se intenta mostrar
+        // igual usando la URL directa. Funciona para imagenes, ya que se suben con
+        // contentDisposition "inline".
+        console.error("Error previsualizando documento:", err);
+        if (loading) loading.style.display = "none";
+
+        if (documento.clase === "imagen") {
+            visor.innerHTML = `<div class="docprev-zoomable"><img src="${documento.url}" alt="${documento.nombre}"></div>`;
+            return;
+        }
+
+        // Abrir el HTML directo desde el disco (file://) hace que el origen sea
+        // "null", y ningun ajuste de CORS puede autorizar ese origen.
+        const esArchivoLocal = window.location.protocol === "file:";
+        const detalle = esArchivoLocal
+            ? "Estas abriendo el dashboard como archivo local (file://). Los navegadores no permiten previsualizar en ese modo. Sirve el proyecto por http (por ejemplo con Live Server) o usa el sitio publicado."
+            : `El navegador bloqueo la descarga del PDF por CORS. Hay que autorizar el origen <strong>${window.location.origin}</strong> en el bucket de Storage (ver cors.json en el proyecto).`;
+
+        visor.innerHTML = `
+            <div class="docprev-no-preview">
+                <i class="bi bi-exclamation-triangle"></i>
+                <h4>No se pudo cargar la vista previa</h4>
+                <p>${detalle}</p>
+                <p class="docprev-no-preview-extra">Mientras tanto, puedes abrirlo en una pestaña nueva o descargarlo con los botones de abajo.</p>
+            </div>`;
+    }
+}
+
+function liberarBlobDoc() {
+    if (docPrevBlobUrl) {
+        URL.revokeObjectURL(docPrevBlobUrl);
+        docPrevBlobUrl = null;
+    }
+}
+
+function cerrarPreviewDocumento() {
+    const modal = document.getElementById("docPrevModal");
+    if (modal) modal.classList.remove("show");
+    const visor = document.getElementById("docPrevVisor");
+    if (visor) visor.innerHTML = "";
+    liberarBlobDoc();
+    docPrevActual = null;
 }
