@@ -49,5 +49,5 @@ document.getElementById("btnSetup").addEventListener("click", async () => {
         }
     }
 
-    log.innerHTML += `<p style="margin-top:16px;font-weight:600;">Listo. Ya puedes ir al <a href="index.html" style="color:#29ABE2;">Login</a>.</p>`;
+    log.innerHTML += `<p style="margin-top:16px;font-weight:600;">Listo. Ya puedes ir al <a href="login.html" style="color:#29ABE2;">Login</a>.</p>`;
 });

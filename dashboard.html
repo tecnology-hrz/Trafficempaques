@@ -55,6 +55,10 @@
                 <i class="bi bi-sliders"></i>
                 <span>Configuracion</span>
             </a>
+            <a class="nav-item" data-section="landing" data-role="administrador">
+                <i class="bi bi-window-desktop"></i>
+                <span>Landing Page</span>
+            </a>
             <a class="nav-item" data-section="catalogo-admin" data-role="administrador">
                 <i class="bi bi-grid-3x3-gap"></i>
                 <span>Catálogo</span>
@@ -969,6 +973,67 @@
                 <div class="cat-admin-grid" id="catAdminGrid"></div>
             </div>
 
+            <!-- ===== SECCION: LANDING PAGE (solo admin) ===== -->
+            <div class="section" id="section-landing">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-window-desktop"></i> Landing Page</h2>
+                    <div class="section-header-actions">
+                        <a class="btn-secondary" href="index.html" target="_blank" rel="noopener">
+                            <i class="bi bi-box-arrow-up-right"></i> Ver sitio
+                        </a>
+                        <button class="btn-primary" id="btnLandingGuardar">
+                            <i class="bi bi-check2-circle"></i> Guardar cambios
+                        </button>
+                    </div>
+                </div>
+
+                <div class="landing-intro">
+                    <div class="landing-intro-text">
+                        <h3><i class="bi bi-images"></i> Banners del sitio publico</h3>
+                        <p>
+                            Cada tarjeta es un espacio de imagen de la web. Sube el banner y
+                            queda publicado al guardar. Las imagenes se alojan en ImgBB; los
+                            videos se agregan con su enlace de YouTube o Vimeo.
+                        </p>
+                    </div>
+                    <div class="landing-intro-meta" id="landingMeta"></div>
+                </div>
+
+                <div id="landingGrupos" class="landing-grupos"></div>
+
+                <!-- ===== Galeria: imagenes y videos ===== -->
+                <div class="landing-grupo">
+                    <div class="landing-grupo-head">
+                        <h3>Galeria de la landing</h3>
+                        <span id="landingGaleriaCount"></span>
+                        <div class="landing-grupo-actions">
+                            <button class="btn-secondary landing-btn-sm" id="btnGaleriaImagen">
+                                <i class="bi bi-image"></i> Agregar imagen
+                            </button>
+                            <button class="btn-secondary landing-btn-sm" id="btnGaleriaVideo">
+                                <i class="bi bi-play-btn"></i> Agregar video
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="landing-galeria-head">
+                        <div class="landing-field">
+                            <label for="galeriaTituloInput">Titulo de la seccion</label>
+                            <input type="text" id="galeriaTituloInput" maxlength="60"
+                                   placeholder="Asi trabajamos">
+                        </div>
+                        <div class="landing-field">
+                            <label for="galeriaTextoInput">Texto de apoyo</label>
+                            <input type="text" id="galeriaTextoInput" maxlength="160"
+                                   placeholder="Un recorrido por nuestra planta y procesos">
+                        </div>
+                    </div>
+
+                    <div id="landingGaleriaLista" class="landing-galeria-lista"></div>
+                    <input type="file" id="galeriaFileInput" accept="image/*" hidden>
+                </div>
+            </div>
+
             <!-- ===== SECCION: INVENTARIO GUILLOTINA (admin y guillotina) ===== -->
             <div class="section" id="section-inventario">
                 <div class="section-header">
@@ -1784,6 +1849,10 @@
         <a class="bottom-nav-item" data-section="documentos" data-role="administrador">
             <i class="bi bi-folder2-open"></i>
             <span>Documentos</span>
+        </a>
+        <a class="bottom-nav-item" data-section="landing" data-role="administrador">
+            <i class="bi bi-window-desktop"></i>
+            <span>Landing</span>
         </a>
         <a class="bottom-nav-item" data-section="catalogo-admin" data-role="administrador">
             <i class="bi bi-grid-3x3-gap"></i>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catalogo de empaques | Traffic Empaques</title>
+    <meta name="description" content="Catalogo completo de empaques personalizados: cajas, bandejas, bolsas, vasos y papeles con medidas reales.">
+    <link rel="icon" type="image/x-icon" href="public/img/favicon.ico">
+    <link rel="stylesheet" href="assets/css/tienda.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body>
+
+    <div data-layout="header"></div>
+
+    <section class="hero hero--compact">
+        <div class="hero-bg hero-bg--single">
+            <span data-banner="catalogo_hero"></span>
+        </div>
+        <div class="hero-content">
+            <h1 class="hero-title" id="catalogoTitulo">Todos los empaques</h1>
+            <div class="hero-rule"></div>
+            <p class="hero-text" id="catalogoSubtitulo">
+                Empaques personalizados con medidas reales de produccion.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <nav class="breadcrumb" id="breadcrumb" aria-label="Ruta de navegacion"></nav>
+
+            <div class="shop-layout">
+                <!-- Filtros -->
+                <aside class="shop-aside">
+                    <h2 class="shop-aside__title">Categorias</h2>
+                    <div id="filtrosCategorias"></div>
+                </aside>
+
+                <div>
+                    <div class="shop-toolbar">
+                        <span class="shop-count" id="shopCount">Cargando...</span>
+                        <div class="shop-controls">
+                            <label class="visually-hidden" for="inputBuscar" style="position:absolute;left:-9999px">Buscar referencia</label>
+                            <input class="shop-search" type="search" id="inputBuscar" placeholder="Buscar referencia...">
+                            <label class="visually-hidden" for="selectOrden" style="position:absolute;left:-9999px">Ordenar</label>
+                            <select class="shop-select" id="selectOrden">
+                                <option value="default">Orden predeterminado</option>
+                                <option value="az">Nombre (A - Z)</option>
+                                <option value="za">Nombre (Z - A)</option>
+                                <option value="cat">Categoria</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="product-grid" id="productGrid" aria-live="polite">
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                        <div class="skeleton"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div data-layout="footer"></div>
+
+    <script type="module" src="assets/js/catalogo-publico.js"></script>
+</body>
+</html>

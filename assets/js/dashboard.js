@@ -9,6 +9,10 @@ import {
 } from "./cotizador.js";
 import { CATALOGO_DATA } from "./catalogo-data.js";
 import { EMAILJS_CONFIG } from "../../config/emailjs-config.js";
+import {
+    BANNER_SLOTS, BANNER_GRUPOS, LANDING_DOC, getLandingConfig,
+    portadaGaleria, esVideoValido, GALERIA_DEFAULT_TITULO, GALERIA_DEFAULT_TEXTO
+} from "./landing-config.js";
 
 // Inicializar EmailJS (SDK cargado desde el CDN en dashboard.html)
 if (window.emailjs && EMAILJS_CONFIG.publicKey) {
@@ -26,7 +30,7 @@ const PASOS_VISIBLES_POR_ROL = {
 };
 
 if (!rol || !nombre) {
-    window.location.href = "index.html";
+    window.location.href = "login.html";
 }
 
 const formatMoney = getFormatMoney();
@@ -146,6 +150,7 @@ async function initDashboard(rol, nombre) {
         setupFinanzas();
         cargarFinanzas();
         setupCatalogoAdmin();
+        setupLandingAdmin();
         setupPapelera();
         cargarPapelera();
         setupDocumentos();
@@ -260,7 +265,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", inventario: "Inventario", documentos: "Documentos" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", landing: "Landing Page", inventario: "Inventario", documentos: "Documentos" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -4307,7 +4312,7 @@ async function actualizarPasoOrden(ordenId, nuevoPaso, itemIdx, cantidadInfo) {
 // ===== LOGOUT =====
 function logout() {
     sessionStorage.clear();
-    window.location.href = "index.html";
+    window.location.href = "login.html";
 }
 
 // ===== SECCION FINANZAS =====
@@ -6796,4 +6801,385 @@ function renderDocumentos() {
             });
         });
     });
+}
+
+// ===== SECCIÓN LANDING PAGE (solo admin) =====
+// Administra los banners del sitio publico. Las imagenes se suben a ImgBB
+// y solo se persisten en Firestore (config/landing) al guardar.
+
+let landingBanners      = {};   // estado publicado
+let landingBannersDraft = {};   // estado en edicion
+let landingSubiendo     = 0;
+
+let landingGaleria = [];   // [{ id, tipo, url, portada, titulo, texto }]
+
+function setupLandingAdmin() {
+    const btnGuardar = document.getElementById("btnLandingGuardar");
+    if (!btnGuardar) return;
+
+    btnGuardar.addEventListener("click", guardarLandingConfig);
+
+    document.getElementById("btnGaleriaImagen")
+        .addEventListener("click", () => document.getElementById("galeriaFileInput").click());
+
+    document.getElementById("btnGaleriaVideo")
+        .addEventListener("click", agregarVideoGaleria);
+
+    document.getElementById("galeriaFileInput").addEventListener("change", async e => {
+        const file = e.target.files[0];
+        e.target.value = "";
+        if (file) await agregarImagenGaleria(file);
+    });
+
+    cargarLandingAdmin();
+}
+
+async function cargarLandingAdmin() {
+    const cfg = await getLandingConfig({ forzar: true });
+    landingBanners = { ...cfg.banners };
+    landingBannersDraft = { ...cfg.banners };
+    landingGaleria = (cfg.galeria || []).map(i => ({ ...i }));
+
+    document.getElementById("galeriaTituloInput").value =
+        cfg.galeriaTitulo === GALERIA_DEFAULT_TITULO ? "" : (cfg.galeriaTitulo || "");
+    document.getElementById("galeriaTextoInput").value =
+        cfg.galeriaTexto === GALERIA_DEFAULT_TEXTO ? "" : (cfg.galeriaTexto || "");
+
+    renderLandingMeta(cfg.actualizado);
+    renderLandingGrupos();
+    renderLandingGaleria();
+}
+
+/* ---------- Galeria: imagenes y videos ---------- */
+function nuevoIdGaleria() {
+    return "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+async function agregarImagenGaleria(file) {
+    if (!file.type.startsWith("image/")) {
+        showNotifToast("El archivo debe ser una imagen");
+        return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        showNotifToast("La imagen supera 8 MB, comprimela antes de subir");
+        return;
+    }
+
+    const lista = document.getElementById("landingGaleriaLista");
+    lista.classList.add("is-busy");
+    landingSubiendo++;
+
+    try {
+        const url = await subirImgbb(file);
+        landingGaleria.push({
+            id: nuevoIdGaleria(), tipo: "imagen", url, portada: "", titulo: "", texto: ""
+        });
+        showNotifToast("Imagen agregada. Guarda para publicar");
+    } catch (err) {
+        console.error("[landing] error subiendo imagen de galeria", err);
+        showNotifToast("No se pudo subir la imagen");
+    } finally {
+        landingSubiendo--;
+        lista.classList.remove("is-busy");
+        renderLandingGaleria();
+    }
+}
+
+function agregarVideoGaleria() {
+    const url = (prompt("Pega el enlace del video (YouTube o Vimeo):") || "").trim();
+    if (!url) return;
+
+    if (!esVideoValido(url)) {
+        showNotifToast("Enlace no reconocido. Usa YouTube o Vimeo");
+        return;
+    }
+
+    landingGaleria.push({
+        id: nuevoIdGaleria(), tipo: "video", url, portada: "", titulo: "", texto: ""
+    });
+    renderLandingGaleria();
+    showNotifToast("Video agregado. Guarda para publicar");
+}
+
+function renderLandingGaleria() {
+    const lista = document.getElementById("landingGaleriaLista");
+    const count = document.getElementById("landingGaleriaCount");
+    if (!lista) return;
+
+    const imgs   = landingGaleria.filter(i => i.tipo === "imagen").length;
+    const videos = landingGaleria.filter(i => i.tipo === "video").length;
+    if (count) count.textContent = `${imgs} imagen${imgs === 1 ? "" : "es"} · ${videos} video${videos === 1 ? "" : "s"}`;
+
+    if (!landingGaleria.length) {
+        lista.innerHTML = `
+            <div class="landing-galeria-empty">
+                <i class="bi bi-collection-play"></i>
+                <p>Aun no hay piezas en la galeria. Agrega imagenes o videos y la
+                   seccion aparecera automaticamente en la landing.</p>
+            </div>`;
+        return;
+    }
+
+    lista.innerHTML = "";
+
+    landingGaleria.forEach((item, idx) => {
+        const portada = portadaGaleria(item);
+        const fila = document.createElement("div");
+        fila.className = "landing-galeria-item";
+        fila.innerHTML = `
+            <div class="landing-galeria-thumb">
+                ${portada
+                    ? `<img src="${portada}" alt=""
+                            onerror="this.style.display='none';this.parentElement.classList.add('is-empty')">`
+                    : ""}
+                <div class="landing-galeria-thumb-ph"><i class="bi bi-image"></i></div>
+                ${item.tipo === "video" ? '<span class="landing-galeria-badge"><i class="bi bi-play-fill"></i></span>' : ""}
+            </div>
+
+            <div class="landing-galeria-campos">
+                <span class="landing-galeria-tipo">
+                    <i class="bi ${item.tipo === "video" ? "bi-play-btn" : "bi-image"}"></i>
+                    ${item.tipo === "video" ? "Video" : "Imagen"}
+                </span>
+                <input type="text" data-campo="titulo" placeholder="Titulo (opcional)"
+                       maxlength="60" value="${(item.titulo || "").replace(/"/g, "&quot;")}">
+                <input type="text" data-campo="texto" placeholder="Descripcion corta (opcional)"
+                       maxlength="120" value="${(item.texto || "").replace(/"/g, "&quot;")}">
+                ${item.tipo === "video"
+                    ? `<input type="url" data-campo="url" placeholder="Enlace del video"
+                              value="${(item.url || "").replace(/"/g, "&quot;")}">`
+                    : ""}
+            </div>
+
+            <div class="landing-galeria-acciones">
+                <button class="landing-icon-btn" data-accion="subir" title="Subir"
+                        ${idx === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button>
+                <button class="landing-icon-btn" data-accion="bajar" title="Bajar"
+                        ${idx === landingGaleria.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button>
+                <a class="landing-icon-btn" href="${item.url}" target="_blank" rel="noopener"
+                   title="Abrir"><i class="bi bi-box-arrow-up-right"></i></a>
+                <button class="landing-icon-btn landing-icon-btn--danger" data-accion="eliminar"
+                        title="Eliminar"><i class="bi bi-trash3"></i></button>
+            </div>`;
+
+        fila.querySelectorAll("[data-campo]").forEach(input => {
+            input.addEventListener("input", () => {
+                const campo = input.dataset.campo;
+                item[campo] = input.value.trim();
+                if (campo === "url") renderLandingGaleria();
+            });
+        });
+
+        fila.querySelector('[data-accion="subir"]').addEventListener("click", () => {
+            [landingGaleria[idx - 1], landingGaleria[idx]] = [landingGaleria[idx], landingGaleria[idx - 1]];
+            renderLandingGaleria();
+        });
+        fila.querySelector('[data-accion="bajar"]').addEventListener("click", () => {
+            [landingGaleria[idx + 1], landingGaleria[idx]] = [landingGaleria[idx], landingGaleria[idx + 1]];
+            renderLandingGaleria();
+        });
+        fila.querySelector('[data-accion="eliminar"]').addEventListener("click", () => {
+            showConfirm("Eliminar pieza", "Se quitara de la galeria de la landing.", () => {
+                landingGaleria = landingGaleria.filter(g => g.id !== item.id);
+                renderLandingGaleria();
+            });
+        });
+
+        lista.appendChild(fila);
+    });
+}
+
+/** Sube un archivo a ImgBB y devuelve la URL publica. */
+async function subirImgbb(file) {
+    const b64 = await fileToBase64(file);
+    const form = new FormData();
+    form.append("key", IMGBB_KEY_ADMIN);
+    form.append("image", b64.split(",")[1]);
+
+    const res  = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
+    const data = await res.json();
+    if (!data.success) throw new Error(data?.error?.message || "ImgBB rechazo la imagen");
+    return data.data.url;
+}
+
+function renderLandingMeta(actualizado) {
+    const meta = document.getElementById("landingMeta");
+    if (!meta) return;
+    const configurados = BANNER_SLOTS.filter(s => landingBannersDraft[s.key]).length;
+    const fecha = actualizado
+        ? new Date(actualizado).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })
+        : "sin publicar";
+    meta.innerHTML = `
+        <div class="landing-meta-item">
+            <span class="landing-meta-label">Espacios configurados</span>
+            <strong>${configurados} de ${BANNER_SLOTS.length}</strong>
+        </div>
+        <div class="landing-meta-item">
+            <span class="landing-meta-label">Ultima publicacion</span>
+            <strong>${fecha}</strong>
+        </div>`;
+}
+
+function renderLandingGrupos() {
+    const cont = document.getElementById("landingGrupos");
+    if (!cont) return;
+    cont.innerHTML = "";
+
+    BANNER_GRUPOS.forEach(grupo => {
+        const slots = BANNER_SLOTS.filter(s => s.grupo === grupo);
+        if (!slots.length) return;
+
+        const bloque = document.createElement("div");
+        bloque.className = "landing-grupo";
+        bloque.innerHTML = `
+            <div class="landing-grupo-head">
+                <h3>${grupo}</h3>
+                <span>${slots.length} espacio${slots.length === 1 ? "" : "s"}</span>
+            </div>
+            <div class="landing-banner-grid"></div>`;
+
+        const grid = bloque.querySelector(".landing-banner-grid");
+        slots.forEach(slot => grid.appendChild(landingSlotCard(slot)));
+        cont.appendChild(bloque);
+    });
+}
+
+function landingSlotCard(slot) {
+    const url        = landingBannersDraft[slot.key] || "";
+    const publicada  = landingBanners[slot.key] || "";
+    const preview    = url || slot.fallback;
+    const modificado = url !== publicada;
+
+    const card = document.createElement("div");
+    card.className = "landing-banner-card" + (modificado ? " is-dirty" : "");
+    card.innerHTML = `
+        <div class="landing-banner-preview">
+            <img src="${preview}" alt="${slot.label}"
+                 onerror="this.style.display='none';this.parentElement.classList.add('is-empty')">
+            <div class="landing-banner-ph"><i class="bi bi-image"></i><span>Sin imagen</span></div>
+            <span class="landing-banner-state">
+                ${url ? '<i class="bi bi-check-circle-fill"></i> Personalizado'
+                      : '<i class="bi bi-dash-circle"></i> Imagen por defecto'}
+            </span>
+            ${modificado ? '<span class="landing-banner-dirty">Sin guardar</span>' : ""}
+            <div class="landing-banner-loader"><i class="bi bi-arrow-repeat"></i> Subiendo...</div>
+        </div>
+        <div class="landing-banner-body">
+            <h4>${slot.label}</h4>
+            <p>${slot.ayuda}</p>
+            <div class="landing-banner-actions">
+                <button class="btn-secondary landing-btn-sm" data-accion="subir">
+                    <i class="bi bi-upload"></i> ${url ? "Cambiar" : "Subir"}
+                </button>
+                ${url ? `<button class="btn-secondary landing-btn-sm" data-accion="quitar">
+                            <i class="bi bi-arrow-counterclockwise"></i> Restaurar
+                         </button>` : ""}
+                ${url ? `<a class="btn-secondary landing-btn-sm" href="${url}" target="_blank" rel="noopener">
+                            <i class="bi bi-eye"></i>
+                         </a>` : ""}
+            </div>
+        </div>
+        <input type="file" accept="image/*" hidden>`;
+
+    const input = card.querySelector("input[type=file]");
+
+    card.querySelector('[data-accion="subir"]').addEventListener("click", () => input.click());
+
+    card.querySelector('[data-accion="quitar"]')?.addEventListener("click", () => {
+        delete landingBannersDraft[slot.key];
+        renderLandingGrupos();
+        renderLandingMeta(null);
+    });
+
+    input.addEventListener("change", async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await subirBannerLanding(file, slot, card);
+    });
+
+    return card;
+}
+
+async function subirBannerLanding(file, slot, card) {
+    if (!file.type.startsWith("image/")) {
+        showNotifToast("El archivo debe ser una imagen");
+        return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        showNotifToast("La imagen supera 8 MB, comprimela antes de subir");
+        return;
+    }
+
+    card.classList.add("is-uploading");
+    landingSubiendo++;
+
+    try {
+        const b64 = await fileToBase64(file);
+        const form = new FormData();
+        form.append("key", IMGBB_KEY_ADMIN);
+        form.append("image", b64.split(",")[1]);
+
+        const res  = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data?.error?.message || "ImgBB rechazo la imagen");
+
+        landingBannersDraft[slot.key] = data.data.url;
+        showNotifToast(`"${slot.label}" listo. Guarda para publicar`);
+    } catch (err) {
+        console.error("[landing] error subiendo banner", err);
+        showNotifToast("No se pudo subir la imagen, intenta de nuevo");
+    } finally {
+        landingSubiendo--;
+        card.classList.remove("is-uploading");
+        renderLandingGrupos();
+        renderLandingMeta(null);
+    }
+}
+
+async function guardarLandingConfig() {
+    if (landingSubiendo > 0) {
+        showNotifToast("Espera a que terminen las subidas en curso");
+        return;
+    }
+
+    const btn = document.getElementById("btnLandingGuardar");
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i> Guardando...';
+
+    const ahora = new Date().toISOString();
+
+    try {
+        const titulo = document.getElementById("galeriaTituloInput").value.trim();
+        const texto  = document.getElementById("galeriaTextoInput").value.trim();
+
+        // Solo se publican piezas con url valida
+        const galeria = landingGaleria
+            .filter(i => i.url && (i.tipo !== "video" || esVideoValido(i.url)))
+            .map(({ id, tipo, url, portada, titulo, texto }) =>
+                ({ id, tipo, url, portada: portada || "", titulo: titulo || "", texto: texto || "" }));
+
+        await setDoc(doc(db, LANDING_DOC.coleccion, LANDING_DOC.id), {
+            banners: landingBannersDraft,
+            galeria,
+            galeriaTitulo: titulo || GALERIA_DEFAULT_TITULO,
+            galeriaTexto: texto || GALERIA_DEFAULT_TEXTO,
+            actualizado: ahora,
+            actualizadoPor: nombre || "administrador"
+        }, { merge: true });
+
+        landingBanners = { ...landingBannersDraft };
+        landingGaleria = galeria.map(i => ({ ...i }));
+        renderLandingGrupos();
+        renderLandingGaleria();
+        renderLandingMeta(ahora);
+        showNotifToast("Landing actualizada. Los cambios ya estan publicados");
+    } catch (err) {
+        console.error("[landing] error guardando config", err);
+        showNotifToast("No se pudo guardar la configuracion");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    }
 }

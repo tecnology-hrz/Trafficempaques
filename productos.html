@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productos | Traffic Empaques</title>
+    <meta name="description" content="Nuestras dos lineas de producto: empaques personalizados listos para cotizar y servicios digitales.">
+    <link rel="icon" type="image/x-icon" href="public/img/favicon.ico">
+    <link rel="stylesheet" href="assets/css/tienda.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body>
+
+    <div data-layout="header"></div>
+
+    <section class="hero hero--compact">
+        <div class="hero-bg hero-bg--single">
+            <span data-banner="productos_hero"></span>
+        </div>
+        <div class="hero-content">
+            <h1 class="hero-title">Productos</h1>
+            <div class="hero-rule"></div>
+            <p class="hero-text" id="lineaSubtitulo">
+                Elige la linea que necesitas: empaques o digital.
+            </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <nav class="breadcrumb" id="breadcrumb" aria-label="Ruta de navegacion"></nav>
+
+            <!-- Selector de linea: empaques / digital -->
+            <div class="linea-switch" role="tablist" aria-label="Lineas de producto">
+                <button class="linea-tab is-active" type="button" role="tab"
+                        id="tabEmpaques" data-linea="empaques"
+                        aria-selected="true" aria-controls="panelEmpaques">
+                    <i class="bi bi-box-seam"></i>
+                    <span class="linea-tab__text">
+                        <strong>Empaques</strong>
+                        <small>Cajas, bolsas, vasos y papeles</small>
+                    </span>
+                </button>
+                <button class="linea-tab" type="button" role="tab"
+                        id="tabDigital" data-linea="digital"
+                        aria-selected="false" aria-controls="panelDigital">
+                    <i class="bi bi-laptop"></i>
+                    <span class="linea-tab__text">
+                        <strong>Digital</strong>
+                        <small>Marca, contenido y publicidad</small>
+                    </span>
+                    <span class="linea-tab__badge">Proximamente</span>
+                </button>
+            </div>
+
+            <!-- ============ PANEL: EMPAQUES ============ -->
+            <div class="linea-panel" id="panelEmpaques" role="tabpanel" aria-labelledby="tabEmpaques">
+                <div class="section-head" style="text-align:left;margin-bottom:28px">
+                    <h2 class="section-title" style="font-size:1.4rem">Empaques por categoria</h2>
+                    <p class="section-sub" style="margin-left:0;text-align:left">
+                        Cada categoria agrupa las referencias que fabricamos, con sus medidas
+                        exactas. Elige una para ver el detalle y agregarla a tu cotizacion.
+                    </p>
+                </div>
+
+                <div class="catcard-grid" id="categoriasGrid" aria-live="polite">
+                    <div class="skeleton"></div>
+                    <div class="skeleton"></div>
+                    <div class="skeleton"></div>
+                </div>
+
+                <div style="text-align:center;margin-top:40px">
+                    <a class="btn btn--outline btn--lg" href="catalogo.html">Ver todas las referencias</a>
+                </div>
+            </div>
+
+            <!-- ============ PANEL: DIGITAL ============ -->
+            <div class="linea-panel" id="panelDigital" role="tabpanel" aria-labelledby="tabDigital" hidden>
+                <div class="soon-box">
+                    <i class="bi bi-hourglass-split soon-icon"></i>
+                    <h2>Linea Digital: muy pronto</h2>
+                    <p>
+                        Estamos terminando de montar esta linea. Estos son los servicios que
+                        vas a encontrar aqui. Si te interesa alguno, escribenos y lo cotizamos ya.
+                    </p>
+
+                    <div class="soon-list">
+                        <div><strong>Identidad de marca</strong>Logo, paleta, tipografia y manual de uso.</div>
+                        <div><strong>Diseño para empaque</strong>Artes listas para impresion en tus referencias.</div>
+                        <div><strong>Contenido para redes</strong>Fotografia de producto y piezas mensuales.</div>
+                        <div><strong>Publicidad digital</strong>Campañas en Meta y Google orientadas a pedidos.</div>
+                        <div><strong>Menus y catalogos</strong>Piezas digitales e impresas para tu punto.</div>
+                        <div><strong>Landing y tienda</strong>Presencia web sencilla conectada a WhatsApp.</div>
+                    </div>
+
+                    <div class="hero-actions" style="justify-content:center">
+                        <a class="btn btn--primary btn--lg" id="btnDigitalWa" href="#" target="_blank" rel="noopener">
+                            <i class="bi bi-whatsapp"></i> Quiero enterarme
+                        </a>
+                        <button class="btn btn--outline btn--lg" type="button" data-ir-empaques>
+                            Ver empaques
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div data-layout="footer"></div>
+
+    <script type="module" src="assets/js/productos-hub.js"></script>
+</body>
+</html>
