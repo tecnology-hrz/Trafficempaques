@@ -46,13 +46,11 @@
 
             <div class="line-grid">
                 <a class="line-card" href="productos.html?linea=empaques">
-                    <span class="line-card__img" data-banner="linea_empaques"></span>
-                    <div class="line-card__body">
-                        <span class="line-card__thumb">
-                            <img data-banner-img="linea_empaques_icono" alt="" hidden>
-                            <i class="bi bi-box-seam"></i>
-                        </span>
+                    <div class="line-card__media">
+                        <span class="line-card__img" data-banner="linea_empaques"></span>
                         <span class="line-card__tag">Disponible</span>
+                    </div>
+                    <div class="line-card__body">
                         <h3 class="line-card__title">Empaques</h3>
                         <p class="line-card__text">
                             Cajas, bolsas, vasos y papeles antigrasa. Catalogo completo con
@@ -63,13 +61,11 @@
                 </a>
 
                 <a class="line-card" href="productos.html?linea=digital">
-                    <span class="line-card__img" data-banner="linea_digital"></span>
-                    <div class="line-card__body">
-                        <span class="line-card__thumb">
-                            <img data-banner-img="linea_digital_icono" alt="" hidden>
-                            <i class="bi bi-laptop"></i>
-                        </span>
+                    <div class="line-card__media">
+                        <span class="line-card__img" data-banner="linea_digital"></span>
                         <span class="line-card__tag line-card__tag--soon">Proximamente</span>
+                    </div>
+                    <div class="line-card__body">
                         <h3 class="line-card__title">Digital</h3>
                         <p class="line-card__text">
                             Diseño de marca, contenido y publicidad digital para que tu
@@ -89,13 +85,27 @@
                 <h2 class="section-title">Nuestros Productos</h2>
                 <div class="section-title-rule"></div>
             </div>
-            <div class="cat-grid" id="catGrid" aria-live="polite">
+
+            <!-- Menu de linea: cambia las tarjetas sin salir de la pagina -->
+            <div class="cat-switch" role="tablist" aria-label="Lineas de producto">
+                <button class="cat-switch__btn is-active" type="button" role="tab"
+                        data-linea="empaques" aria-selected="true" aria-controls="catGrid">
+                    <i class="bi bi-box-seam"></i> Empaques
+                </button>
+                <button class="cat-switch__btn" type="button" role="tab"
+                        data-linea="digital" aria-selected="false" aria-controls="catGrid">
+                    <i class="bi bi-laptop"></i> Digital
+                </button>
+            </div>
+
+            <div class="cat-grid" id="catGrid" role="tabpanel" aria-live="polite">
                 <div class="skeleton"></div>
                 <div class="skeleton"></div>
                 <div class="skeleton"></div>
                 <div class="skeleton"></div>
             </div>
-            <div style="text-align:center;margin-top:40px">
+
+            <div style="text-align:center;margin-top:40px" id="catCta">
                 <a class="btn btn--outline btn--lg" href="catalogo.html">Ver todos los empaques</a>
             </div>
         </div>
@@ -181,6 +191,99 @@
                 <p class="section-sub" id="galeriaTexto"></p>
             </div>
             <div class="galeria-grid" id="galeriaGrid"></div>
+        </div>
+    </section>
+
+    <!-- ================= CONTACTO ================= -->
+    <section class="section" id="contacto">
+        <div class="container">
+            <div class="section-head">
+                <h2 class="section-title">Hablemos de tu proyecto</h2>
+                <div class="section-title-rule"></div>
+                <p class="section-sub">
+                    Cuentanos que necesitas empacar y te respondemos con una propuesta
+                    concreta: referencia, material y tiempos de entrega.
+                </p>
+            </div>
+
+            <div class="contacto-layout">
+                <!-- Datos de contacto -->
+                <div class="contacto-datos">
+                    <a class="contacto-item" id="contactoWa" href="#" target="_blank" rel="noopener">
+                        <span class="contacto-item__icon"><i class="bi bi-whatsapp"></i></span>
+                        <span class="contacto-item__text">
+                            <strong>WhatsApp</strong>
+                            <small id="contactoWaNum">Escribenos ahora</small>
+                        </span>
+                        <i class="bi bi-arrow-right contacto-item__arrow"></i>
+                    </a>
+
+                    <a class="contacto-item" id="contactoMail" href="#">
+                        <span class="contacto-item__icon"><i class="bi bi-envelope-fill"></i></span>
+                        <span class="contacto-item__text">
+                            <strong>Correo</strong>
+                            <small id="contactoMailTxt">Enviar correo</small>
+                        </span>
+                        <i class="bi bi-arrow-right contacto-item__arrow"></i>
+                    </a>
+
+                    <div class="contacto-item contacto-item--static">
+                        <span class="contacto-item__icon"><i class="bi bi-clock-fill"></i></span>
+                        <span class="contacto-item__text">
+                            <strong>Horario de atencion</strong>
+                            <small>Lunes a viernes 8:00 am - 6:00 pm<br>Sabados 8:00 am - 12:00 m</small>
+                        </span>
+                    </div>
+
+                    <div class="contacto-item contacto-item--static">
+                        <span class="contacto-item__icon"><i class="bi bi-truck"></i></span>
+                        <span class="contacto-item__text">
+                            <strong>Cobertura</strong>
+                            <small>Despachos a todo el pais con seguimiento de tu orden</small>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Formulario -->
+                <form class="contacto-form" id="contactoForm" novalidate>
+                    <h3 class="contacto-form__title">Cuentanos que necesitas</h3>
+
+                    <div class="contacto-form__row">
+                        <div class="form-field">
+                            <label for="ctNombre">Nombre o empresa *</label>
+                            <input type="text" id="ctNombre" required autocomplete="organization">
+                        </div>
+                        <div class="form-field">
+                            <label for="ctTelefono">Telefono / WhatsApp *</label>
+                            <input type="tel" id="ctTelefono" required autocomplete="tel">
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="ctInteres">Que te interesa</label>
+                        <select id="ctInteres" class="shop-select" style="width:100%">
+                            <option value="Empaques personalizados">Empaques personalizados</option>
+                            <option value="Cajas">Cajas</option>
+                            <option value="Bolsas">Bolsas</option>
+                            <option value="Papeles y vasos">Papeles y vasos</option>
+                            <option value="Linea digital">Linea digital</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="ctMensaje">Mensaje</label>
+                        <textarea id="ctMensaje" placeholder="Cantidades, medidas, fecha en que lo necesitas..."></textarea>
+                    </div>
+
+                    <button class="btn btn--primary btn--lg btn--block" type="submit">
+                        <i class="bi bi-whatsapp"></i> Enviar por WhatsApp
+                    </button>
+                    <p class="contacto-form__nota">
+                        Al enviar se abre WhatsApp con tu mensaje listo. Sin registros ni datos guardados.
+                    </p>
+                </form>
+            </div>
         </div>
     </section>
 

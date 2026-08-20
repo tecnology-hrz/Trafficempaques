@@ -291,10 +291,26 @@ export function initHeader() {
     }
 
     if (toggle && mobile) {
+        const icono = toggle.querySelector("i");
+
+        const cerrar = () => {
+            mobile.classList.remove("is-open");
+            toggle.setAttribute("aria-expanded", "false");
+            document.body.style.overflow = "";
+            if (icono) icono.className = "bi bi-list";
+        };
+
         toggle.addEventListener("click", () => {
             const abierto = mobile.classList.toggle("is-open");
             toggle.setAttribute("aria-expanded", String(abierto));
+            // Evita el scroll del fondo mientras el panel esta abierto
+            document.body.style.overflow = abierto ? "hidden" : "";
+            if (icono) icono.className = abierto ? "bi bi-x-lg" : "bi bi-list";
         });
+
+        // Cerrar al navegar dentro de la misma pagina (anclas) o con Escape
+        mobile.querySelectorAll("a").forEach(a => a.addEventListener("click", cerrar));
+        document.addEventListener("keydown", e => { if (e.key === "Escape") cerrar(); });
     }
 
     pintarBadgeCarrito();

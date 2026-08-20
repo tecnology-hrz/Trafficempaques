@@ -9,14 +9,19 @@ import { EMPRESA, CATEGORIAS_ORDEN, slug, initHeader, marcarNav, whatsappLink } 
 import { getLandingConfig, aplicarBanners } from "./landing-config.js";
 
 const NAV = [
-    { clave: "inicio",    texto: "Inicio",    href: "index.html" },
-    { clave: "productos", texto: "Productos", href: "productos.html" },
-    { clave: "contacto",  texto: "Contacto",  href: "index.html#contacto" }
+    { clave: "inicio",    texto: "Inicio",    href: "index.html",          icon: "bi-house-door" },
+    { clave: "productos", texto: "Productos", href: "productos.html",      icon: "bi-box-seam" },
+    { clave: "contacto",  texto: "Contacto",  href: "index.html#contacto", icon: "bi-chat-dots" }
 ];
 
 function headerHTML() {
     const links = NAV.map(n =>
         `<a class="nav-link" data-nav="${n.clave}" href="${n.href}">${n.texto}</a>`).join("");
+
+    const linksMovil = NAV.map(n =>
+        `<a data-nav-movil="${n.clave}" href="${n.href}">
+            <i class="bi ${n.icon}"></i> ${n.texto}
+         </a>`).join("");
 
     return `
     <header class="site-header">
@@ -43,9 +48,11 @@ function headerHTML() {
         </div>
     </header>
     <nav class="nav-mobile" aria-label="Navegacion movil">
-        ${links}
-        <a href="carrito.html">Mi cotizacion</a>
-        <a href="login.html"><i class="bi bi-person-circle"></i> Iniciar sesion</a>
+        ${linksMovil}
+        <a href="carrito.html"><i class="bi bi-cart3"></i> Mi cotizacion</a>
+        <a class="nav-mobile__login" href="login.html">
+            <i class="bi bi-person-circle"></i> Iniciar sesion
+        </a>
     </nav>`;
 }
 
@@ -55,7 +62,7 @@ function footerHTML() {
             <i class="bi bi-chevron-right"></i>${c}</a></li>`).join("");
 
     return `
-    <footer class="site-footer" id="contacto">
+    <footer class="site-footer" id="pie">
         <div class="container">
             <div class="cta-bar">
                 <div>
@@ -110,12 +117,9 @@ function footerHTML() {
         </div>
     </footer>
 
-    <a class="wa-float" href="${whatsappLink("Hola, quiero realizar un pedido.")}" target="_blank" rel="noopener">
+    <a class="wa-float" href="${whatsappLink("Hola, quiero realizar un pedido.")}"
+       target="_blank" rel="noopener" aria-label="Escribenos por WhatsApp" title="WhatsApp">
         <i class="bi bi-whatsapp"></i>
-        <div class="wa-text">
-            <strong>Chat en vivo</strong>
-            <small>Realizar pedido</small>
-        </div>
     </a>`;
 }
 

@@ -247,8 +247,55 @@ body {
     display: flex;
 }
 
+/* Volver al sitio publico: boton flotante sobre el fondo */
+.btn-volver {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 50;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px 11px 16px;
+    border-radius: 999px;
+    background: #222222;
+    border: 1px solid #222222;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    text-decoration: none;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.22);
+    transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.btn-volver i { font-size: 15px; color: #fff; transition: transform .18s ease; }
+.btn-volver:hover {
+    background: #000;
+    border-color: #000;
+    color: #fff;
+    transform: translateX(-2px);
+    box-shadow: 0 7px 22px rgba(0, 0, 0, 0.3);
+}
+.btn-volver:hover i { transform: translateX(-2px); }
+
+/* Enlace de regreso dentro del panel del formulario */
+.login-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 22px;
+    color: #29ABE2;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color .18s ease;
+}
+.login-back-link i { font-size: 18px; }
+.login-back-link:hover { color: #1B8CBD; text-decoration: underline; }
+
 .login-footer {
-    margin-top: 32px;
+    margin-top: 24px;
     text-align: center;
     font-size: 11px;
     color: #bbb;
@@ -280,6 +327,9 @@ body {
 
 /* Responsive */
 @media (max-width: 700px) {
+    /* En movil basta el enlace dentro del formulario */
+    .btn-volver { display: none; }
+
     .login-wrapper {
         flex-direction: column;
         width: 95%;

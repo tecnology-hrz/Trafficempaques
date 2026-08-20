@@ -13,8 +13,36 @@
    ======================================================= */
 
 import { db, doc, getDoc } from "./auth.js";
+import { CATALOGO_DATA } from "./catalogo-data.js";
 
 export const LANDING_DOC = { coleccion: "config", id: "landing" };
+
+/* Slug local, para no depender de otros modulos */
+function slugKey(text) {
+    return String(text || "")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+/* Categorias de la linea Digital. Todas en estado "proximamente". */
+export const DIGITAL_CATEGORIAS = [
+    { nombre: "Identidad de Marca",   icon: "bi-palette" },
+    { nombre: "Diseño de Empaque",    icon: "bi-vector-pen" },
+    { nombre: "Contenido para Redes", icon: "bi-camera-reels" },
+    { nombre: "Publicidad Digital",   icon: "bi-megaphone" },
+    { nombre: "Menus y Catalogos",    icon: "bi-journal-richtext" },
+    { nombre: "Landing y Tienda",     icon: "bi-window-desktop" }
+];
+
+/** Clave del banner de una categoria de empaques. */
+export function keyCategoria(categoria) {
+    return `cat_${slugKey(categoria)}`;
+}
+
+/** Clave del banner de una categoria digital. */
+export function keyDigital(nombre) {
+    return `dig_${slugKey(nombre)}`;
+}
 
 /**
  * Slots de banner disponibles.
@@ -24,7 +52,7 @@ export const LANDING_DOC = { coleccion: "config", id: "landing" };
  * ayuda    -> recomendacion de medida / uso
  * fallback -> imagen local usada si no hay nada configurado
  */
-export const BANNER_SLOTS = [
+const SLOTS_FIJOS = [
     {
         key: "hero_1", grupo: "Inicio", label: "Banner principal",
         ayuda: "Imagen unica del banner de inicio. Recomendado 1920 x 900 px, horizontal.",
@@ -36,19 +64,9 @@ export const BANNER_SLOTS = [
         fallback: "public/img/linea-empaques.jpg"
     },
     {
-        key: "linea_empaques_icono", grupo: "Nuestras lineas", label: "Empaques - imagen pequeña",
-        ayuda: "Miniatura cuadrada dentro de la tarjeta. Recomendado 300 x 300 px.",
-        fallback: ""
-    },
-    {
         key: "linea_digital", grupo: "Nuestras lineas", label: "Digital - fondo",
         ayuda: "Fondo de la tarjeta de Digital. Recomendado 1200 x 800 px.",
         fallback: "public/img/linea-digital.jpg"
-    },
-    {
-        key: "linea_digital_icono", grupo: "Nuestras lineas", label: "Digital - imagen pequeña",
-        ayuda: "Miniatura cuadrada dentro de la tarjeta. Recomendado 300 x 300 px.",
-        fallback: ""
     },
     {
         key: "equipo", grupo: "Inicio", label: "Foto del equipo",
@@ -67,7 +85,33 @@ export const BANNER_SLOTS = [
     }
 ];
 
-export const BANNER_GRUPOS = ["Inicio", "Nuestras lineas", "Paginas internas"];
+/* Un espacio de foto por cada categoria mostrada en "Nuestros Productos".
+   Sin foto propia, la tarjeta cae a la imagen de la primera referencia. */
+const SLOTS_CATEGORIAS = Object.keys(CATALOGO_DATA).map(cat => ({
+    key: keyCategoria(cat),
+    grupo: "Categorias - Empaques",
+    label: cat,
+    ayuda: "Foto de ambiente de la categoria. Recomendado 900 x 900 px, cuadrada.",
+    fallback: ""
+}));
+
+const SLOTS_DIGITAL = DIGITAL_CATEGORIAS.map(d => ({
+    key: keyDigital(d.nombre),
+    grupo: "Categorias - Digital",
+    label: d.nombre,
+    ayuda: "Foto de la tarjeta digital. Recomendado 900 x 900 px, cuadrada.",
+    fallback: ""
+}));
+
+export const BANNER_SLOTS = [...SLOTS_FIJOS, ...SLOTS_CATEGORIAS, ...SLOTS_DIGITAL];
+
+export const BANNER_GRUPOS = [
+    "Inicio",
+    "Nuestras lineas",
+    "Categorias - Empaques",
+    "Categorias - Digital",
+    "Paginas internas"
+];
 
 export function slotPorKey(key) {
     return BANNER_SLOTS.find(s => s.key === key) || null;

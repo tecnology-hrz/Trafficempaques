@@ -16,7 +16,6 @@ const grid        = document.getElementById("productGrid");
 const filtrosBox  = document.getElementById("filtrosCategorias");
 const countEl     = document.getElementById("shopCount");
 const inputBuscar = document.getElementById("inputBuscar");
-const selectOrden = document.getElementById("selectOrden");
 const tituloEl    = document.getElementById("catalogoTitulo");
 const subtituloEl = document.getElementById("catalogoSubtitulo");
 const breadcrumb  = document.getElementById("breadcrumb");
@@ -24,8 +23,7 @@ const breadcrumb  = document.getElementById("breadcrumb");
 let todos = [];
 let estado = {
     categoria: categoriaDesdeSlug(new URLSearchParams(location.search).get("cat")),
-    busqueda: "",
-    orden: "default"
+    busqueda: ""
 };
 
 (async function main() {
@@ -47,11 +45,6 @@ let estado = {
 
     inputBuscar.addEventListener("input", () => {
         estado.busqueda = inputBuscar.value.trim().toLowerCase();
-        aplicar();
-    });
-
-    selectOrden.addEventListener("change", () => {
-        estado.orden = selectOrden.value;
         aplicar();
     });
 })();
@@ -94,11 +87,6 @@ function aplicar() {
             p.nombre.toLowerCase().includes(estado.busqueda) ||
             p.categoria.toLowerCase().includes(estado.busqueda));
     }
-
-    if (estado.orden === "az") lista.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-    if (estado.orden === "za") lista.sort((a, b) => b.nombre.localeCompare(a.nombre, "es"));
-    if (estado.orden === "cat") lista.sort((a, b) =>
-        a.categoria.localeCompare(b.categoria, "es") || a.nombre.localeCompare(b.nombre, "es"));
 
     countEl.textContent = lista.length === 1
         ? "Mostrando 1 resultado"
