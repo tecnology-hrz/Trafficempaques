@@ -134,5 +134,17 @@ export function initLayout(navActivo = "") {
     if (navActivo) marcarNav(navActivo);
 
     // Banners administrables (config/landing). No bloquea el render.
-    getLandingConfig().then(cfg => aplicarBanners(cfg));
+    getLandingConfig().then(cfg => {
+        aplicarBanners(cfg);
+        if (cfg.esPreview) marcarModoPreview();
+    });
+}
+
+/** Cinta fija que avisa que se esta viendo un borrador sin publicar. */
+function marcarModoPreview() {
+    if (document.querySelector(".preview-ribbon")) return;
+    const cinta = document.createElement("div");
+    cinta.className = "preview-ribbon";
+    cinta.innerHTML = `<i class="bi bi-eye-fill"></i> Vista previa - cambios sin publicar`;
+    document.body.appendChild(cinta);
 }

@@ -1484,6 +1484,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .footer-bottom a { color: rgba(255, 255, 255, .5); }
 .footer-bottom a:hover { color: var(--brand); }
 
+/* Cinta de modo vista previa */
+.preview-ribbon {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 16px;
+    background: #f0a63a;
+    color: #3d2a05;
+    font-size: .76rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
 /* =======================================================
    FLOTANTES / MODAL / TOAST
    ======================================================= */

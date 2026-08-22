@@ -978,6 +978,9 @@
                 <div class="section-header">
                     <h2 class="section-title"><i class="bi bi-window-desktop"></i> Landing Page</h2>
                     <div class="section-header-actions">
+                        <button class="btn-secondary" id="btnLandingPreview">
+                            <i class="bi bi-eye"></i> Vista previa
+                        </button>
                         <a class="btn-secondary" href="index.html" target="_blank" rel="noopener">
                             <i class="bi bi-box-arrow-up-right"></i> Ver sitio
                         </a>
@@ -997,6 +1000,60 @@
                         </p>
                     </div>
                     <div class="landing-intro-meta" id="landingMeta"></div>
+                </div>
+
+                <!-- ===== Textos del banner principal ===== -->
+                <div class="landing-grupo">
+                    <div class="landing-grupo-head">
+                        <h3>Textos del banner principal</h3>
+                        <span>Se muestran sobre la imagen de inicio</span>
+                        <div class="landing-grupo-actions">
+                            <button class="btn-secondary landing-btn-sm" id="btnHeroDefault">
+                                <i class="bi bi-arrow-counterclockwise"></i> Restaurar textos
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="landing-hero-form">
+                        <div class="landing-field">
+                            <label for="heroEyebrowInput">Linea superior</label>
+                            <input type="text" id="heroEyebrowInput" maxlength="70">
+                        </div>
+                        <div class="landing-field">
+                            <label for="heroTituloInput">Titulo principal *</label>
+                            <input type="text" id="heroTituloInput" maxlength="80">
+                        </div>
+                        <div class="landing-field landing-field--full">
+                            <label for="heroTextoInput">Texto descriptivo</label>
+                            <textarea id="heroTextoInput" rows="2" maxlength="220"></textarea>
+                        </div>
+                        <div class="landing-field">
+                            <label for="heroCtaTextoInput">Texto del boton</label>
+                            <input type="text" id="heroCtaTextoInput" maxlength="30">
+                        </div>
+                        <div class="landing-field">
+                            <label for="heroCtaLinkInput">Destino del boton</label>
+                            <select id="heroCtaLinkInput">
+                                <option value="productos.html">Productos</option>
+                                <option value="catalogo.html">Catalogo completo</option>
+                                <option value="productos.html?linea=digital">Linea digital</option>
+                                <option value="index.html#contacto">Contacto</option>
+                                <option value="carrito.html">Mi cotizacion</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Vista previa en vivo, con la imagen real del banner -->
+                    <div class="landing-hero-preview" id="heroPreview">
+                        <div class="lhp-bg" id="heroPreviewBg"></div>
+                        <span class="lhp-badge"><i class="bi bi-eye-fill"></i> Vista previa</span>
+                        <div class="lhp-content">
+                            <span class="lhp-eyebrow"></span>
+                            <strong class="lhp-titulo"></strong>
+                            <span class="lhp-texto"></span>
+                            <span class="lhp-cta"></span>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="landingGrupos" class="landing-grupos"></div>
@@ -1031,6 +1088,55 @@
 
                     <div id="landingGaleriaLista" class="landing-galeria-lista"></div>
                     <input type="file" id="galeriaFileInput" accept="image/*" hidden>
+                </div>
+            </div>
+
+            <!-- ===== MODAL: VISTA PREVIA DE LA LANDING ===== -->
+            <div class="preview-modal" id="previewModal" role="dialog" aria-modal="true"
+                 aria-label="Vista previa de la landing">
+                <div class="preview-modal__box">
+                    <div class="preview-modal__bar">
+                        <div class="preview-modal__title">
+                            <i class="bi bi-eye"></i>
+                            <span>Vista previa</span>
+                            <em id="previewEstado">borrador sin publicar</em>
+                        </div>
+
+                        <div class="preview-modal__devices" role="group" aria-label="Tamaño de pantalla">
+                            <button class="preview-dev is-active" data-dev="desktop" title="Escritorio">
+                                <i class="bi bi-display"></i>
+                            </button>
+                            <button class="preview-dev" data-dev="tablet" title="Tablet">
+                                <i class="bi bi-tablet-landscape"></i>
+                            </button>
+                            <button class="preview-dev" data-dev="movil" title="Movil">
+                                <i class="bi bi-phone"></i>
+                            </button>
+                        </div>
+
+                        <div class="preview-modal__actions">
+                            <select id="previewPagina" class="preview-select" aria-label="Pagina a previsualizar">
+                                <option value="index.html">Inicio</option>
+                                <option value="productos.html">Productos</option>
+                                <option value="catalogo.html">Catalogo</option>
+                                <option value="carrito.html">Mi cotizacion</option>
+                            </select>
+                            <button class="preview-icon" id="previewRecargar" title="Recargar">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <a class="preview-icon" id="previewNueva" href="#" target="_blank"
+                               rel="noopener" title="Abrir en pestaña nueva">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                            <button class="preview-icon preview-icon--close" id="previewCerrar" title="Cerrar">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="preview-modal__stage" id="previewStage">
+                        <iframe id="previewFrame" title="Vista previa del sitio"></iframe>
+                    </div>
                 </div>
             </div>
 

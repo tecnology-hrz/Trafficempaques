@@ -9,7 +9,7 @@ import {
 } from "./tienda-core.js";
 import { urlCategoria } from "./tienda-cards.js";
 import {
-    getLandingConfig, portadaGaleria, embedVideo,
+    getLandingConfig, portadaGaleria, embedVideo, getHeroTextos,
     urlBanner, keyCategoria, keyDigital, DIGITAL_CATEGORIAS
 } from "./landing-config.js";
 
@@ -31,6 +31,22 @@ const abrirZoom = initZoom();
 
 const catGrid = document.getElementById("catGrid");
 const catCta  = document.getElementById("catCta");
+
+/* ---------- Textos del banner principal ---------- */
+(async function heroTextos() {
+    const cfg = await getLandingConfig();
+    const h   = getHeroTextos(cfg);
+
+    const eyebrow = document.getElementById("heroEyebrow");
+    const titulo  = document.getElementById("heroTitulo");
+    const texto   = document.getElementById("heroTexto");
+    const cta     = document.getElementById("heroCta");
+
+    if (eyebrow) { eyebrow.textContent = h.eyebrow; eyebrow.hidden = !h.eyebrow; }
+    if (titulo)  titulo.textContent = h.titulo;
+    if (texto)   { texto.textContent = h.texto; texto.hidden = !h.texto; }
+    if (cta)     { cta.textContent = h.ctaTexto; cta.href = h.ctaLink; }
+})();
 
 /* ---------- Nuestros Productos: tarjetas por linea ---------- */
 (async function nuestrosProductos() {

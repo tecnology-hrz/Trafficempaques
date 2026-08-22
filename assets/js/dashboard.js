@@ -11,7 +11,8 @@ import { CATALOGO_DATA } from "./catalogo-data.js";
 import { EMAILJS_CONFIG } from "../../config/emailjs-config.js";
 import {
     BANNER_SLOTS, BANNER_GRUPOS, LANDING_DOC, getLandingConfig,
-    portadaGaleria, esVideoValido, GALERIA_DEFAULT_TITULO, GALERIA_DEFAULT_TEXTO
+    portadaGaleria, esVideoValido, GALERIA_DEFAULT_TITULO, GALERIA_DEFAULT_TEXTO,
+    HERO_DEFAULT, getHeroTextos, PREVIEW_KEY
 } from "./landing-config.js";
 
 // Inicializar EmailJS (SDK cargado desde el CDN en dashboard.html)
@@ -6831,7 +6832,71 @@ function setupLandingAdmin() {
         if (file) await agregarImagenGaleria(file);
     });
 
+    // Vista previa en vivo de los textos del banner
+    HERO_INPUTS.forEach(id => {
+        document.getElementById(id).addEventListener("input", renderHeroPreview);
+        document.getElementById(id).addEventListener("change", renderHeroPreview);
+    });
+
+    setupLandingPreviewModal();
+
+    document.getElementById("btnHeroDefault").addEventListener("click", () => {
+        showConfirm("Restaurar textos", "Se volveran a los textos por defecto del banner.", () => {
+            pintarHeroInputs(HERO_DEFAULT);
+            renderHeroPreview();
+        });
+    });
+
     cargarLandingAdmin();
+}
+
+/* ---------- Textos del banner principal ---------- */
+const HERO_INPUTS = [
+    "heroEyebrowInput", "heroTituloInput", "heroTextoInput",
+    "heroCtaTextoInput", "heroCtaLinkInput"
+];
+
+function pintarHeroInputs(h) {
+    document.getElementById("heroEyebrowInput").value  = h.eyebrow ?? "";
+    document.getElementById("heroTituloInput").value   = h.titulo ?? "";
+    document.getElementById("heroTextoInput").value    = h.texto ?? "";
+    document.getElementById("heroCtaTextoInput").value = h.ctaTexto ?? "";
+    document.getElementById("heroCtaLinkInput").value  = h.ctaLink || HERO_DEFAULT.ctaLink;
+}
+
+function leerHeroInputs() {
+    return {
+        eyebrow:  document.getElementById("heroEyebrowInput").value.trim(),
+        titulo:   document.getElementById("heroTituloInput").value.trim() || HERO_DEFAULT.titulo,
+        texto:    document.getElementById("heroTextoInput").value.trim(),
+        ctaTexto: document.getElementById("heroCtaTextoInput").value.trim() || HERO_DEFAULT.ctaTexto,
+        ctaLink:  document.getElementById("heroCtaLinkInput").value || HERO_DEFAULT.ctaLink
+    };
+}
+
+function renderHeroPreview() {
+    const prev = document.getElementById("heroPreview");
+    if (!prev) return;
+    const h = leerHeroInputs();
+
+    // Fondo: la imagen del banner en edicion, o la de respaldo del slot
+    const bg = document.getElementById("heroPreviewBg");
+    if (bg) {
+        const slot = BANNER_SLOTS.find(s => s.key === "hero_1");
+        const url  = landingBannersDraft.hero_1 || slot?.fallback || "";
+        bg.style.backgroundImage = url ? `url('${url}')` : "";
+        prev.classList.toggle("is-sinfoto", !url);
+    }
+
+    const eyebrow = prev.querySelector(".lhp-eyebrow");
+    const texto   = prev.querySelector(".lhp-texto");
+
+    eyebrow.textContent = h.eyebrow;
+    eyebrow.style.display = h.eyebrow ? "" : "none";
+    prev.querySelector(".lhp-titulo").textContent = h.titulo;
+    texto.textContent = h.texto;
+    texto.style.display = h.texto ? "" : "none";
+    prev.querySelector(".lhp-cta").textContent = h.ctaTexto;
 }
 
 async function cargarLandingAdmin() {
@@ -6844,6 +6909,9 @@ async function cargarLandingAdmin() {
         cfg.galeriaTitulo === GALERIA_DEFAULT_TITULO ? "" : (cfg.galeriaTitulo || "");
     document.getElementById("galeriaTextoInput").value =
         cfg.galeriaTexto === GALERIA_DEFAULT_TEXTO ? "" : (cfg.galeriaTexto || "");
+
+    pintarHeroInputs(getHeroTextos(cfg));
+    renderHeroPreview();
 
     renderLandingMeta(cfg.actualizado);
     renderLandingGrupos();
@@ -7089,6 +7157,7 @@ function landingSlotCard(slot) {
         delete landingBannersDraft[slot.key];
         renderLandingGrupos();
         renderLandingMeta(null);
+        renderHeroPreview();
     });
 
     input.addEventListener("change", async e => {
@@ -7125,6 +7194,7 @@ async function subirBannerLanding(file, slot, card) {
         if (!data.success) throw new Error(data?.error?.message || "ImgBB rechazo la imagen");
 
         landingBannersDraft[slot.key] = data.data.url;
+        renderHeroPreview();
         showNotifToast(`"${slot.label}" listo. Guarda para publicar`);
     } catch (err) {
         console.error("[landing] error subiendo banner", err);
@@ -7162,6 +7232,7 @@ async function guardarLandingConfig() {
 
         await setDoc(doc(db, LANDING_DOC.coleccion, LANDING_DOC.id), {
             banners: landingBannersDraft,
+            hero: leerHeroInputs(),
             galeria,
             galeriaTitulo: titulo || GALERIA_DEFAULT_TITULO,
             galeriaTexto: texto || GALERIA_DEFAULT_TEXTO,
@@ -7182,4 +7253,78 @@ async function guardarLandingConfig() {
         btn.disabled = false;
         btn.innerHTML = original;
     }
+}
+
+// ===== VISTA PREVIA DE LA LANDING (ventana emergente) =====
+// Escribe el borrador en localStorage y abre el sitio con ?preview=1
+// dentro de un iframe, para ver los cambios antes de publicarlos.
+
+function borradorLandingActual() {
+    const titulo = document.getElementById("galeriaTituloInput").value.trim();
+    const texto  = document.getElementById("galeriaTextoInput").value.trim();
+
+    return {
+        banners: { ...landingBannersDraft },
+        hero: leerHeroInputs(),
+        galeria: landingGaleria
+            .filter(i => i.url && (i.tipo !== "video" || esVideoValido(i.url)))
+            .map(({ id, tipo, url, portada, titulo, texto }) =>
+                ({ id, tipo, url, portada: portada || "", titulo: titulo || "", texto: texto || "" })),
+        galeriaTitulo: titulo || GALERIA_DEFAULT_TITULO,
+        galeriaTexto: texto || GALERIA_DEFAULT_TEXTO
+    };
+}
+
+function setupLandingPreviewModal() {
+    const modal   = document.getElementById("previewModal");
+    const frame   = document.getElementById("previewFrame");
+    const stage   = document.getElementById("previewStage");
+    const selPag  = document.getElementById("previewPagina");
+    const nueva   = document.getElementById("previewNueva");
+    if (!modal || !frame) return;
+
+    function urlPreview() {
+        const pagina = selPag.value || "index.html";
+        const sep = pagina.includes("?") ? "&" : "?";
+        return `${pagina}${sep}preview=1&t=${Date.now()}`;
+    }
+
+    function cargar() {
+        // El borrador se guarda antes de cargar: el sitio lo lee al arrancar
+        localStorage.setItem(PREVIEW_KEY, JSON.stringify(borradorLandingActual()));
+        const url = urlPreview();
+        frame.src = url;
+        nueva.href = url;
+    }
+
+    function abrir() {
+        cargar();
+        modal.classList.add("is-open");
+        document.body.style.overflow = "hidden";
+    }
+
+    function cerrar() {
+        modal.classList.remove("is-open");
+        frame.src = "about:blank";
+        document.body.style.overflow = "";
+    }
+
+    document.getElementById("btnLandingPreview").addEventListener("click", abrir);
+    document.getElementById("previewCerrar").addEventListener("click", cerrar);
+    document.getElementById("previewRecargar").addEventListener("click", cargar);
+    selPag.addEventListener("change", cargar);
+
+    modal.addEventListener("click", e => { if (e.target === modal) cerrar(); });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && modal.classList.contains("is-open")) cerrar();
+    });
+
+    // Cambio de tamaño de pantalla simulado
+    modal.querySelectorAll(".preview-dev").forEach(btn => {
+        btn.addEventListener("click", () => {
+            modal.querySelectorAll(".preview-dev").forEach(b => b.classList.remove("is-active"));
+            btn.classList.add("is-active");
+            stage.dataset.dev = btn.dataset.dev;
+        });
+    });
 }

@@ -123,6 +123,29 @@ export function slotPorKey(key) {
    - imagen -> url de ImgBB
    - video  -> enlace de YouTube o Vimeo (portada opcional)
    ------------------------------------------------------- */
+/* -------------------------------------------------------
+   TEXTOS EDITABLES DEL BANNER PRINCIPAL
+   ------------------------------------------------------- */
+export const HERO_DEFAULT = {
+    eyebrow: "Traffic Empaques · Publicidad",
+    titulo: "Empaca, sorprende, conecta",
+    texto: "Diseñamos empaques únicos para que cada producto deje una impresión inolvidable",
+    ctaTexto: "Cotiza ahora",
+    ctaLink: "productos.html"
+};
+
+/** Devuelve los textos del hero mezclando lo guardado con los valores por defecto. */
+export function getHeroTextos(config) {
+    const h = config?.hero || {};
+    return {
+        eyebrow:  h.eyebrow  ?? HERO_DEFAULT.eyebrow,
+        titulo:   h.titulo   || HERO_DEFAULT.titulo,
+        texto:    h.texto    ?? HERO_DEFAULT.texto,
+        ctaTexto: h.ctaTexto || HERO_DEFAULT.ctaTexto,
+        ctaLink:  h.ctaLink  || HERO_DEFAULT.ctaLink
+    };
+}
+
 export const GALERIA_DEFAULT_TITULO = "Asi trabajamos";
 export const GALERIA_DEFAULT_TEXTO =
     "Un recorrido por nuestra planta, los procesos y los empaques que salen cada dia.";
@@ -161,16 +184,50 @@ export function esVideoValido(url) {
     return Boolean(embedVideo(url));
 }
 
+/* -------------------------------------------------------
+   MODO VISTA PREVIA
+   El panel guarda el borrador en localStorage y abre el sitio
+   con ?preview=1, para ver cambios aun no publicados.
+   ------------------------------------------------------- */
+export const PREVIEW_KEY = "traffic_landing_preview";
+
+function borradorPreview() {
+    try {
+        if (!new URLSearchParams(location.search).has("preview")) return null;
+        const raw = localStorage.getItem(PREVIEW_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
 let _cache = null;
 
 /** Lee la configuracion. Nunca lanza: si falla devuelve valores vacios. */
 export async function getLandingConfig({ forzar = false } = {}) {
     if (_cache && !forzar) return _cache;
+
+    // En vista previa manda el borrador del panel
+    const draft = borradorPreview();
+    if (draft) {
+        _cache = {
+            banners: draft.banners || {},
+            hero: draft.hero || {},
+            galeria: Array.isArray(draft.galeria) ? draft.galeria : [],
+            galeriaTitulo: draft.galeriaTitulo || GALERIA_DEFAULT_TITULO,
+            galeriaTexto: draft.galeriaTexto || GALERIA_DEFAULT_TEXTO,
+            actualizado: null,
+            esPreview: true
+        };
+        return _cache;
+    }
+
     try {
         const snap = await getDoc(doc(db, LANDING_DOC.coleccion, LANDING_DOC.id));
         const data = snap.exists() ? (snap.data() || {}) : {};
         _cache = {
             banners: data.banners || {},
+            hero: data.hero || {},
             galeria: Array.isArray(data.galeria) ? data.galeria : [],
             galeriaTitulo: data.galeriaTitulo || GALERIA_DEFAULT_TITULO,
             galeriaTexto: data.galeriaTexto || GALERIA_DEFAULT_TEXTO,
@@ -179,7 +236,7 @@ export async function getLandingConfig({ forzar = false } = {}) {
     } catch (err) {
         console.warn("[landing-config] no se pudo leer config/landing", err);
         _cache = {
-            banners: {}, galeria: [],
+            banners: {}, hero: {}, galeria: [],
             galeriaTitulo: GALERIA_DEFAULT_TITULO,
             galeriaTexto: GALERIA_DEFAULT_TEXTO,
             actualizado: null
