@@ -224,6 +224,138 @@ function setupOrdenesFiltros(rolUsuario) {
     if (inputOrdenesBuscar) inputOrdenesBuscar.addEventListener("input", () => renderOrdenesConFiltro(ordenesRolCache || rolUsuario));
     const selectOrdenesEstado = document.getElementById("ordenesFiltroEstado");
     if (selectOrdenesEstado) selectOrdenesEstado.addEventListener("change", () => renderOrdenesConFiltro(ordenesRolCache || rolUsuario));
+
+    const btnExcel = document.getElementById("btnOrdenesExcel");
+    if (btnExcel) btnExcel.addEventListener("click", () => exportarOrdenesExcel(btnExcel));
+}
+
+// ===== EXPORTAR ORDENES A EXCEL =====
+// Exporta exactamente lo que se esta viendo: el tab activo con los filtros
+// de busqueda y estado ya aplicados.
+
+// Tab visible -> contenedor donde se pintaron esas ordenes
+const ORDENES_TAB_CONTENEDOR = {
+    "tab-digital":    { contenedor: "ordenesDigitalLista",    etiqueta: "Digital" },
+    "tab-imprenta":   { contenedor: "ordenesImprentaLista",   etiqueta: "Imprenta" },
+    "tab-pendientes": { contenedor: "ordenesPendientesLista", etiqueta: "Pendientes" }
+};
+
+const COLUMNAS_ORDENES_EXCEL = [
+    { campo: "numero",        titulo: "Orden",            ancho: 14 },
+    { campo: "tipo",          titulo: "Tipo",             ancho: 10 },
+    { campo: "cliente",       titulo: "Cliente",          ancho: 26 },
+    { campo: "negocio",       titulo: "Negocio",          ancho: 26 },
+    { campo: "ciudad",        titulo: "Ciudad",           ancho: 18 },
+    { campo: "telefono",      titulo: "Telefono",         ancho: 16 },
+    { campo: "direccion",     titulo: "Direccion",        ancho: 30 },
+    { campo: "nit",           titulo: "NIT / Documento",  ancho: 18 },
+    { campo: "estadoTiempo",  titulo: "Estado de tiempo", ancho: 16 },
+    { campo: "estadoDiseno",  titulo: "Diseño",           ancho: 18 },
+    { campo: "pasoActual",    titulo: "Etapa actual",     ancho: 16 },
+    { campo: "fechaEnvio",    titulo: "Fecha de envio",   ancho: 15 },
+    { campo: "fechaEntrega",  titulo: "Fecha de entrega", ancho: 15 },
+    { campo: "referencias",   titulo: "Referencias",      ancho: 12 },
+    { campo: "unidades",      titulo: "Unidades",         ancho: 12 },
+    { campo: "total",         titulo: "Total",            ancho: 14 },
+    { campo: "metodoPago",    titulo: "Metodo de pago",   ancho: 16 },
+    { campo: "creadoPor",     titulo: "Creado por",       ancho: 22 }
+];
+
+const ETIQUETA_ESTADO_TIEMPO = {
+    atiempo:  "A tiempo",
+    pronto:   "Pronto",
+    vencida:  "Vencida / Hoy",
+    sinfecha: "Sin fecha limite"
+};
+
+/** Fecha ISO a dd/mm/aaaa. Deja pasar lo que ya viene en ese formato. */
+function fechaCorta(valor) {
+    if (!valor) return "";
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor)) return valor;
+    const d = new Date(valor);
+    if (isNaN(d)) return String(valor);
+    const p = n => String(n).padStart(2, "0");
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/** Convierte una orden en la fila plana que va al Excel. */
+function ordenAFilaExcel(orden) {
+    const items = orden.items || [];
+    const diseno = ordenesDisenoDB[orden.id + "-diseno"];
+
+    let estadoDiseno = "Sin crear";
+    if (diseno && diseno.estado === "respondida") estadoDiseno = "Respondido";
+    else if (diseno) estadoDiseno = "Pendiente";
+    else if (calcularEstadoOrden(orden) === "vencida") estadoDiseno = "Vencido sin crear";
+
+    return {
+        numero:       orden.numero || "",
+        tipo:         orden.tipo === "digital" ? "Digital" : "Imprenta",
+        cliente:      orden.cliente || "",
+        negocio:      orden.negocio || "",
+        ciudad:       orden.ciudad || "",
+        telefono:     orden.telefono || "",
+        direccion:    orden.direccion || "",
+        nit:          orden.nit || "",
+        estadoTiempo: ETIQUETA_ESTADO_TIEMPO[calcularEstadoOrden(orden)] || "",
+        estadoDiseno,
+        pasoActual:   orden.pasoActual || "",
+        fechaEnvio:   fechaCorta(orden.fechaEnvio),
+        fechaEntrega: fechaCorta(orden.fechaEntrega),
+        referencias:  items.length,
+        unidades:     items.reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0),
+        // Numerico, para que Excel pueda sumar y filtrar
+        total:        parseInt(orden.total) || 0,
+        metodoPago:   orden.metodoPago || "",
+        creadoPor:    orden.creadoPor || ""
+    };
+}
+
+async function exportarOrdenesExcel(btn) {
+    if (typeof window.exportarExcel !== "function") {
+        showNotifToast("El modulo de exportacion no esta disponible");
+        return;
+    }
+
+    // Tab visible dentro de la seccion de ordenes
+    const tabActivo = document.querySelector("#ordenesListaView .tab-content.active");
+    const info = ORDENES_TAB_CONTENEDOR[tabActivo?.id];
+
+    if (!info) {
+        showNotifToast("Cambia a un listado de ordenes para exportar");
+        return;
+    }
+
+    const ordenes = ordenesRenderizadas[info.contenedor] || [];
+    if (!ordenes.length) {
+        showNotifToast("No hay ordenes que coincidan con los filtros");
+        return;
+    }
+
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i> Exportando...';
+
+    try {
+        const filas = ordenes.map(ordenAFilaExcel);
+        const { formato } = await window.exportarExcel(filas, COLUMNAS_ORDENES_EXCEL, {
+            archivo: `ordenes_${info.etiqueta.toLowerCase()}`,
+            hoja: `Ordenes ${info.etiqueta}`,
+            titulo: `Ordenes ${info.etiqueta} - Traffic Empaques`
+        });
+
+        showNotifToast(
+            formato === "csv"
+                ? `${filas.length} ordenes exportadas en CSV (Excel no disponible)`
+                : `${filas.length} ordenes exportadas a Excel`
+        );
+    } catch (err) {
+        console.error("[ordenes] error exportando a Excel", err);
+        showNotifToast("No se pudo generar el archivo");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    }
 }
 
 // ===== FORMATO MONEDA =====
@@ -1738,6 +1870,15 @@ async function cargarUsuarios() {
 let ordenesDisenoDB = {}; // Cache de ordenes de diseño existentes
 let ordenesCache = []; // Cache de ordenes para filtrado
 let ordenesRolCache = ""; // Rol usado al cargar
+// Ordenes realmente pintadas en cada contenedor, ya con todos los filtros
+// aplicados. Es la fuente de la exportacion a Excel: se exporta lo visible.
+let ordenesRenderizadas = {};
+
+/** Texto o guion, para celdas que pueden venir vacias (negocio en persona natural). */
+function textoODash(valor) {
+    const v = (valor ?? "").toString().trim();
+    return v ? v : "-";
+}
 
 // Calcula el estado de tiempo de una orden segun su fecha limite de diseño
 // (prioritaria) o su fecha de entrega. Devuelve: atiempo | pronto | vencida | sinfecha
@@ -2010,6 +2151,9 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
         filtradas = ordenes;
     }
 
+    // Registrar lo visible antes de cualquier salida temprana
+    ordenesRenderizadas[containerId] = filtradas;
+
     if (filtradas.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="bi bi-inbox"></i><p>No hay ordenes de ${tipo} aun</p></div>`;
         return;
@@ -2030,6 +2174,8 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
                 <tr>
                     <th>Orden</th>
                     <th>Cliente</th>
+                    <th>Negocio</th>
+                    <th>Ciudad</th>
                     <th>Entrega</th>
                     <th></th>
                 </tr>
@@ -2086,6 +2232,8 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
             <tr class="${filaClass}">
                 <td><strong>${orden.numero}</strong> ${disenoEstadoBadge}</td>
                 <td>${orden.cliente}</td>
+                <td>${textoODash(orden.negocio)}</td>
+                <td>${textoODash(orden.ciudad)}</td>
                 <td>${fechaMostrar}</td>
                 <td>
                     <div class="orden-acciones">
@@ -2148,7 +2296,12 @@ function abrirModalOrden(orden, esRolProduccion) {
     ordenDetalleActual = orden;
 
     document.getElementById("ordenDetalleNumero").textContent = orden.numero;
-    document.getElementById("ordenDetalleCliente").textContent = orden.cliente;
+    // Cliente + negocio + ciudad, omitiendo los que vengan vacios
+    document.getElementById("ordenDetalleCliente").textContent =
+        [orden.cliente, orden.negocio, orden.ciudad]
+            .map(v => (v ?? "").toString().trim())
+            .filter(Boolean)
+            .join(" · ");
 
     // Ocultar botones de diseño (solo se muestran en abrirModalVerDisenos)
     document.getElementById("ordenDetalleCopyLink").style.display = "none";
@@ -2193,6 +2346,8 @@ function renderOrdenesSoloLectura(ordenes, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    ordenesRenderizadas[containerId] = ordenes || [];
+
     if (!ordenes || ordenes.length === 0) {
         container.innerHTML = `<div class="empty-state"><i class="bi bi-inbox"></i><p>No hay ordenes aun</p></div>`;
         return;
@@ -2205,6 +2360,8 @@ function renderOrdenesSoloLectura(ordenes, containerId) {
                 <tr>
                     <th>Orden</th>
                     <th>Cliente</th>
+                    <th>Negocio</th>
+                    <th>Ciudad</th>
                     <th>Tipo</th>
                     <th>Entrega</th>
                     <th></th>
@@ -2223,6 +2380,8 @@ function renderOrdenesSoloLectura(ordenes, containerId) {
             <tr>
                 <td><strong>${orden.numero}</strong></td>
                 <td>${orden.cliente}</td>
+                <td>${textoODash(orden.negocio)}</td>
+                <td>${textoODash(orden.ciudad)}</td>
                 <td>${tipoLabel}</td>
                 <td>${fechaMostrar}</td>
                 <td>

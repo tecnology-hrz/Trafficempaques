@@ -368,6 +368,10 @@
                             <option value="vencida">Vencida / Hoy</option>
                             <option value="sinfecha">Sin fecha limite</option>
                         </select>
+                        <button class="btn-secondary btn-exportar-ordenes" id="btnOrdenesExcel"
+                                title="Exporta las ordenes que se estan mostrando">
+                            <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                        </button>
                     </div>
 
                     <!-- Tabs solo para admin -->
@@ -2003,6 +2007,8 @@
     </div>
 
     <script src="assets/js/pdf-export.js"></script>
+    <!-- Exportacion a Excel (SheetJS se carga bajo demanda) -->
+    <script src="assets/js/excel-export.js"></script>
     <!-- EmailJS: envio automatico de ordenes de plancha por correo -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script type="module" src="assets/js/dashboard.js"></script>

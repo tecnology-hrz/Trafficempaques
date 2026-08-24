@@ -6347,3 +6347,27 @@ body {
     .preview-modal__devices { display: none; }
     .preview-modal__bar { gap: 10px; }
 }
+
+/* ===== EXPORTAR ORDENES A EXCEL ===== */
+.cotizaciones-filtros { flex-wrap: wrap; }
+
+.btn-exportar-ordenes {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+.btn-exportar-ordenes i { color: #1D6F42; font-size: 15px; }  /* verde Excel */
+.btn-exportar-ordenes:hover { border-color: #1D6F42; color: #1D6F42; }
+.btn-exportar-ordenes:hover i { color: #1D6F42; }
+.btn-exportar-ordenes:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Columnas Negocio y Ciudad: que no se rompan en varias lineas */
+.ordenes-tabla td:nth-child(3),
+.ordenes-tabla td:nth-child(4) { color: #555; }
+
+@media (max-width: 700px) {
+    .cotizaciones-filtros .filtro-busqueda { flex: 1 1 100%; }
+    .cotizaciones-filtros select,
+    .btn-exportar-ordenes { flex: 1 1 auto; justify-content: center; }
+}
