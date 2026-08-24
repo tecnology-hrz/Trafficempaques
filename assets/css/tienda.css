@@ -296,6 +296,135 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .hero-bg--single { grid-template-columns: 1fr; }
 
+/* ---------- Carrusel del banner principal (hasta 5 imagenes) ---------- */
+.hero-slides { position: absolute; inset: 0; }
+.hero-slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(.72);
+    opacity: 0;
+    transform: scale(1.04);
+    transition: opacity 1s ease, transform 6s linear;
+    pointer-events: none;
+}
+.hero-slide.is-active { opacity: 1; transform: scale(1); }
+
+/* Puntos de navegacion */
+.hero-dots {
+    position: absolute;
+    z-index: 3;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+}
+.hero-dot {
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, .8);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .25);
+    cursor: pointer;
+    transition: background .2s ease, transform .2s ease, width .2s ease;
+}
+.hero-dot:hover { background: rgba(255, 255, 255, .6); }
+.hero-dot.is-active { background: var(--white); width: 26px; border-radius: 999px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-slide { transition: opacity .3s ease; transform: none; }
+    .hero-slide.is-active { transform: none; }
+}
+
+/* =======================================================
+   CAMPAÑA DEL MES (imagenes administrables)
+   ======================================================= */
+.campania-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+/* Una sola pieza: banda ancha centrada, no una tarjeta perdida */
+.campania-grid:has(.campania-item:only-child) { grid-template-columns: minmax(0, 900px); justify-content: center; }
+
+.campania-item {
+    position: relative;
+    display: block;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.campania-item:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--brand);
+}
+
+.campania-item__media {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: linear-gradient(145deg, #1d1d1d, #2f2f2f);
+}
+.campania-item__media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .6s ease;
+}
+.campania-item:hover .campania-item__media img { transform: scale(1.05); }
+
+/* Velo inferior: sostiene el texto cuando la pieza trae titulo */
+.campania-item--texto .campania-item__media::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, .04) 40%, rgba(0, 0, 0, .74));
+}
+
+.campania-item__caption {
+    position: absolute;
+    z-index: 2;
+    left: 0; right: 0; bottom: 0;
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+}
+.campania-item__titulo {
+    color: var(--white);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -.4px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .5);
+}
+.campania-item__texto {
+    color: rgba(255, 255, 255, .92);
+    font-size: .86rem;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, .55);
+}
+.campania-item__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    color: var(--white);
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+}
+.campania-item__link i { transition: transform .18s ease; }
+.campania-item:hover .campania-item__link i { transform: translateX(4px); }
+
 /* Velo suave: solo lo necesario para que el texto blanco tenga contraste.
    Se concentra arriba (header) y abajo, dejando el centro casi limpio. */
 .hero::after {

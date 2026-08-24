@@ -12,7 +12,9 @@ import { EMAILJS_CONFIG } from "../../config/emailjs-config.js";
 import {
     BANNER_SLOTS, BANNER_GRUPOS, LANDING_DOC, getLandingConfig,
     portadaGaleria, esVideoValido, GALERIA_DEFAULT_TITULO, GALERIA_DEFAULT_TEXTO,
-    HERO_DEFAULT, getHeroTextos, PREVIEW_KEY
+    HERO_DEFAULT, getHeroTextos, PREVIEW_KEY,
+    HERO_SLIDE_KEYS, CAMPANIA_MAX, CAMPANIA_DEFAULT_TITULO, CAMPANIA_DEFAULT_TEXTO,
+    normalizarCampania
 } from "./landing-config.js";
 
 // Inicializar EmailJS (SDK cargado desde el CDN en dashboard.html)
@@ -6972,6 +6974,7 @@ let landingBannersDraft = {};   // estado en edicion
 let landingSubiendo     = 0;
 
 let landingGaleria = [];   // [{ id, tipo, url, portada, titulo, texto }]
+let landingCampania = [];  // [{ id, url, titulo, texto, link }]
 
 function setupLandingAdmin() {
     const btnGuardar = document.getElementById("btnLandingGuardar");
@@ -6989,6 +6992,15 @@ function setupLandingAdmin() {
         const file = e.target.files[0];
         e.target.value = "";
         if (file) await agregarImagenGaleria(file);
+    });
+
+    document.getElementById("btnCampaniaImagen")
+        .addEventListener("click", () => document.getElementById("campaniaFileInput").click());
+
+    document.getElementById("campaniaFileInput").addEventListener("change", async e => {
+        const file = e.target.files[0];
+        e.target.value = "";
+        if (file) await agregarImagenCampania(file);
     });
 
     // Vista previa en vivo de los textos del banner
@@ -7041,8 +7053,10 @@ function renderHeroPreview() {
     // Fondo: la imagen del banner en edicion, o la de respaldo del slot
     const bg = document.getElementById("heroPreviewBg");
     if (bg) {
+        // Primera imagen del carrusel con foto, o la de respaldo del slot inicial
         const slot = BANNER_SLOTS.find(s => s.key === "hero_1");
-        const url  = landingBannersDraft.hero_1 || slot?.fallback || "";
+        const url  = HERO_SLIDE_KEYS.map(k => landingBannersDraft[k]).find(Boolean)
+                     || slot?.fallback || "";
         bg.style.backgroundImage = url ? `url('${url}')` : "";
         prev.classList.toggle("is-sinfoto", !url);
     }
@@ -7063,6 +7077,12 @@ async function cargarLandingAdmin() {
     landingBanners = { ...cfg.banners };
     landingBannersDraft = { ...cfg.banners };
     landingGaleria = (cfg.galeria || []).map(i => ({ ...i }));
+    landingCampania = (cfg.campania || []).map(i => ({ ...i }));
+
+    document.getElementById("campaniaTituloInput").value =
+        cfg.campaniaTitulo === CAMPANIA_DEFAULT_TITULO ? "" : (cfg.campaniaTitulo || "");
+    document.getElementById("campaniaTextoInput").value =
+        cfg.campaniaTexto === CAMPANIA_DEFAULT_TEXTO ? "" : (cfg.campaniaTexto || "");
 
     document.getElementById("galeriaTituloInput").value =
         cfg.galeriaTitulo === GALERIA_DEFAULT_TITULO ? "" : (cfg.galeriaTitulo || "");
@@ -7075,6 +7095,127 @@ async function cargarLandingAdmin() {
     renderLandingMeta(cfg.actualizado);
     renderLandingGrupos();
     renderLandingGaleria();
+    renderLandingCampania();
+}
+
+/* ---------- Campaña del mes: solo imagenes ---------- */
+async function agregarImagenCampania(file) {
+    if (landingCampania.length >= CAMPANIA_MAX) {
+        showNotifToast(`Maximo ${CAMPANIA_MAX} imagenes en la campaña`);
+        return;
+    }
+    if (!file.type.startsWith("image/")) {
+        showNotifToast("El archivo debe ser una imagen");
+        return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        showNotifToast("La imagen supera 8 MB, comprimela antes de subir");
+        return;
+    }
+
+    const lista = document.getElementById("landingCampaniaLista");
+    lista.classList.add("is-busy");
+    landingSubiendo++;
+
+    try {
+        const url = await subirImgbb(file);
+        landingCampania.push({
+            id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            url, titulo: "", texto: "", link: ""
+        });
+        showNotifToast("Imagen agregada. Guarda para publicar");
+    } catch (err) {
+        console.error("[landing] error subiendo imagen de campaña", err);
+        showNotifToast("No se pudo subir la imagen");
+    } finally {
+        landingSubiendo--;
+        lista.classList.remove("is-busy");
+        renderLandingCampania();
+    }
+}
+
+function renderLandingCampania() {
+    const lista = document.getElementById("landingCampaniaLista");
+    const count = document.getElementById("landingCampaniaCount");
+    if (!lista) return;
+
+    if (count) {
+        count.textContent =
+            `${landingCampania.length} de ${CAMPANIA_MAX} imagen${landingCampania.length === 1 ? "" : "es"}`;
+    }
+
+    const btnAgregar = document.getElementById("btnCampaniaImagen");
+    if (btnAgregar) btnAgregar.disabled = landingCampania.length >= CAMPANIA_MAX;
+
+    if (!landingCampania.length) {
+        lista.innerHTML = `
+            <div class="landing-galeria-empty">
+                <i class="bi bi-megaphone"></i>
+                <p>Aun no hay imagenes de campaña. Sube hasta ${CAMPANIA_MAX} piezas
+                   (lo nuevo del mes, promociones) y la seccion aparecera en la landing,
+                   justo debajo de "Nuestras Lineas".</p>
+            </div>`;
+        return;
+    }
+
+    lista.innerHTML = "";
+
+    landingCampania.forEach((item, idx) => {
+        const fila = document.createElement("div");
+        fila.className = "landing-galeria-item";
+        fila.innerHTML = `
+            <div class="landing-galeria-thumb">
+                <img src="${item.url}" alt=""
+                     onerror="this.style.display='none';this.parentElement.classList.add('is-empty')">
+                <div class="landing-galeria-thumb-ph"><i class="bi bi-image"></i></div>
+            </div>
+
+            <div class="landing-galeria-campos">
+                <span class="landing-galeria-tipo">
+                    <i class="bi bi-megaphone"></i> Pieza ${idx + 1}
+                </span>
+                <input type="text" data-campo="titulo" placeholder="Titulo (opcional)"
+                       maxlength="60" value="${(item.titulo || "").replace(/"/g, "&quot;")}">
+                <input type="text" data-campo="texto" placeholder="Descripcion corta (opcional)"
+                       maxlength="120" value="${(item.texto || "").replace(/"/g, "&quot;")}">
+                <input type="text" data-campo="link" placeholder="Enlace al hacer clic (opcional)"
+                       maxlength="200" value="${(item.link || "").replace(/"/g, "&quot;")}">
+            </div>
+
+            <div class="landing-galeria-acciones">
+                <button class="landing-icon-btn" data-accion="subir" title="Subir"
+                        ${idx === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button>
+                <button class="landing-icon-btn" data-accion="bajar" title="Bajar"
+                        ${idx === landingCampania.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button>
+                <a class="landing-icon-btn" href="${item.url}" target="_blank" rel="noopener"
+                   title="Abrir"><i class="bi bi-box-arrow-up-right"></i></a>
+                <button class="landing-icon-btn landing-icon-btn--danger" data-accion="eliminar"
+                        title="Eliminar"><i class="bi bi-trash3"></i></button>
+            </div>`;
+
+        fila.querySelectorAll("[data-campo]").forEach(input => {
+            input.addEventListener("input", () => {
+                item[input.dataset.campo] = input.value.trim();
+            });
+        });
+
+        fila.querySelector('[data-accion="subir"]').addEventListener("click", () => {
+            [landingCampania[idx - 1], landingCampania[idx]] = [landingCampania[idx], landingCampania[idx - 1]];
+            renderLandingCampania();
+        });
+        fila.querySelector('[data-accion="bajar"]').addEventListener("click", () => {
+            [landingCampania[idx + 1], landingCampania[idx]] = [landingCampania[idx], landingCampania[idx + 1]];
+            renderLandingCampania();
+        });
+        fila.querySelector('[data-accion="eliminar"]').addEventListener("click", () => {
+            showConfirm("Eliminar imagen", "Se quitara de la campaña del mes.", () => {
+                landingCampania = landingCampania.filter(c => c.id !== item.id);
+                renderLandingCampania();
+            });
+        });
+
+        lista.appendChild(fila);
+    });
 }
 
 /* ---------- Galeria: imagenes y videos ---------- */
@@ -7389,20 +7530,29 @@ async function guardarLandingConfig() {
             .map(({ id, tipo, url, portada, titulo, texto }) =>
                 ({ id, tipo, url, portada: portada || "", titulo: titulo || "", texto: texto || "" }));
 
+        const campTitulo = document.getElementById("campaniaTituloInput").value.trim();
+        const campTexto  = document.getElementById("campaniaTextoInput").value.trim();
+        const campania   = normalizarCampania(landingCampania);
+
         await setDoc(doc(db, LANDING_DOC.coleccion, LANDING_DOC.id), {
             banners: landingBannersDraft,
             hero: leerHeroInputs(),
             galeria,
             galeriaTitulo: titulo || GALERIA_DEFAULT_TITULO,
             galeriaTexto: texto || GALERIA_DEFAULT_TEXTO,
+            campania,
+            campaniaTitulo: campTitulo || CAMPANIA_DEFAULT_TITULO,
+            campaniaTexto: campTexto || CAMPANIA_DEFAULT_TEXTO,
             actualizado: ahora,
             actualizadoPor: nombre || "administrador"
         }, { merge: true });
 
         landingBanners = { ...landingBannersDraft };
         landingGaleria = galeria.map(i => ({ ...i }));
+        landingCampania = campania.map(i => ({ ...i }));
         renderLandingGrupos();
         renderLandingGaleria();
+        renderLandingCampania();
         renderLandingMeta(ahora);
         showNotifToast("Landing actualizada. Los cambios ya estan publicados");
     } catch (err) {
@@ -7430,7 +7580,12 @@ function borradorLandingActual() {
             .map(({ id, tipo, url, portada, titulo, texto }) =>
                 ({ id, tipo, url, portada: portada || "", titulo: titulo || "", texto: texto || "" })),
         galeriaTitulo: titulo || GALERIA_DEFAULT_TITULO,
-        galeriaTexto: texto || GALERIA_DEFAULT_TEXTO
+        galeriaTexto: texto || GALERIA_DEFAULT_TEXTO,
+        campania: normalizarCampania(landingCampania),
+        campaniaTitulo:
+            document.getElementById("campaniaTituloInput").value.trim() || CAMPANIA_DEFAULT_TITULO,
+        campaniaTexto:
+            document.getElementById("campaniaTextoInput").value.trim() || CAMPANIA_DEFAULT_TEXTO
     };
 }
 

@@ -2,7 +2,11 @@
    Configuracion de la landing publica
    Documento Firestore: config/landing
    {
-     banners: { hero_1: "https://...", ... },
+     banners: { hero_1..hero_5: "https://...", ... },
+     hero: { eyebrow, titulo, texto, ctaTexto, ctaLink },
+     galeria: [...], galeriaTitulo, galeriaTexto,
+     campania: [{ id, url, titulo, texto, link }],
+     campaniaTitulo, campaniaTexto,
      actualizado: "ISO date",
      actualizadoPor: "nombre"
    }
@@ -54,9 +58,29 @@ export function keyDigital(nombre) {
  */
 const SLOTS_FIJOS = [
     {
-        key: "hero_1", grupo: "Inicio", label: "Banner principal",
-        ayuda: "Imagen unica del banner de inicio. Recomendado 1920 x 900 px, horizontal.",
+        key: "hero_1", grupo: "Inicio", label: "Banner principal 1",
+        ayuda: "Primera imagen del carrusel de inicio. Recomendado 1920 x 900 px, horizontal.",
         fallback: "public/img/hero-1.jpg"
+    },
+    {
+        key: "hero_2", grupo: "Inicio", label: "Banner principal 2",
+        ayuda: "Segunda imagen del carrusel. Opcional. Recomendado 1920 x 900 px.",
+        fallback: ""
+    },
+    {
+        key: "hero_3", grupo: "Inicio", label: "Banner principal 3",
+        ayuda: "Tercera imagen del carrusel. Opcional. Recomendado 1920 x 900 px.",
+        fallback: ""
+    },
+    {
+        key: "hero_4", grupo: "Inicio", label: "Banner principal 4",
+        ayuda: "Cuarta imagen del carrusel. Opcional. Recomendado 1920 x 900 px.",
+        fallback: ""
+    },
+    {
+        key: "hero_5", grupo: "Inicio", label: "Banner principal 5",
+        ayuda: "Quinta imagen del carrusel. Opcional. Recomendado 1920 x 900 px.",
+        fallback: ""
     },
     {
         key: "linea_empaques", grupo: "Nuestras lineas", label: "Empaques - fondo",
@@ -146,6 +170,48 @@ export function getHeroTextos(config) {
     };
 }
 
+/* -------------------------------------------------------
+   CARRUSEL DEL BANNER PRINCIPAL
+   Hasta 5 imagenes. Solo se muestran las que tengan foto,
+   la primera siempre cae al fallback local.
+   ------------------------------------------------------- */
+export const HERO_MAX_SLIDES = 5;
+
+export const HERO_SLIDE_KEYS =
+    Array.from({ length: HERO_MAX_SLIDES }, (_, i) => `hero_${i + 1}`);
+
+/** Imagenes del carrusel, en orden y sin huecos. */
+export function urlsHero(config) {
+    const urls = HERO_SLIDE_KEYS
+        .map(k => String(config?.banners?.[k] || "").trim())
+        .filter(Boolean);
+    return urls.length ? urls : [urlBanner(config, "hero_1")].filter(Boolean);
+}
+
+/* -------------------------------------------------------
+   CAMPAÑA DEL MES (seccion despues de Nuestras Lineas)
+   Cada pieza: { id, url, titulo, texto, link }
+   Solo imagenes de ImgBB; el link es opcional.
+   ------------------------------------------------------- */
+export const CAMPANIA_MAX = 6;
+export const CAMPANIA_DEFAULT_TITULO = "Lo nuevo del mes";
+export const CAMPANIA_DEFAULT_TEXTO =
+    "Novedades, promociones y lanzamientos de esta temporada.";
+
+/** Normaliza la lista de campaña: descarta piezas sin imagen y recorta al maximo. */
+export function normalizarCampania(lista) {
+    return (Array.isArray(lista) ? lista : [])
+        .filter(i => i && String(i.url || "").trim())
+        .slice(0, CAMPANIA_MAX)
+        .map(({ id, url, titulo, texto, link }) => ({
+            id: id || ("c" + Math.random().toString(36).slice(2, 8)),
+            url: String(url).trim(),
+            titulo: titulo || "",
+            texto: texto || "",
+            link: link || ""
+        }));
+}
+
 export const GALERIA_DEFAULT_TITULO = "Asi trabajamos";
 export const GALERIA_DEFAULT_TEXTO =
     "Un recorrido por nuestra planta, los procesos y los empaques que salen cada dia.";
@@ -216,6 +282,9 @@ export async function getLandingConfig({ forzar = false } = {}) {
             galeria: Array.isArray(draft.galeria) ? draft.galeria : [],
             galeriaTitulo: draft.galeriaTitulo || GALERIA_DEFAULT_TITULO,
             galeriaTexto: draft.galeriaTexto || GALERIA_DEFAULT_TEXTO,
+            campania: normalizarCampania(draft.campania),
+            campaniaTitulo: draft.campaniaTitulo || CAMPANIA_DEFAULT_TITULO,
+            campaniaTexto: draft.campaniaTexto ?? CAMPANIA_DEFAULT_TEXTO,
             actualizado: null,
             esPreview: true
         };
@@ -231,6 +300,9 @@ export async function getLandingConfig({ forzar = false } = {}) {
             galeria: Array.isArray(data.galeria) ? data.galeria : [],
             galeriaTitulo: data.galeriaTitulo || GALERIA_DEFAULT_TITULO,
             galeriaTexto: data.galeriaTexto || GALERIA_DEFAULT_TEXTO,
+            campania: normalizarCampania(data.campania),
+            campaniaTitulo: data.campaniaTitulo || CAMPANIA_DEFAULT_TITULO,
+            campaniaTexto: data.campaniaTexto ?? CAMPANIA_DEFAULT_TEXTO,
             actualizado: data.actualizado || null
         };
     } catch (err) {
@@ -239,6 +311,9 @@ export async function getLandingConfig({ forzar = false } = {}) {
             banners: {}, hero: {}, galeria: [],
             galeriaTitulo: GALERIA_DEFAULT_TITULO,
             galeriaTexto: GALERIA_DEFAULT_TEXTO,
+            campania: [],
+            campaniaTitulo: CAMPANIA_DEFAULT_TITULO,
+            campaniaTexto: CAMPANIA_DEFAULT_TEXTO,
             actualizado: null
         };
     }

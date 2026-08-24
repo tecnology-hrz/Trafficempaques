@@ -13,11 +13,18 @@
 
     <div data-layout="header"></div>
 
-    <!-- ================= HERO ================= -->
+    <!-- ================= HERO ================= -->   
     <section class="hero">
-        <div class="hero-bg hero-bg--single">
-            <span data-banner="hero_1"></span>
+        <!-- Carrusel: hasta 5 imagenes desde el panel (Landing Page > Inicio).
+             Las diapositivas sin imagen las descarta landing.js. -->
+        <div class="hero-slides" id="heroSlides">
+            <span class="hero-slide is-active" data-banner="hero_1"></span>
+            <span class="hero-slide" data-banner="hero_2"></span>
+            <span class="hero-slide" data-banner="hero_3"></span>
+            <span class="hero-slide" data-banner="hero_4"></span>
+            <span class="hero-slide" data-banner="hero_5"></span>
         </div>
+        <div class="hero-dots" id="heroDots" role="tablist" aria-label="Imagenes del banner" hidden></div>
         <!-- Textos editables desde el panel: Landing Page > Banner principal -->
         <div class="hero-content">
             <span class="hero-eyebrow" id="heroEyebrow">Traffic Empaques &middot; Publicidad</span>
@@ -75,6 +82,19 @@
                     </div>
                 </a>
             </div>
+        </div>
+    </section>
+
+    <!-- ================= CAMPAÑA DEL MES (imagenes administrables) ================= -->
+    <!-- Se muestra solo si hay imagenes cargadas en Landing Page > Campaña del mes -->
+    <section class="section" id="campania" hidden>
+        <div class="container">
+            <div class="section-head">
+                <h2 class="section-title" id="campaniaTitulo">Lo nuevo del mes</h2>
+                <div class="section-title-rule"></div>
+                <p class="section-sub" id="campaniaTexto"></p>
+            </div>
+            <div class="campania-grid" id="campaniaGrid"></div>
         </div>
     </section>
 

@@ -10,7 +10,7 @@ import {
 import { urlCategoria } from "./tienda-cards.js";
 import {
     getLandingConfig, portadaGaleria, embedVideo, getHeroTextos,
-    urlBanner, keyCategoria, keyDigital, DIGITAL_CATEGORIAS
+    urlBanner, urlsHero, keyCategoria, keyDigital, DIGITAL_CATEGORIAS
 } from "./landing-config.js";
 
 /* Marcas del carrusel. Si mas adelante hay logos, agrega
@@ -46,6 +46,114 @@ const catCta  = document.getElementById("catCta");
     if (titulo)  titulo.textContent = h.titulo;
     if (texto)   { texto.textContent = h.texto; texto.hidden = !h.texto; }
     if (cta)     { cta.textContent = h.ctaTexto; cta.href = h.ctaLink; }
+
+    heroCarrusel(cfg);
+})();
+
+/* ---------- Carrusel del banner principal (hasta 5 imagenes) ---------- */
+function heroCarrusel(cfg) {
+    const cont = document.getElementById("heroSlides");
+    const dots = document.getElementById("heroDots");
+    if (!cont) return;
+
+    const urls   = urlsHero(cfg);
+    const slides = [...cont.querySelectorAll(".hero-slide")];
+
+    // Una diapositiva por imagen configurada; las demas se descartan
+    slides.forEach((slide, i) => {
+        if (i < urls.length) slide.style.backgroundImage = `url('${urls[i]}')`;
+        else slide.remove();
+    });
+
+    const activos = [...cont.querySelectorAll(".hero-slide")];
+    if (!activos.length) return;
+
+    activos.forEach((s, i) => s.classList.toggle("is-active", i === 0));
+
+    // Con una sola imagen no hay nada que rotar
+    if (activos.length < 2) return;
+
+    let actual = 0;
+    let timer  = null;
+
+    function ir(i) {
+        actual = (i + activos.length) % activos.length;
+        activos.forEach((s, n) => s.classList.toggle("is-active", n === actual));
+        dots?.querySelectorAll(".hero-dot").forEach((d, n) => {
+            d.classList.toggle("is-active", n === actual);
+            d.setAttribute("aria-selected", n === actual ? "true" : "false");
+        });
+    }
+
+    if (dots) {
+        dots.innerHTML = activos.map((_, i) => `
+            <button class="hero-dot${i === 0 ? " is-active" : ""}" type="button" role="tab"
+                    data-idx="${i}" aria-selected="${i === 0}"
+                    aria-label="Ver imagen ${i + 1}"></button>`).join("");
+        dots.hidden = false;
+        dots.querySelectorAll(".hero-dot").forEach(btn => {
+            btn.addEventListener("click", () => {
+                ir(Number(btn.dataset.idx));
+                reiniciar();
+            });
+        });
+    }
+
+    function arrancar() { timer = setInterval(() => ir(actual + 1), 6000); }
+    function parar()    { clearInterval(timer); timer = null; }
+    function reiniciar(){ parar(); arrancar(); }
+
+    arrancar();
+
+    // Pausa mientras el visitante interactua o la pestaña esta oculta
+    const hero = cont.closest(".hero") || cont;
+    hero.addEventListener("mouseenter", parar);
+    hero.addEventListener("mouseleave", reiniciar);
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) parar();
+        else if (!timer) arrancar();
+    });
+}
+
+/* ---------- Campaña del mes: imagenes administrables ---------- */
+(async function campaniaMes() {
+    const seccion = document.getElementById("campania");
+    const grid    = document.getElementById("campaniaGrid");
+    if (!seccion || !grid) return;
+
+    const cfg   = await getLandingConfig();
+    const items = cfg.campania || [];
+
+    // Sin imagenes cargadas la seccion no se muestra
+    if (!items.length) return;
+
+    document.getElementById("campaniaTitulo").textContent = cfg.campaniaTitulo;
+    const texto = document.getElementById("campaniaTexto");
+    texto.textContent = cfg.campaniaTexto || "";
+    texto.hidden = !cfg.campaniaTexto;
+
+    grid.innerHTML = items.map(item => {
+        const tieneTexto = Boolean(item.titulo || item.texto);
+        const clases = "campania-item" + (tieneTexto ? " campania-item--texto" : "");
+        const alt    = item.titulo || cfg.campaniaTitulo;
+
+        const interior = `
+            <div class="campania-item__media">
+                <img src="${escapeHtml(item.url)}" alt="${escapeHtml(alt)}" loading="lazy">
+                ${tieneTexto ? `
+                <div class="campania-item__caption">
+                    ${item.titulo ? `<span class="campania-item__titulo">${escapeHtml(item.titulo)}</span>` : ""}
+                    ${item.texto ? `<span class="campania-item__texto">${escapeHtml(item.texto)}</span>` : ""}
+                    ${item.link ? '<span class="campania-item__link">Ver mas <i class="bi bi-arrow-right"></i></span>' : ""}
+                </div>` : ""}
+            </div>`;
+
+        return item.link
+            ? `<a class="${clases}" href="${escapeHtml(item.link)}">${interior}</a>`
+            : `<div class="${clases}" role="img" aria-label="${escapeHtml(alt)}">${interior}</div>`;
+    }).join("");
+
+    seccion.hidden = false;
 })();
 
 /* ---------- Nuestros Productos: tarjetas por linea ---------- */

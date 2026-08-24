@@ -1093,6 +1093,35 @@
                     <div id="landingGaleriaLista" class="landing-galeria-lista"></div>
                     <input type="file" id="galeriaFileInput" accept="image/*" hidden>
                 </div>
+
+                <!-- ===== Campaña del mes: imagenes bajo Nuestras Lineas ===== -->
+                <div class="landing-grupo">
+                    <div class="landing-grupo-head">
+                        <h3>Campaña del mes</h3>
+                        <span id="landingCampaniaCount"></span>
+                        <div class="landing-grupo-actions">
+                            <button class="btn-secondary landing-btn-sm" id="btnCampaniaImagen">
+                                <i class="bi bi-image"></i> Agregar imagen
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="landing-galeria-head">
+                        <div class="landing-field">
+                            <label for="campaniaTituloInput">Titulo de la seccion</label>
+                            <input type="text" id="campaniaTituloInput" maxlength="60"
+                                   placeholder="Lo nuevo del mes">
+                        </div>
+                        <div class="landing-field">
+                            <label for="campaniaTextoInput">Texto de apoyo</label>
+                            <input type="text" id="campaniaTextoInput" maxlength="160"
+                                   placeholder="Novedades, promociones y lanzamientos de esta temporada">
+                        </div>
+                    </div>
+
+                    <div id="landingCampaniaLista" class="landing-galeria-lista"></div>
+                    <input type="file" id="campaniaFileInput" accept="image/*" hidden>
+                </div>
             </div>
 
             <!-- ===== MODAL: VISTA PREVIA DE LA LANDING ===== -->
