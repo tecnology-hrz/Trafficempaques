@@ -996,18 +996,30 @@
 
                 <div class="landing-intro">
                     <div class="landing-intro-text">
-                        <h3><i class="bi bi-images"></i> Banners del sitio publico</h3>
+                        <h3><i class="bi bi-images"></i> Contenido del sitio publico</h3>
                         <p>
-                            Cada tarjeta es un espacio de imagen de la web. Sube el banner y
-                            queda publicado al guardar. Las imagenes se alojan en ImgBB; los
-                            videos se agregan con su enlace de YouTube o Vimeo.
+                            Cada pestaña administra una seccion distinta de la web. Sube las
+                            imagenes, ajusta los textos y pulsa <strong>Guardar cambios</strong>
+                            para publicar. Las imagenes se alojan en ImgBB; los videos se
+                            agregan con su enlace de YouTube o Vimeo.
                         </p>
                     </div>
                     <div class="landing-intro-meta" id="landingMeta"></div>
                 </div>
 
-                <!-- ===== Textos del banner principal ===== -->
-                <div class="landing-grupo">
+                <!-- ===== Pestañas de la landing =====
+                     Las pestañas las construye dashboard.js: una por cada grupo de
+                     banners (Inicio, Nuestras lineas, Categorias...) mas las de
+                     Campaña, Galeria y Marcas. Asi cada seccion del sitio se
+                     administra por separado y nunca se desincroniza de los slots. -->
+                <div class="landing-tabs" id="landingTabs" role="tablist"
+                     aria-label="Secciones de la landing"></div>
+
+                <div id="landingPaneles">
+
+                <!-- Textos del banner principal. dashboard.js mueve este bloque
+                     dentro del panel del grupo "Inicio". -->
+                <div class="landing-grupo" id="landingHeroBloque" hidden>
                     <div class="landing-grupo-head">
                         <h3>Textos del banner principal</h3>
                         <span>Se muestran sobre la imagen de inicio</span>
@@ -1058,11 +1070,10 @@
                             <span class="lhp-cta"></span>
                         </div>
                     </div>
-                </div>
+                </div><!-- /bloque textos del banner -->
 
-                <div id="landingGrupos" class="landing-grupos"></div>
-
-                <!-- ===== Galeria: imagenes y videos ===== -->
+                <!-- ===== Pestaña: galeria de imagenes y videos ===== -->
+                <div class="landing-panel" data-landing-panel="galeria" role="tabpanel">
                 <div class="landing-grupo">
                     <div class="landing-grupo-head">
                         <h3>Galeria de la landing</h3>
@@ -1093,8 +1104,10 @@
                     <div id="landingGaleriaLista" class="landing-galeria-lista"></div>
                     <input type="file" id="galeriaFileInput" accept="image/*" hidden>
                 </div>
+                </div><!-- /panel galeria -->
 
-                <!-- ===== Campaña del mes: imagenes bajo Nuestras Lineas ===== -->
+                <!-- ===== Pestaña: campaña del mes (bajo Nuestras Lineas) ===== -->
+                <div class="landing-panel" data-landing-panel="campania" role="tabpanel">
                 <div class="landing-grupo">
                     <div class="landing-grupo-head">
                         <h3>Campaña del mes</h3>
@@ -1103,8 +1116,18 @@
                             <button class="btn-secondary landing-btn-sm" id="btnCampaniaImagen">
                                 <i class="bi bi-image"></i> Agregar imagen
                             </button>
+                            <button class="btn-secondary landing-btn-sm" id="btnCampaniaVideo">
+                                <i class="bi bi-play-btn"></i> Agregar video
+                            </button>
                         </div>
                     </div>
+
+                    <p class="landing-panel-hint">
+                        <i class="bi bi-info-circle"></i>
+                        Piezas que aparecen debajo de "Nuestras Lineas". Las imagenes se suben
+                        desde tu equipo; los videos se agregan pegando el enlace de YouTube o
+                        Vimeo y se reproducen dentro de la misma pagina.
+                    </p>
 
                     <div class="landing-galeria-head">
                         <div class="landing-field">
@@ -1122,6 +1145,43 @@
                     <div id="landingCampaniaLista" class="landing-galeria-lista"></div>
                     <input type="file" id="campaniaFileInput" accept="image/*" hidden>
                 </div>
+                </div><!-- /panel campania -->
+
+                <!-- ===== Pestaña: marcas que confian en nosotros ===== -->
+                <div class="landing-panel" data-landing-panel="marcas" role="tabpanel">
+                <div class="landing-grupo">
+                    <div class="landing-grupo-head">
+                        <h3>Marcas que confian en nosotros</h3>
+                        <span id="landingMarcasCount"></span>
+                        <div class="landing-grupo-actions">
+                            <button class="btn-secondary landing-btn-sm" id="btnMarcaAgregar">
+                                <i class="bi bi-plus-lg"></i> Agregar marca
+                            </button>
+                        </div>
+                    </div>
+
+                    <p class="landing-panel-hint">
+                        <i class="bi bi-info-circle"></i>
+                        Estas marcas se muestran en el carrusel de la landing. El nombre es
+                        obligatorio; el logo es opcional. Si subes logo se muestra la imagen,
+                        si no, se muestra el nombre en texto. Ideal: PNG con fondo
+                        transparente, 400 x 200 px.
+                    </p>
+
+                    <div class="landing-galeria-head">
+                        <div class="landing-field">
+                            <label for="marcasTituloInput">Titulo de la seccion</label>
+                            <input type="text" id="marcasTituloInput" maxlength="70"
+                                   placeholder="Algunas marcas que confian en nosotros">
+                        </div>
+                    </div>
+
+                    <!-- Cada fila de marca lleva su propio input de archivo -->
+                    <div id="landingMarcasLista" class="landing-galeria-lista"></div>
+                </div>
+                </div><!-- /panel marcas -->
+
+                </div><!-- /landingPaneles -->
             </div>
 
             <!-- ===== MODAL: VISTA PREVIA DE LA LANDING ===== -->
@@ -1520,6 +1580,9 @@
                 <div>
                     <h3 id="ordenDetalleNumero">ORD-0000</h3>
                     <span class="detalle-label" id="ordenDetalleCliente"></span>
+                    <span class="detalle-asesor" id="ordenDetalleAsesor" style="display:none;">
+                        <i class="bi bi-person-badge"></i> <span id="ordenDetalleAsesorNombre"></span>
+                    </span>
                 </div>
                 <button class="modal-close" id="ordenDetalleClose"><i class="bi bi-x-lg"></i></button>
             </div>
@@ -1679,6 +1742,46 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-primary" id="notifOk">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL: ENLACE DE VIDEO (galeria y campaña) ===== -->
+    <div class="modal-overlay" id="videoUrlOverlay">
+        <div class="modal modal-video-url">
+            <div class="modal-header">
+                <div>
+                    <h3 id="videoUrlTitle">Agregar video</h3>
+                    <span class="detalle-label">Se reproduce dentro de la pagina</span>
+                </div>
+                <button class="modal-close" id="videoUrlClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-field">
+                    <label for="videoUrlInput">Enlace del video</label>
+                    <input type="url" id="videoUrlInput"
+                           placeholder="https://www.youtube.com/watch?v=...">
+                    <span class="modal-field-hint">
+                        Acepta YouTube (watch, youtu.be, shorts) y Vimeo.
+                    </span>
+                </div>
+                <p class="video-url-error" id="videoUrlError" hidden>
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span></span>
+                </p>
+                <div class="video-url-preview" id="videoUrlPreview" hidden>
+                    <img id="videoUrlPreviewImg" src="" alt="">
+                    <div class="video-url-preview__info">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span id="videoUrlPreviewTxt">Enlace valido</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="videoUrlCancel">Cancelar</button>
+                <button class="btn-primary" id="videoUrlSave">
+                    <i class="bi bi-plus-lg"></i> Agregar video
+                </button>
             </div>
         </div>
     </div>

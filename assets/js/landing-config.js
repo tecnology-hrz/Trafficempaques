@@ -190,26 +190,76 @@ export function urlsHero(config) {
 
 /* -------------------------------------------------------
    CAMPAÑA DEL MES (seccion despues de Nuestras Lineas)
-   Cada pieza: { id, url, titulo, texto, link }
-   Solo imagenes de ImgBB; el link es opcional.
+   Cada pieza: { id, tipo: "imagen"|"video", url, portada, titulo, texto, link }
+   - imagen -> url de ImgBB, el link es opcional
+   - video  -> enlace de YouTube o Vimeo (portada opcional).
+               En video el link se ignora: al hacer clic se reproduce.
+   Las piezas antiguas sin "tipo" se tratan como imagen.
    ------------------------------------------------------- */
 export const CAMPANIA_MAX = 6;
 export const CAMPANIA_DEFAULT_TITULO = "Lo nuevo del mes";
 export const CAMPANIA_DEFAULT_TEXTO =
     "Novedades, promociones y lanzamientos de esta temporada.";
 
-/** Normaliza la lista de campaña: descarta piezas sin imagen y recorta al maximo. */
+/**
+ * Normaliza la lista de campaña y recorta al maximo.
+ * Descarta piezas sin url y videos cuyo enlace no sea de YouTube o Vimeo,
+ * para que la landing nunca intente incrustar algo que no puede reproducir.
+ */
 export function normalizarCampania(lista) {
     return (Array.isArray(lista) ? lista : [])
         .filter(i => i && String(i.url || "").trim())
+        .map(i => ({ ...i, tipo: i.tipo === "video" ? "video" : "imagen" }))
+        .filter(i => i.tipo !== "video" || esVideoValido(i.url))
         .slice(0, CAMPANIA_MAX)
-        .map(({ id, url, titulo, texto, link }) => ({
+        .map(({ id, tipo, url, portada, titulo, texto, link }) => ({
             id: id || ("c" + Math.random().toString(36).slice(2, 8)),
+            tipo,
             url: String(url).trim(),
+            portada: String(portada || "").trim(),
             titulo: titulo || "",
             texto: texto || "",
-            link: link || ""
+            // En video el clic reproduce, por eso no se guarda link
+            link: tipo === "video" ? "" : (link || "")
         }));
+}
+
+/* -------------------------------------------------------
+   MARCAS QUE CONFIAN EN NOSOTROS (carrusel de logos)
+   Cada marca: { id, nombre, logo }
+   - nombre es obligatorio (sirve de alt y de respaldo visual)
+   - logo es opcional: con logo se pinta la imagen, sin logo
+     se pinta el nombre como chip de texto.
+   ------------------------------------------------------- */
+export const MARCAS_MAX = 24;
+export const MARCAS_DEFAULT_TITULO = "Algunas marcas que confian en nosotros";
+
+/* Marcas iniciales, usadas mientras no se configure ninguna en el panel. */
+export const MARCAS_DEFAULT = [
+    "Jhonny Wings", "Sixxta", "Godo Pardo", "Brolate",
+    "El Menor", "Vacchi", "Koi Koi", "Clucks"
+].map((nombre, i) => ({ id: "m_def_" + i, nombre, logo: "" }));
+
+/** Normaliza la lista de marcas: descarta las sin nombre y recorta al maximo. */
+export function normalizarMarcas(lista) {
+    return (Array.isArray(lista) ? lista : [])
+        .filter(m => m && String(m.nombre || "").trim())
+        .slice(0, MARCAS_MAX)
+        .map(({ id, nombre, logo }) => ({
+            id: id || ("m" + Math.random().toString(36).slice(2, 8)),
+            nombre: String(nombre).trim(),
+            logo: String(logo || "").trim()
+        }));
+}
+
+/**
+ * Marcas a mostrar en el sitio.
+ * Se distingue "nunca configurado" (null -> se usan las de por defecto) de
+ * "configurado vacio" ([] -> el admin quito la seccion a proposito).
+ */
+export function getMarcas(config) {
+    if (!Array.isArray(config?.marcas)) return MARCAS_DEFAULT;
+    return normalizarMarcas(config.marcas);
 }
 
 export const GALERIA_DEFAULT_TITULO = "Asi trabajamos";
@@ -285,6 +335,8 @@ export async function getLandingConfig({ forzar = false } = {}) {
             campania: normalizarCampania(draft.campania),
             campaniaTitulo: draft.campaniaTitulo || CAMPANIA_DEFAULT_TITULO,
             campaniaTexto: draft.campaniaTexto ?? CAMPANIA_DEFAULT_TEXTO,
+            marcas: Array.isArray(draft.marcas) ? normalizarMarcas(draft.marcas) : null,
+            marcasTitulo: draft.marcasTitulo || MARCAS_DEFAULT_TITULO,
             actualizado: null,
             esPreview: true
         };
@@ -303,6 +355,8 @@ export async function getLandingConfig({ forzar = false } = {}) {
             campania: normalizarCampania(data.campania),
             campaniaTitulo: data.campaniaTitulo || CAMPANIA_DEFAULT_TITULO,
             campaniaTexto: data.campaniaTexto ?? CAMPANIA_DEFAULT_TEXTO,
+            marcas: Array.isArray(data.marcas) ? normalizarMarcas(data.marcas) : null,
+            marcasTitulo: data.marcasTitulo || MARCAS_DEFAULT_TITULO,
             actualizado: data.actualizado || null
         };
     } catch (err) {
@@ -314,6 +368,8 @@ export async function getLandingConfig({ forzar = false } = {}) {
             campania: [],
             campaniaTitulo: CAMPANIA_DEFAULT_TITULO,
             campaniaTexto: CAMPANIA_DEFAULT_TEXTO,
+            marcas: null,
+            marcasTitulo: MARCAS_DEFAULT_TITULO,
             actualizado: null
         };
     }

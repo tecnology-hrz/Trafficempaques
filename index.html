@@ -131,6 +131,30 @@
         </div>
     </section>
 
+    <!-- ================= PRODUCTOS EN DESCUENTO ================= -->
+    <!-- Se llena desde el catalogo: aparece solo si hay productos marcados
+         con descuento en el panel (Catalogo > editar producto). -->
+    <section class="section" id="ofertas" hidden>
+        <div class="container">
+            <div class="section-head">
+                <h2 class="section-title">
+                    <i class="bi bi-tag-fill"></i> Productos en descuento
+                </h2>
+                <div class="section-title-rule"></div>
+                <p class="section-sub" id="ofertasTexto">
+                    Referencias con precio especial este mes. Agregalas a tu cotizacion
+                    y te confirmamos el valor con el descuento aplicado.
+                </p>
+            </div>
+
+            <div class="product-grid" id="ofertasGrid" aria-live="polite"></div>
+
+            <div style="text-align:center;margin-top:40px">
+                <a class="btn btn--outline btn--lg" href="catalogo.html">Ver todo el catalogo</a>
+            </div>
+        </div>
+    </section>
+
     <!-- ================= BENEFICIOS ================= -->
     <section class="section" id="beneficios">
         <div class="container">
@@ -167,7 +191,7 @@
     <section class="section section--gray" id="marcas">
         <div class="container">
             <div class="section-head">
-                <h2 class="section-title">Algunas marcas que confian en nosotros</h2>
+                <h2 class="section-title" id="marcasTitulo">Algunas marcas que confian en nosotros</h2>
                 <div class="section-title-rule"></div>
             </div>
         </div>

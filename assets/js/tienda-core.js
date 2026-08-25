@@ -133,8 +133,18 @@ function normalizar(data, origen, docId) {
         ancho: data.ancho ?? "-",
         imagen: imgOrPlaceholder(data.imagen),
         orden: Number(data.orden ?? data.id ?? 0),
+        // Descuento administrado desde el panel (Catalogo > producto).
+        // Solo cuenta como descuento si hay porcentaje: un booleano sin
+        // porcentaje seria una promesa vacia en la tarjeta.
+        descuento: Boolean(data.descuento) && Number(data.descuentoPct) > 0,
+        descuentoPct: Number(data.descuentoPct) || 0,
         origen
     };
+}
+
+/** Productos con descuento activo, en el orden del catalogo. */
+export function productosEnDescuento(productos) {
+    return (productos || []).filter(p => p.descuento && p.descuentoPct > 0);
 }
 
 function fallbackLocal() {
@@ -219,6 +229,10 @@ export function agregarAlCarrito(producto, cantidad = 1) {
             alto: producto.alto,
             largo: producto.largo,
             ancho: producto.ancho,
+            // Se guarda el descuento vigente al agregar, para que la
+            // solicitud de cotizacion llegue con ese dato al equipo
+            descuento: Boolean(producto.descuento),
+            descuentoPct: Number(producto.descuentoPct) || 0,
             cantidad: cant
         });
     }

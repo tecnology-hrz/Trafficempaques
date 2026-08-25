@@ -178,7 +178,8 @@ async function exportarCotizacionPDF(cot) {
         ["NIT / Cedula", cot.nit || "-", "Estado", estado],
         ["Negocio", cot.negocio || "-", "Tipo", tipoLabel],
         ["Telefono", cot.telefono || "-", "Ciudad", cot.ciudad || "-"],
-        ["Direccion", cot.direccion || "-", "Modalidad", cot.modalidadPago || "-"]
+        ["Direccion", cot.direccion || "-", "Modalidad", cot.modalidadPago || "-"],
+        ["Asesor", cot.creadoPor || "-", "", ""]
     ]);
 
     // Items
@@ -281,7 +282,7 @@ async function exportarOrdenPDF(orden) {
         ["NIT / Cedula", orden.nit || "-", "Tipo", tipoLabel],
         ["Negocio", orden.negocio || "-", "Entrega", orden.fechaEntrega || "-"],
         ["Telefono", orden.telefono || "-", "Ciudad", orden.ciudad || "-"],
-        ["Direccion", orden.direccion || "-", "", ""]
+        ["Direccion", orden.direccion || "-", "Asesor", orden.creadoPor || "-"]
     ]);
 
     const items = orden.items || [];

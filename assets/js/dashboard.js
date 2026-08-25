@@ -14,7 +14,8 @@ import {
     portadaGaleria, esVideoValido, GALERIA_DEFAULT_TITULO, GALERIA_DEFAULT_TEXTO,
     HERO_DEFAULT, getHeroTextos, PREVIEW_KEY,
     HERO_SLIDE_KEYS, CAMPANIA_MAX, CAMPANIA_DEFAULT_TITULO, CAMPANIA_DEFAULT_TEXTO,
-    normalizarCampania
+    normalizarCampania,
+    MARCAS_MAX, MARCAS_DEFAULT, MARCAS_DEFAULT_TITULO, normalizarMarcas
 } from "./landing-config.js";
 
 // Inicializar EmailJS (SDK cargado desde el CDN en dashboard.html)
@@ -1559,12 +1560,17 @@ function renderListaCotizaciones() {
                 ? `<button class="btn-registrar-pago" data-id="${cot.id}"><i class="bi bi-receipt-cutoff"></i> Registrar pago</button>`
                 : "";
 
+            // Asesor que elaboro la cotizacion (vacio en registros antiguos)
+            const asesorTxt = (cot.creadoPor || "").trim()
+                ? ` &bull; <i class="bi bi-person-badge"></i> ${cot.creadoPor}`
+                : "";
+
             const item = document.createElement("div");
             item.className = "cot-list-item";
             item.innerHTML = `
                 <div class="cot-list-info">
                     <span class="cot-list-numero">${cot.numero} <span class="cot-estado ${cot.estado}">${cot.estado}</span> ${badgeModalidad} ${badgePagoPend}</span>
-                    <span class="cot-list-cliente">${cot.cliente} &bull; ${cot.tipo} &bull; ${fechaStr}</span>
+                    <span class="cot-list-cliente">${cot.cliente} &bull; ${cot.tipo} &bull; ${fechaStr}${asesorTxt}</span>
                 </div>
                 <div class="cot-list-right">
                     <span class="cot-list-total">$${formatMoneyLocal(cot.total)}</span>
@@ -2178,6 +2184,7 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
                     <th>Cliente</th>
                     <th>Negocio</th>
                     <th>Ciudad</th>
+                    <th>Asesor</th>
                     <th>Entrega</th>
                     <th></th>
                 </tr>
@@ -2236,6 +2243,7 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
                 <td>${orden.cliente}</td>
                 <td>${textoODash(orden.negocio)}</td>
                 <td>${textoODash(orden.ciudad)}</td>
+                <td>${textoODash(orden.creadoPor)}</td>
                 <td>${fechaMostrar}</td>
                 <td>
                     <div class="orden-acciones">
@@ -2292,6 +2300,17 @@ function renderOrdenesPorTipo(ordenes, tipo, containerId, rolUsuario) {
 
 let ordenDetalleActual = null;
 
+/* Muestra el asesor que origino la orden en el encabezado del modal.
+   Las ordenes creadas antes de este campo simplemente no lo muestran. */
+function pintarAsesorOrden(creadoPor) {
+    const wrap = document.getElementById("ordenDetalleAsesor");
+    const nom  = document.getElementById("ordenDetalleAsesorNombre");
+    if (!wrap || !nom) return;
+    const asesor = (creadoPor || "").trim();
+    nom.textContent = asesor ? "Asesor: " + asesor : "";
+    wrap.style.display = asesor ? "" : "none";
+}
+
 function abrirModalOrden(orden, esRolProduccion) {
     const overlay = document.getElementById("ordenDetalleOverlay");
     const items = orden.items || [];
@@ -2304,6 +2323,8 @@ function abrirModalOrden(orden, esRolProduccion) {
             .map(v => (v ?? "").toString().trim())
             .filter(Boolean)
             .join(" · ");
+
+    pintarAsesorOrden(orden.creadoPor);
 
     // Ocultar botones de diseño (solo se muestran en abrirModalVerDisenos)
     document.getElementById("ordenDetalleCopyLink").style.display = "none";
@@ -2365,6 +2386,7 @@ function renderOrdenesSoloLectura(ordenes, containerId) {
                     <th>Negocio</th>
                     <th>Ciudad</th>
                     <th>Tipo</th>
+                    <th>Asesor</th>
                     <th>Entrega</th>
                     <th></th>
                 </tr>
@@ -2385,6 +2407,7 @@ function renderOrdenesSoloLectura(ordenes, containerId) {
                 <td>${textoODash(orden.negocio)}</td>
                 <td>${textoODash(orden.ciudad)}</td>
                 <td>${tipoLabel}</td>
+                <td>${textoODash(orden.creadoPor)}</td>
                 <td>${fechaMostrar}</td>
                 <td>
                     <div class="orden-acciones">
@@ -3299,6 +3322,7 @@ function abrirModalVerDisenos(diseno) {
     const overlay = document.getElementById("ordenDetalleOverlay");
     document.getElementById("ordenDetalleNumero").textContent = diseno.numero + " - Diseños";
     document.getElementById("ordenDetalleCliente").textContent = diseno.cliente;
+    pintarAsesorOrden(diseno.creadoPor);
 
     // Ocultar el boton PDF de orden en la vista de diseños (no aplica aqui)
     const btnPDFOrden = document.getElementById("ordenDetallePDF");
@@ -6975,6 +6999,7 @@ let landingSubiendo     = 0;
 
 let landingGaleria = [];   // [{ id, tipo, url, portada, titulo, texto }]
 let landingCampania = [];  // [{ id, url, titulo, texto, link }]
+let landingMarcas = [];    // [{ id, nombre, logo }]
 
 function setupLandingAdmin() {
     const btnGuardar = document.getElementById("btnLandingGuardar");
@@ -6997,6 +7022,9 @@ function setupLandingAdmin() {
     document.getElementById("btnCampaniaImagen")
         .addEventListener("click", () => document.getElementById("campaniaFileInput").click());
 
+    document.getElementById("btnCampaniaVideo")
+        .addEventListener("click", agregarVideoCampania);
+
     document.getElementById("campaniaFileInput").addEventListener("change", async e => {
         const file = e.target.files[0];
         e.target.value = "";
@@ -7009,6 +7037,15 @@ function setupLandingAdmin() {
         document.getElementById(id).addEventListener("change", renderHeroPreview);
     });
 
+    document.getElementById("btnMarcaAgregar")
+        .addEventListener("click", agregarMarca);
+
+    document.getElementById("marcasTituloInput")
+        ?.addEventListener("input", renderLandingTabBadges);
+
+    // El orden importa: primero existen los paneles, luego las pestañas
+    construirPanelesBanners();
+    setupLandingTabs();
     setupLandingPreviewModal();
 
     document.getElementById("btnHeroDefault").addEventListener("click", () => {
@@ -7019,6 +7056,161 @@ function setupLandingAdmin() {
     });
 
     cargarLandingAdmin();
+}
+
+/* ---------- Pestañas de la seccion Landing ----------
+   Hay una pestaña por cada grupo de banners (Inicio, Nuestras lineas,
+   Categorias de empaques, Categorias digital, Paginas internas) y otra
+   por cada seccion de contenido (Campaña, Galeria, Marcas).
+   Todas comparten el mismo boton "Guardar cambios": cambiar de pestaña
+   no descarta lo editado, solo cambia lo que se muestra. */
+
+/* Icono por grupo de banners. Si se agrega un grupo nuevo en
+   landing-config.js y no esta aqui, cae a un icono genarico. */
+const LANDING_GRUPO_ICONOS = {
+    "Inicio":                 "bi-house-door",
+    "Nuestras lineas":        "bi-columns-gap",
+    "Categorias - Empaques":  "bi-box-seam",
+    "Categorias - Digital":   "bi-display",
+    "Paginas internas":       "bi-file-earmark-richtext"
+};
+
+/* Pestañas de contenido (no son grupos de banners). El panel ya existe
+   en dashboard.html; aqui solo se declara como se ve la pestaña. */
+const LANDING_TABS_CONTENIDO = [
+    { panel: "campania", label: "Campaña del mes", icon: "bi-megaphone" },
+    { panel: "galeria",  label: "Galeria",         icon: "bi-collection-play" },
+    { panel: "marcas",   label: "Marcas",          icon: "bi-patch-check" }
+];
+
+/** Clave de panel para un grupo de banners. */
+function panelGrupo(grupo) {
+    return "grupo:" + grupo;
+}
+
+/* Crea un panel por grupo de banners y mueve los textos del hero al de Inicio.
+   Se ejecuta una sola vez: los repintados posteriores solo rellenan las rejillas,
+   asi no se pierde la pestaña activa ni el foco de los campos. */
+function construirPanelesBanners() {
+    const cont = document.getElementById("landingPaneles");
+    if (!cont) return;
+
+    // Los paneles de banners van antes que los de contenido, que ya estan en el HTML
+    const primeroFijo = cont.querySelector("[data-landing-panel]");
+
+    BANNER_GRUPOS.forEach(grupo => {
+        const slots = BANNER_SLOTS.filter(s => s.grupo === grupo);
+        if (!slots.length) return;
+
+        const panel = document.createElement("div");
+        panel.className = "landing-panel";
+        panel.dataset.landingPanel = panelGrupo(grupo);
+        panel.setAttribute("role", "tabpanel");
+        panel.innerHTML = `
+            <p class="landing-panel-hint">
+                <i class="bi bi-info-circle"></i>
+                Imagenes de la seccion <strong>${grupo}</strong>. Cada tarjeta es un espacio
+                del sitio: sube la foto y queda publicada al guardar. Los espacios que no
+                configures usan la imagen por defecto.
+            </p>
+            <div class="landing-grupo">
+                <div class="landing-grupo-head">
+                    <h3>${grupo}</h3>
+                    <span>${slots.length} espacio${slots.length === 1 ? "" : "s"}</span>
+                </div>
+                <div class="landing-banner-grid" data-grupo-grid="${grupo}"></div>
+            </div>`;
+
+        // Los textos del banner principal pertenecen a la pestaña Inicio
+        if (grupo === "Inicio") {
+            const hero = document.getElementById("landingHeroBloque");
+            if (hero) {
+                hero.hidden = false;
+                panel.insertBefore(hero, panel.firstElementChild);
+            }
+        }
+
+        cont.insertBefore(panel, primeroFijo);
+    });
+}
+
+function setupLandingTabs() {
+    const barra = document.getElementById("landingTabs");
+    if (!barra) return;
+
+    barra.innerHTML = "";
+
+    // Una pestaña por grupo de banners, en el orden de BANNER_GRUPOS
+    const defs = BANNER_GRUPOS
+        .filter(g => BANNER_SLOTS.some(s => s.grupo === g))
+        .map(g => ({
+            panel: panelGrupo(g),
+            label: g,
+            icon: LANDING_GRUPO_ICONOS[g] || "bi-image",
+            grupo: g
+        }))
+        .concat(LANDING_TABS_CONTENIDO);
+
+    defs.forEach(def => {
+        const btn = document.createElement("button");
+        btn.className = "landing-tab";
+        btn.type = "button";
+        btn.setAttribute("role", "tab");
+        btn.dataset.landingTab = def.panel;
+        if (def.grupo) btn.dataset.tabGrupo = def.grupo;
+        btn.innerHTML = `
+            <i class="bi ${def.icon}"></i>
+            <span>${def.label}</span>
+            <em class="landing-tab-badge"></em>`;
+        btn.addEventListener("click", () => activarLandingTab(def.panel));
+        barra.appendChild(btn);
+    });
+
+    if (defs.length) activarLandingTab(defs[0].panel);
+    renderLandingTabBadges();
+}
+
+function activarLandingTab(panel) {
+    document.querySelectorAll("#landingTabs [data-landing-tab]").forEach(t => {
+        const activo = t.dataset.landingTab === panel;
+        t.classList.toggle("is-active", activo);
+        t.setAttribute("aria-selected", activo ? "true" : "false");
+    });
+    document.querySelectorAll("#landingPaneles [data-landing-panel]").forEach(p => {
+        p.classList.toggle("is-active", p.dataset.landingPanel === panel);
+    });
+}
+
+/* Contadores de cada pestaña, para ver de un vistazo que hay configurado.
+   En los grupos de banners es "configurados/total"; en las de contenido,
+   el numero de piezas. */
+function renderLandingTabBadges() {
+    const contenido = {
+        campania: landingCampania.length,
+        galeria:  landingGaleria.length,
+        marcas:   landingMarcas.length
+    };
+
+    document.querySelectorAll("#landingTabs [data-landing-tab]").forEach(tab => {
+        const badge = tab.querySelector(".landing-tab-badge");
+        if (!badge) return;
+
+        const grupo = tab.dataset.tabGrupo;
+        let texto;
+
+        if (grupo) {
+            const slots = BANNER_SLOTS.filter(s => s.grupo === grupo);
+            const listos = slots.filter(s => landingBannersDraft[s.key]).length;
+            texto = `${listos}/${slots.length}`;
+        } else {
+            const n = contenido[tab.dataset.landingTab] ?? 0;
+            // Un cero no aporta informacion, se oculta para no ensuciar la pestaña
+            texto = n ? String(n) : "";
+        }
+
+        badge.textContent = texto;
+        badge.style.display = texto ? "" : "none";
+    });
 }
 
 /* ---------- Textos del banner principal ---------- */
@@ -7079,6 +7271,15 @@ async function cargarLandingAdmin() {
     landingGaleria = (cfg.galeria || []).map(i => ({ ...i }));
     landingCampania = (cfg.campania || []).map(i => ({ ...i }));
 
+    // Si nunca se han configurado marcas (null) se precargan las de por defecto,
+    // para que el admin vea y pueda editar lo que hoy muestra la landing.
+    // Una lista guardada vacia se respeta: significa "sin seccion de marcas".
+    landingMarcas = (Array.isArray(cfg.marcas) ? cfg.marcas : MARCAS_DEFAULT)
+        .map(m => ({ ...m }));
+
+    document.getElementById("marcasTituloInput").value =
+        cfg.marcasTitulo === MARCAS_DEFAULT_TITULO ? "" : (cfg.marcasTitulo || "");
+
     document.getElementById("campaniaTituloInput").value =
         cfg.campaniaTitulo === CAMPANIA_DEFAULT_TITULO ? "" : (cfg.campaniaTitulo || "");
     document.getElementById("campaniaTextoInput").value =
@@ -7096,12 +7297,290 @@ async function cargarLandingAdmin() {
     renderLandingGrupos();
     renderLandingGaleria();
     renderLandingCampania();
+    renderLandingMarcas();
 }
 
-/* ---------- Campaña del mes: solo imagenes ---------- */
+/* ---------- Marcas que confian en nosotros ---------- */
+function agregarMarca() {
+    if (landingMarcas.length >= MARCAS_MAX) {
+        showNotifToast(`Maximo ${MARCAS_MAX} marcas en el carrusel`);
+        return;
+    }
+    landingMarcas.push({
+        id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        nombre: "",
+        logo: ""
+    });
+    renderLandingMarcas();
+
+    // Foco en el nombre de la marca recien agregada
+    const inputs = document.querySelectorAll('#landingMarcasLista input[data-campo="nombre"]');
+    inputs[inputs.length - 1]?.focus();
+}
+
+async function subirLogoMarca(file, marca, fila) {
+    if (!file.type.startsWith("image/")) {
+        showNotifToast("El archivo debe ser una imagen");
+        return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        showNotifToast("La imagen supera 8 MB, comprimela antes de subir");
+        return;
+    }
+
+    fila.classList.add("is-uploading");
+    landingSubiendo++;
+
+    try {
+        marca.logo = await subirImgbb(file);
+        showNotifToast("Logo listo. Guarda para publicar");
+    } catch (err) {
+        console.error("[landing] error subiendo logo de marca", err);
+        showNotifToast("No se pudo subir el logo");
+    } finally {
+        landingSubiendo--;
+        fila.classList.remove("is-uploading");
+        renderLandingMarcas();
+    }
+}
+
+function renderLandingMarcas() {
+    const lista = document.getElementById("landingMarcasLista");
+    const count = document.getElementById("landingMarcasCount");
+    if (!lista) return;
+
+    if (count) {
+        count.textContent =
+            `${landingMarcas.length} de ${MARCAS_MAX} marca${landingMarcas.length === 1 ? "" : "s"}`;
+    }
+
+    const btnAgregar = document.getElementById("btnMarcaAgregar");
+    if (btnAgregar) btnAgregar.disabled = landingMarcas.length >= MARCAS_MAX;
+
+    renderLandingTabBadges();
+
+    if (!landingMarcas.length) {
+        lista.innerHTML = `
+            <div class="landing-galeria-empty">
+                <i class="bi bi-patch-check"></i>
+                <p>Aun no hay marcas. Agrega los negocios que trabajan contigo:
+                   con logo se muestra la imagen, sin logo se muestra el nombre.
+                   Si dejas la lista vacia la seccion no aparece en la landing.</p>
+            </div>`;
+        return;
+    }
+
+    lista.innerHTML = "";
+
+    landingMarcas.forEach((marca, idx) => {
+        const fila = document.createElement("div");
+        fila.className = "landing-galeria-item landing-marca-item";
+        fila.innerHTML = `
+            <div class="landing-galeria-thumb landing-marca-thumb${marca.logo ? "" : " is-empty"}">
+                ${marca.logo
+                    ? `<img src="${marca.logo}" alt=""
+                            onerror="this.style.display='none';this.parentElement.classList.add('is-empty')">`
+                    : ""}
+                <div class="landing-galeria-thumb-ph"><i class="bi bi-image"></i></div>
+                <div class="landing-banner-loader"><i class="bi bi-arrow-repeat"></i> Subiendo...</div>
+            </div>
+
+            <div class="landing-galeria-campos">
+                <span class="landing-galeria-tipo">
+                    <i class="bi bi-patch-check"></i> Marca ${idx + 1}
+                </span>
+                <input type="text" data-campo="nombre" placeholder="Nombre de la marca *"
+                       maxlength="40" value="${(marca.nombre || "").replace(/"/g, "&quot;")}">
+                <div class="landing-marca-logo-acciones">
+                    <button class="btn-secondary landing-btn-sm" data-accion="logo">
+                        <i class="bi bi-upload"></i> ${marca.logo ? "Cambiar logo" : "Subir logo"}
+                    </button>
+                    ${marca.logo
+                        ? `<button class="btn-secondary landing-btn-sm" data-accion="quitar-logo">
+                               <i class="bi bi-x-lg"></i> Quitar logo
+                           </button>`
+                        : `<span class="landing-marca-hint">Sin logo se muestra el nombre en texto</span>`}
+                </div>
+            </div>
+
+            <div class="landing-galeria-acciones">
+                <button class="landing-icon-btn" data-accion="subir" title="Subir"
+                        ${idx === 0 ? "disabled" : ""}><i class="bi bi-arrow-up"></i></button>
+                <button class="landing-icon-btn" data-accion="bajar" title="Bajar"
+                        ${idx === landingMarcas.length - 1 ? "disabled" : ""}><i class="bi bi-arrow-down"></i></button>
+                <button class="landing-icon-btn landing-icon-btn--danger" data-accion="eliminar"
+                        title="Eliminar"><i class="bi bi-trash3"></i></button>
+            </div>
+
+            <input type="file" accept="image/*" hidden>`;
+
+        const fileInput = fila.querySelector("input[type=file]");
+
+        fila.querySelector('[data-campo="nombre"]').addEventListener("input", e => {
+            marca.nombre = e.target.value;
+        });
+
+        fila.querySelector('[data-accion="logo"]').addEventListener("click", () => fileInput.click());
+
+        fileInput.addEventListener("change", async e => {
+            const file = e.target.files[0];
+            e.target.value = "";
+            if (file) await subirLogoMarca(file, marca, fila);
+        });
+
+        fila.querySelector('[data-accion="quitar-logo"]')?.addEventListener("click", () => {
+            marca.logo = "";
+            renderLandingMarcas();
+        });
+
+        fila.querySelector('[data-accion="subir"]').addEventListener("click", () => {
+            [landingMarcas[idx - 1], landingMarcas[idx]] = [landingMarcas[idx], landingMarcas[idx - 1]];
+            renderLandingMarcas();
+        });
+        fila.querySelector('[data-accion="bajar"]').addEventListener("click", () => {
+            [landingMarcas[idx + 1], landingMarcas[idx]] = [landingMarcas[idx], landingMarcas[idx + 1]];
+            renderLandingMarcas();
+        });
+        fila.querySelector('[data-accion="eliminar"]').addEventListener("click", () => {
+            showConfirm("Eliminar marca", `Se quitara "${marca.nombre || "esta marca"}" del carrusel.`, () => {
+                landingMarcas = landingMarcas.filter(m => m.id !== marca.id);
+                renderLandingMarcas();
+            });
+        });
+
+        lista.appendChild(fila);
+    });
+}
+
+/* Titulo de la seccion de marcas, vacio = titulo por defecto. */
+function leerMarcasTitulo() {
+    return document.getElementById("marcasTituloInput").value.trim() || MARCAS_DEFAULT_TITULO;
+}
+
+/* ---------- Modal para pedir el enlace de un video ----------
+   Reemplaza al prompt() del navegador. Valida el enlace mientras se
+   escribe y muestra la miniatura antes de agregarlo, para que no se
+   cuele un enlace que la landing no pueda reproducir.
+   Devuelve una promesa con la url, o null si se cancela. */
+function pedirEnlaceVideo(titulo = "Agregar video") {
+    const overlay = document.getElementById("videoUrlOverlay");
+    const input   = document.getElementById("videoUrlInput");
+    const error   = document.getElementById("videoUrlError");
+    const preview = document.getElementById("videoUrlPreview");
+    const prevImg = document.getElementById("videoUrlPreviewImg");
+    const prevTxt = document.getElementById("videoUrlPreviewTxt");
+    const btnSave = document.getElementById("videoUrlSave");
+
+    // Sin el modal en el DOM no se bloquea la accion: se cae al prompt nativo
+    if (!overlay) {
+        const url = (prompt("Pega el enlace del video (YouTube o Vimeo):") || "").trim();
+        return Promise.resolve(url || null);
+    }
+
+    document.getElementById("videoUrlTitle").textContent = titulo;
+    input.value = "";
+    mostrarEstado("");
+
+    overlay.classList.add("show");
+    setTimeout(() => input.focus(), 50);
+
+    function mostrarEstado(url) {
+        const limpia = url.trim();
+
+        if (!limpia) {
+            error.hidden = true;
+            preview.hidden = true;
+            // Sin src la miniatura mostraria el icono de imagen rota
+            prevImg.hidden = true;
+            prevImg.removeAttribute("src");
+            btnSave.disabled = true;
+            return;
+        }
+
+        if (!esVideoValido(limpia)) {
+            error.querySelector("span").textContent =
+                "No reconocemos ese enlace. Pega uno de YouTube o Vimeo.";
+            error.hidden = false;
+            preview.hidden = true;
+            btnSave.disabled = true;
+            return;
+        }
+
+        error.hidden = true;
+        btnSave.disabled = false;
+
+        // YouTube da miniatura; Vimeo no, ahi solo se confirma que es valido
+        const thumb = portadaGaleria({ tipo: "video", url: limpia });
+        if (thumb) {
+            prevImg.src = thumb;
+            prevImg.hidden = false;
+            prevTxt.textContent = "Enlace valido, asi se vera la miniatura";
+        } else {
+            prevImg.hidden = true;
+            prevImg.removeAttribute("src");
+            prevTxt.textContent = "Enlace valido. Puedes agregarle una portada despues";
+        }
+        preview.hidden = false;
+    }
+
+    return new Promise(resolve => {
+        function cerrar(valor) {
+            overlay.classList.remove("show");
+            input.removeEventListener("input", onInput);
+            input.removeEventListener("keydown", onKey);
+            btnSave.removeEventListener("click", onSave);
+            document.getElementById("videoUrlCancel").removeEventListener("click", onCancel);
+            document.getElementById("videoUrlClose").removeEventListener("click", onCancel);
+            overlay.removeEventListener("click", onFuera);
+            document.removeEventListener("keydown", onEsc);
+            resolve(valor);
+        }
+
+        const onInput  = () => mostrarEstado(input.value);
+        const onSave   = () => {
+            const url = input.value.trim();
+            if (url && esVideoValido(url)) cerrar(url);
+        };
+        const onCancel = () => cerrar(null);
+        const onFuera  = e => { if (e.target === overlay) cerrar(null); };
+        const onEsc    = e => { if (e.key === "Escape") cerrar(null); };
+        const onKey    = e => { if (e.key === "Enter") { e.preventDefault(); onSave(); } };
+
+        input.addEventListener("input", onInput);
+        input.addEventListener("keydown", onKey);
+        btnSave.addEventListener("click", onSave);
+        document.getElementById("videoUrlCancel").addEventListener("click", onCancel);
+        document.getElementById("videoUrlClose").addEventListener("click", onCancel);
+        overlay.addEventListener("click", onFuera);
+        document.addEventListener("keydown", onEsc);
+    });
+}
+
+/* ---------- Campaña del mes: imagenes y videos ---------- */
+function nuevoIdCampania() {
+    return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+async function agregarVideoCampania() {
+    if (landingCampania.length >= CAMPANIA_MAX) {
+        showNotifToast(`Maximo ${CAMPANIA_MAX} piezas en la campaña`);
+        return;
+    }
+
+    const url = await pedirEnlaceVideo("Agregar video a la campaña");
+    if (!url) return;
+
+    landingCampania.push({
+        id: nuevoIdCampania(), tipo: "video", url,
+        portada: "", titulo: "", texto: "", link: ""
+    });
+    renderLandingCampania();
+    showNotifToast("Video agregado. Guarda para publicar");
+}
+
 async function agregarImagenCampania(file) {
     if (landingCampania.length >= CAMPANIA_MAX) {
-        showNotifToast(`Maximo ${CAMPANIA_MAX} imagenes en la campaña`);
+        showNotifToast(`Maximo ${CAMPANIA_MAX} piezas en la campaña`);
         return;
     }
     if (!file.type.startsWith("image/")) {
@@ -7120,8 +7599,8 @@ async function agregarImagenCampania(file) {
     try {
         const url = await subirImgbb(file);
         landingCampania.push({
-            id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-            url, titulo: "", texto: "", link: ""
+            id: nuevoIdCampania(), tipo: "imagen", url,
+            portada: "", titulo: "", texto: "", link: ""
         });
         showNotifToast("Imagen agregada. Guarda para publicar");
     } catch (err) {
@@ -7140,20 +7619,28 @@ function renderLandingCampania() {
     if (!lista) return;
 
     if (count) {
+        const imgs   = landingCampania.filter(i => i.tipo !== "video").length;
+        const videos = landingCampania.length - imgs;
         count.textContent =
-            `${landingCampania.length} de ${CAMPANIA_MAX} imagen${landingCampania.length === 1 ? "" : "es"}`;
+            `${landingCampania.length} de ${CAMPANIA_MAX} · ${imgs} imagen${imgs === 1 ? "" : "es"} · ${videos} video${videos === 1 ? "" : "s"}`;
     }
 
-    const btnAgregar = document.getElementById("btnCampaniaImagen");
-    if (btnAgregar) btnAgregar.disabled = landingCampania.length >= CAMPANIA_MAX;
+    // Al llegar al maximo se bloquean ambos botones de alta
+    const lleno = landingCampania.length >= CAMPANIA_MAX;
+    const btnImg = document.getElementById("btnCampaniaImagen");
+    const btnVid = document.getElementById("btnCampaniaVideo");
+    if (btnImg) btnImg.disabled = lleno;
+    if (btnVid) btnVid.disabled = lleno;
+
+    renderLandingTabBadges();
 
     if (!landingCampania.length) {
         lista.innerHTML = `
             <div class="landing-galeria-empty">
                 <i class="bi bi-megaphone"></i>
-                <p>Aun no hay imagenes de campaña. Sube hasta ${CAMPANIA_MAX} piezas
-                   (lo nuevo del mes, promociones) y la seccion aparecera en la landing,
-                   justo debajo de "Nuestras Lineas".</p>
+                <p>Aun no hay piezas de campaña. Sube hasta ${CAMPANIA_MAX} imagenes o
+                   videos de YouTube (lo nuevo del mes, promociones) y la seccion
+                   aparecera en la landing, justo debajo de "Nuestras Lineas".</p>
             </div>`;
         return;
     }
@@ -7161,25 +7648,38 @@ function renderLandingCampania() {
     lista.innerHTML = "";
 
     landingCampania.forEach((item, idx) => {
+        const esVideo = item.tipo === "video";
+        // En video la miniatura es la portada propia o la que da YouTube
+        const thumb   = esVideo ? portadaGaleria(item) : item.url;
+
         const fila = document.createElement("div");
         fila.className = "landing-galeria-item";
         fila.innerHTML = `
             <div class="landing-galeria-thumb">
-                <img src="${item.url}" alt=""
-                     onerror="this.style.display='none';this.parentElement.classList.add('is-empty')">
+                ${thumb
+                    ? `<img src="${thumb}" alt=""
+                            onerror="this.style.display='none';this.parentElement.classList.add('is-empty')">`
+                    : ""}
                 <div class="landing-galeria-thumb-ph"><i class="bi bi-image"></i></div>
+                ${esVideo ? '<span class="landing-galeria-badge"><i class="bi bi-play-fill"></i></span>' : ""}
             </div>
 
             <div class="landing-galeria-campos">
                 <span class="landing-galeria-tipo">
-                    <i class="bi bi-megaphone"></i> Pieza ${idx + 1}
+                    <i class="bi ${esVideo ? "bi-play-btn" : "bi-image"}"></i>
+                    ${esVideo ? "Video" : "Imagen"} · Pieza ${idx + 1}
                 </span>
                 <input type="text" data-campo="titulo" placeholder="Titulo (opcional)"
                        maxlength="60" value="${(item.titulo || "").replace(/"/g, "&quot;")}">
                 <input type="text" data-campo="texto" placeholder="Descripcion corta (opcional)"
                        maxlength="120" value="${(item.texto || "").replace(/"/g, "&quot;")}">
-                <input type="text" data-campo="link" placeholder="Enlace al hacer clic (opcional)"
-                       maxlength="200" value="${(item.link || "").replace(/"/g, "&quot;")}">
+                ${esVideo
+                    ? `<input type="url" data-campo="url" placeholder="Enlace del video (YouTube o Vimeo)"
+                              value="${(item.url || "").replace(/"/g, "&quot;")}">
+                       <input type="url" data-campo="portada" placeholder="Portada propia (opcional)"
+                              value="${(item.portada || "").replace(/"/g, "&quot;")}">`
+                    : `<input type="text" data-campo="link" placeholder="Enlace al hacer clic (opcional)"
+                              maxlength="200" value="${(item.link || "").replace(/"/g, "&quot;")}">`}
             </div>
 
             <div class="landing-galeria-acciones">
@@ -7195,7 +7695,10 @@ function renderLandingCampania() {
 
         fila.querySelectorAll("[data-campo]").forEach(input => {
             input.addEventListener("input", () => {
-                item[input.dataset.campo] = input.value.trim();
+                const campo = input.dataset.campo;
+                item[campo] = input.value.trim();
+                // Cambiar el video o su portada obliga a repintar la miniatura
+                if (campo === "url" || campo === "portada") renderLandingCampania();
             });
         });
 
@@ -7253,14 +7756,9 @@ async function agregarImagenGaleria(file) {
     }
 }
 
-function agregarVideoGaleria() {
-    const url = (prompt("Pega el enlace del video (YouTube o Vimeo):") || "").trim();
+async function agregarVideoGaleria() {
+    const url = await pedirEnlaceVideo("Agregar video a la galeria");
     if (!url) return;
-
-    if (!esVideoValido(url)) {
-        showNotifToast("Enlace no reconocido. Usa YouTube o Vimeo");
-        return;
-    }
 
     landingGaleria.push({
         id: nuevoIdGaleria(), tipo: "video", url, portada: "", titulo: "", texto: ""
@@ -7277,6 +7775,8 @@ function renderLandingGaleria() {
     const imgs   = landingGaleria.filter(i => i.tipo === "imagen").length;
     const videos = landingGaleria.filter(i => i.tipo === "video").length;
     if (count) count.textContent = `${imgs} imagen${imgs === 1 ? "" : "es"} · ${videos} video${videos === 1 ? "" : "s"}`;
+
+    renderLandingTabBadges();
 
     if (!landingGaleria.length) {
         lista.innerHTML = `
@@ -7373,6 +7873,7 @@ async function subirImgbb(file) {
 function renderLandingMeta(actualizado) {
     const meta = document.getElementById("landingMeta");
     if (!meta) return;
+    renderLandingTabBadges();
     const configurados = BANNER_SLOTS.filter(s => landingBannersDraft[s.key]).length;
     const fecha = actualizado
         ? new Date(actualizado).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })
@@ -7388,28 +7889,17 @@ function renderLandingMeta(actualizado) {
         </div>`;
 }
 
+/* Rellena la rejilla de cada pestaña de banners. Los paneles ya existen
+   (los crea construirPanelesBanners), aqui solo se repintan las tarjetas. */
 function renderLandingGrupos() {
-    const cont = document.getElementById("landingGrupos");
-    if (!cont) return;
-    cont.innerHTML = "";
-
-    BANNER_GRUPOS.forEach(grupo => {
-        const slots = BANNER_SLOTS.filter(s => s.grupo === grupo);
-        if (!slots.length) return;
-
-        const bloque = document.createElement("div");
-        bloque.className = "landing-grupo";
-        bloque.innerHTML = `
-            <div class="landing-grupo-head">
-                <h3>${grupo}</h3>
-                <span>${slots.length} espacio${slots.length === 1 ? "" : "s"}</span>
-            </div>
-            <div class="landing-banner-grid"></div>`;
-
-        const grid = bloque.querySelector(".landing-banner-grid");
-        slots.forEach(slot => grid.appendChild(landingSlotCard(slot)));
-        cont.appendChild(bloque);
+    document.querySelectorAll("[data-grupo-grid]").forEach(grid => {
+        const grupo = grid.dataset.grupoGrid;
+        grid.innerHTML = "";
+        BANNER_SLOTS
+            .filter(s => s.grupo === grupo)
+            .forEach(slot => grid.appendChild(landingSlotCard(slot)));
     });
+    renderLandingTabBadges();
 }
 
 function landingSlotCard(slot) {
@@ -7534,6 +8024,10 @@ async function guardarLandingConfig() {
         const campTexto  = document.getElementById("campaniaTextoInput").value.trim();
         const campania   = normalizarCampania(landingCampania);
 
+        // Las marcas sin nombre no se publican: se avisa para que no pase inadvertido
+        const marcas = normalizarMarcas(landingMarcas);
+        const marcasDescartadas = landingMarcas.length - marcas.length;
+
         await setDoc(doc(db, LANDING_DOC.coleccion, LANDING_DOC.id), {
             banners: landingBannersDraft,
             hero: leerHeroInputs(),
@@ -7543,6 +8037,8 @@ async function guardarLandingConfig() {
             campania,
             campaniaTitulo: campTitulo || CAMPANIA_DEFAULT_TITULO,
             campaniaTexto: campTexto || CAMPANIA_DEFAULT_TEXTO,
+            marcas,
+            marcasTitulo: leerMarcasTitulo(),
             actualizado: ahora,
             actualizadoPor: nombre || "administrador"
         }, { merge: true });
@@ -7550,11 +8046,17 @@ async function guardarLandingConfig() {
         landingBanners = { ...landingBannersDraft };
         landingGaleria = galeria.map(i => ({ ...i }));
         landingCampania = campania.map(i => ({ ...i }));
+        landingMarcas = marcas.map(i => ({ ...i }));
         renderLandingGrupos();
         renderLandingGaleria();
         renderLandingCampania();
+        renderLandingMarcas();
         renderLandingMeta(ahora);
-        showNotifToast("Landing actualizada. Los cambios ya estan publicados");
+        showNotifToast(
+            marcasDescartadas > 0
+                ? `Landing actualizada. ${marcasDescartadas} marca${marcasDescartadas === 1 ? "" : "s"} sin nombre no se publico`
+                : "Landing actualizada. Los cambios ya estan publicados"
+        );
     } catch (err) {
         console.error("[landing] error guardando config", err);
         showNotifToast("No se pudo guardar la configuracion");
@@ -7585,7 +8087,9 @@ function borradorLandingActual() {
         campaniaTitulo:
             document.getElementById("campaniaTituloInput").value.trim() || CAMPANIA_DEFAULT_TITULO,
         campaniaTexto:
-            document.getElementById("campaniaTextoInput").value.trim() || CAMPANIA_DEFAULT_TEXTO
+            document.getElementById("campaniaTextoInput").value.trim() || CAMPANIA_DEFAULT_TEXTO,
+        marcas: normalizarMarcas(landingMarcas),
+        marcasTitulo: leerMarcasTitulo()
     };
 }
 

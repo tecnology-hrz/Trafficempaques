@@ -12,11 +12,21 @@ export function urlCategoria(categoria) {
     return `catalogo.html?cat=${encodeURIComponent(slug(categoria))}`;
 }
 
+/** Sello de descuento. Vacio si el producto no tiene descuento activo. */
+export function descuentoBadgeHTML(p) {
+    if (!p?.descuento || !p.descuentoPct) return "";
+    return `<span class="product-card__off" aria-label="Producto en descuento del ${p.descuentoPct} por ciento">
+                <i class="bi bi-tag-fill"></i> ${p.descuentoPct}% OFF
+            </span>`;
+}
+
 export function productCardHTML(p) {
+    const enOferta = Boolean(p?.descuento && p.descuentoPct);
     return `
-    <article class="product-card" data-sku="${escapeHtml(p.sku)}">
+    <article class="product-card${enOferta ? " product-card--off" : ""}" data-sku="${escapeHtml(p.sku)}">
         <a class="product-card__media" href="${urlProducto(p)}" aria-label="Ver ${escapeHtml(p.nombre)}">
             <img src="${escapeHtml(p.imagen)}" alt="${escapeHtml(p.nombre)}" loading="lazy">
+            ${descuentoBadgeHTML(p)}
         </a>
         <button class="product-card__zoom" type="button" data-zoom
                 aria-label="Ampliar imagen de ${escapeHtml(p.nombre)}">

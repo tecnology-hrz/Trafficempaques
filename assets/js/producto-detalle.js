@@ -54,7 +54,11 @@ const sku = new URLSearchParams(location.search).get("sku");
 
 function render(p) {
     const info = getCategoriaInfo(p.categoria);
-    const mensajeWa = `Hola, me interesa la referencia "${p.nombre}" (${p.categoria}). Quisiera cotizarla personalizada.`;
+    const notaOferta = p.descuento && p.descuentoPct
+        ? ` Vi que tiene ${p.descuentoPct}% de descuento.`
+        : "";
+    const mensajeWa = `Hola, me interesa la referencia "${p.nombre}" (${p.categoria}).` +
+                      ` Quisiera cotizarla personalizada.${notaOferta}`;
 
     cont.innerHTML = `
     <nav class="breadcrumb" aria-label="Ruta de navegacion">
@@ -81,6 +85,9 @@ function render(p) {
         </div>
 
         <div class="detail-info">
+            ${p.descuento && p.descuentoPct
+                ? `<span class="detail-off"><i class="bi bi-tag-fill"></i> ${p.descuentoPct}% de descuento</span>`
+                : ""}
             <h1 class="detail-title">${escapeHtml(p.nombre)}</h1>
             <div class="detail-rule"></div>
             <p class="detail-text">
@@ -122,6 +129,11 @@ function render(p) {
                 <strong>Sobre el precio:</strong> el valor depende de la cantidad, el material y el
                 numero de tintas. Agrega las referencias que te interesan y te enviamos la
                 cotizacion formal por WhatsApp o correo.
+                ${p.descuento && p.descuentoPct
+                    ? `<br><br><strong>Descuento activo:</strong> esta referencia tiene
+                       ${p.descuentoPct}% de descuento. Lo aplicamos sobre el valor final
+                       al enviarte la cotizacion.`
+                    : ""}
             </div>
         </div>
     </div>`;

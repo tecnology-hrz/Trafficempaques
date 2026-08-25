@@ -6371,3 +6371,173 @@ body {
     .cotizaciones-filtros select,
     .btn-exportar-ordenes { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ===== LANDING ADMIN: PESTAÑAS POR SECCION ===== */
+/* Cada pestaña muestra un panel distinto del editor de la landing.
+   Todos comparten el mismo boton de guardado. */
+.landing-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 0 0 22px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.landing-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 15px;
+    border: 1px solid #e6e6e6;
+    border-radius: 999px;
+    background: #fff;
+    color: #666;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.landing-tab i { font-size: 15px; }
+.landing-tab:hover { border-color: #29ABE2; color: #29ABE2; }
+.landing-tab.is-active {
+    background: #29ABE2;
+    border-color: #29ABE2;
+    color: #fff;
+}
+
+.landing-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    padding: 0 6px;
+    height: 18px;
+    border-radius: 999px;
+    background: #f0f0f0;
+    color: #666;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+}
+.landing-tab.is-active .landing-tab-badge { background: rgba(255, 255, 255, .25); color: #fff; }
+
+/* Solo el panel activo ocupa espacio; los demas se retiran del flujo */
+.landing-panel { display: none; }
+.landing-panel.is-active { display: block; }
+
+.landing-panel-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #f6fbfe;
+    border: 1px solid #dceef8;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #5a6b74;
+}
+.landing-panel-hint i { color: #29ABE2; font-size: 14px; margin-top: 1px; flex: 0 0 auto; }
+
+/* ===== LANDING ADMIN: MARCAS ===== */
+/* Los logos se muestran completos (contain) sobre fondo claro, porque suelen
+   venir en PNG transparente y recortarlos los deformaria. */
+.landing-marca-thumb {
+    background: #fafafa;
+    border: 1px solid #eee;
+}
+.landing-marca-thumb img {
+    object-fit: contain !important;
+    padding: 8px;
+}
+.landing-marca-item.is-uploading .landing-banner-loader { display: flex; }
+
+.landing-marca-logo-acciones {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.landing-marca-hint { font-size: 12px; color: #999; }
+
+/* ===== DETALLE DE ORDEN: ASESOR RESPONSABLE ===== */
+.detalle-asesor {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #29ABE2;
+}
+.detalle-asesor i { font-size: 13px; }
+
+@media (max-width: 600px) {
+    .landing-tabs { gap: 5px; }
+    .landing-tab { padding: 8px 12px; font-size: 12px; }
+    .landing-tab span { display: none; }
+    .landing-tab.is-active span { display: inline; }
+}
+
+/* ===== MODAL: ENLACE DE VIDEO ===== */
+.modal-video-url { max-width: 520px; }
+
+.modal-field-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #999;
+}
+
+/* Estas cajas se ocultan con el atributo [hidden] desde JS. Como declaran
+   display:flex, hay que reponer el display:none explicitamente: una regla de
+   autor siempre gana al [hidden] de la hoja del navegador. */
+.video-url-error[hidden],
+.video-url-preview[hidden] { display: none; }
+
+.video-url-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    font-size: 12.5px;
+}
+.video-url-error i { flex: 0 0 auto; }
+
+/* Confirmacion visual antes de agregar: miniatura real del video */
+.video-url-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #f6fbfe;
+    border: 1px solid #dceef8;
+}
+.video-url-preview img {
+    width: 104px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #eee;
+    flex: 0 0 auto;
+}
+.video-url-preview__info {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #0f7a54;
+}
+.video-url-preview__info i { color: #10b981; font-size: 14px; }
+
+#videoUrlSave:disabled { opacity: .5; cursor: not-allowed; }

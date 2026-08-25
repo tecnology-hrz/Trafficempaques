@@ -43,8 +43,11 @@ form.addEventListener("submit", e => {
         return;
     }
 
-    const detalle = items.map((i, n) =>
-        `${n + 1}. ${i.nombre} (${i.categoria}) - ${i.cantidad} und.`).join("\n");
+    // El descuento viaja en el mensaje para que el asesor lo tenga presente
+    const detalle = items.map((i, n) => {
+        const off = i.descuento && i.descuentoPct ? ` [${i.descuentoPct}% OFF]` : "";
+        return `${n + 1}. ${i.nombre} (${i.categoria}) - ${i.cantidad} und.${off}`;
+    }).join("\n");
 
     const mensaje =
         `*Solicitud de cotizacion - ${EMPRESA.nombre}*\n\n` +
@@ -81,6 +84,9 @@ function render() {
                     <a href="producto.html?sku=${encodeURIComponent(i.sku)}">${escapeHtml(i.nombre)}</a>
                 </h2>
                 <p class="cart-item__dims">${escapeHtml(formatMedidas(i))}</p>
+                ${i.descuento && i.descuentoPct
+                    ? `<span class="cart-item__off"><i class="bi bi-tag-fill"></i> ${i.descuentoPct}% OFF</span>`
+                    : ""}
             </div>
             <div class="cart-item__side">
                 <div class="qty-input">

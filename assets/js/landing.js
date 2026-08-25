@@ -4,27 +4,15 @@
 
 import { initLayout } from "./tienda-layout.js";
 import {
-    getCatalogo, agruparPorCategoria, getCategoriaInfo,
+    getCatalogo, agruparPorCategoria, getCategoriaInfo, productosEnDescuento,
     escapeHtml, initZoom, whatsappLink, toast, EMPRESA
 } from "./tienda-core.js";
-import { urlCategoria } from "./tienda-cards.js";
+import { urlCategoria, renderProductGrid } from "./tienda-cards.js";
 import {
     getLandingConfig, portadaGaleria, embedVideo, getHeroTextos,
-    urlBanner, urlsHero, keyCategoria, keyDigital, DIGITAL_CATEGORIAS
+    urlBanner, urlsHero, keyCategoria, keyDigital, DIGITAL_CATEGORIAS,
+    getMarcas, MARCAS_DEFAULT_TITULO
 } from "./landing-config.js";
-
-/* Marcas del carrusel. Si mas adelante hay logos, agrega
-   { nombre: "...", logo: "https://..." } y se pinta la imagen. */
-const MARCAS = [
-    { nombre: "Jhonny Wings" },
-    { nombre: "Sixxta" },
-    { nombre: "Godo Pardo" },
-    { nombre: "Brolate" },
-    { nombre: "El Menor" },
-    { nombre: "Vacchi" },
-    { nombre: "Koi Koi" },
-    { nombre: "Clucks" }
-];
 
 initLayout("inicio");
 const abrirZoom = initZoom();
@@ -132,26 +120,48 @@ function heroCarrusel(cfg) {
     texto.textContent = cfg.campaniaTexto || "";
     texto.hidden = !cfg.campaniaTexto;
 
-    grid.innerHTML = items.map(item => {
+    grid.innerHTML = items.map((item, i) => {
+        const esVideo    = item.tipo === "video";
         const tieneTexto = Boolean(item.titulo || item.texto);
-        const clases = "campania-item" + (tieneTexto ? " campania-item--texto" : "");
-        const alt    = item.titulo || cfg.campaniaTitulo;
+        const clases     = "campania-item" + (tieneTexto ? " campania-item--texto" : "");
+        const alt        = item.titulo || cfg.campaniaTitulo;
+        // En video la miniatura es la portada propia o la de YouTube
+        const media      = esVideo ? portadaGaleria(item) : item.url;
 
         const interior = `
             <div class="campania-item__media">
-                <img src="${escapeHtml(item.url)}" alt="${escapeHtml(alt)}" loading="lazy">
+                ${media
+                    ? `<img src="${escapeHtml(media)}" alt="${escapeHtml(alt)}" loading="lazy">`
+                    : ""}
+                ${esVideo ? `
+                <span class="campania-item__tipo"><i class="bi bi-play-circle-fill"></i> Video</span>
+                <span class="campania-item__play"><i class="bi bi-play-fill"></i></span>` : ""}
                 ${tieneTexto ? `
                 <div class="campania-item__caption">
                     ${item.titulo ? `<span class="campania-item__titulo">${escapeHtml(item.titulo)}</span>` : ""}
                     ${item.texto ? `<span class="campania-item__texto">${escapeHtml(item.texto)}</span>` : ""}
-                    ${item.link ? '<span class="campania-item__link">Ver mas <i class="bi bi-arrow-right"></i></span>' : ""}
+                    ${esVideo
+                        ? '<span class="campania-item__link">Reproducir <i class="bi bi-play-fill"></i></span>'
+                        : (item.link ? '<span class="campania-item__link">Ver mas <i class="bi bi-arrow-right"></i></span>' : "")}
                 </div>` : ""}
             </div>`;
 
+        // Video -> boton que abre el reproductor. Imagen con link -> enlace.
+        if (esVideo) {
+            return `<button class="${clases}" type="button" data-video-idx="${i}"
+                            aria-label="Reproducir: ${escapeHtml(alt)}">${interior}</button>`;
+        }
         return item.link
             ? `<a class="${clases}" href="${escapeHtml(item.link)}">${interior}</a>`
             : `<div class="${clases}" role="img" aria-label="${escapeHtml(alt)}">${interior}</div>`;
     }).join("");
+
+    grid.querySelectorAll("[data-video-idx]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const item = items[Number(btn.dataset.videoIdx)];
+            if (item) abrirVideo(item.url);
+        });
+    });
 
     seccion.hidden = false;
 })();
@@ -178,12 +188,17 @@ function heroCarrusel(cfg) {
         return [...porCategoria.entries()].map(([cat, items]) => {
             const info  = getCategoriaInfo(cat);
             const foto  = urlBanner(cfg, keyCategoria(cat)) || items[0]?.imagen || "";
+            // Si la categoria tiene referencias en descuento se avisa en la tarjeta
+            const enOferta = productosEnDescuento(items).length;
             return tileHTML({
                 href: urlCategoria(cat),
                 nombre: cat,
                 foto,
                 icon: info.icon,
-                extra: `<span class="cat-tile__count">${items.length} ref.</span>`
+                extra: `<span class="cat-tile__count">${items.length} ref.</span>` +
+                       (enOferta
+                            ? `<span class="cat-tile__off"><i class="bi bi-tag-fill"></i> ${enOferta} en descuento</span>`
+                            : "")
             });
         }).join("");
     }
@@ -235,28 +250,65 @@ function heroCarrusel(cfg) {
     });
 
     mostrar("empaques");
+
+    /* --- Productos en descuento ---
+       Se reusa la misma tarjeta del catalogo, para que el badge, el zoom y
+       el boton de agregar a la cotizacion se comporten igual en todo el sitio.
+       Sin productos en descuento la seccion no se muestra. */
+    const secOfertas  = document.getElementById("ofertas");
+    const gridOfertas = document.getElementById("ofertasGrid");
+    if (secOfertas && gridOfertas) {
+        const ofertas = productosEnDescuento(productos);
+        if (ofertas.length) {
+            renderProductGrid(gridOfertas, ofertas, abrirZoom);
+            secOfertas.hidden = false;
+        }
+    }
 })();
 
 /* ---------- Carrusel infinito de marcas ---------- */
-(function marcasMarquee() {
+/* Las marcas y el titulo se administran desde el panel (config/landing).
+   Sin marcas configuradas se usan las de por defecto. */
+(async function marcasMarquee() {
     const track = document.getElementById("marcasTrack");
     if (!track) return;
 
-    const chip = m => m.logo
-        ? `<div class="brand-chip"><img src="${escapeHtml(m.logo)}" alt="${escapeHtml(m.nombre)}" loading="lazy"></div>`
-        : `<div class="brand-chip">${escapeHtml(m.nombre)}</div>`;
+    const cfg    = await getLandingConfig();
+    const marcas = getMarcas(cfg);
+
+    const tituloEl = document.getElementById("marcasTitulo");
+    if (tituloEl) tituloEl.textContent = cfg.marcasTitulo || MARCAS_DEFAULT_TITULO;
+
+    // Sin marcas configuradas la seccion se retira por completo. Se fuerza el
+    // display porque la clase .section define el suyo y ganaria al atributo hidden.
+    const seccion = document.getElementById("marcas");
+    if (!marcas.length) {
+        if (seccion) seccion.style.display = "none";
+        return;
+    }
+
+    // El nombre siempre va en el DOM: con logo queda oculto por CSS y sirve
+    // de respaldo si la imagen falla, asi el chip nunca se ve vacio.
+    const chip = m => `
+        <div class="brand-chip${m.logo ? " brand-chip--logo" : ""}">
+            ${m.logo
+                ? `<img src="${escapeHtml(m.logo)}" alt="${escapeHtml(m.nombre)}" loading="lazy"
+                        onerror="this.remove();this.closest('.brand-chip').classList.remove('brand-chip--logo')">`
+                : ""}
+            <span class="brand-chip__nombre">${escapeHtml(m.nombre)}</span>
+        </div>`;
 
     // Una copia visible + una copia clon: al desplazar el 50% del track
     // el resultado es identico al punto de partida, sin salto ni reinicio.
-    const copia = MARCAS.map(chip).join("");
+    const copia = marcas.map(chip).join("");
     track.innerHTML = copia + copia;
 
     const items = track.children;
-    for (let i = MARCAS.length; i < items.length; i++) {
+    for (let i = marcas.length; i < items.length; i++) {
         items[i].setAttribute("aria-hidden", "true");
     }
 
-    track.style.setProperty("--marquee-duration", `${Math.max(18, MARCAS.length * 4.5)}s`);
+    track.style.setProperty("--marquee-duration", `${Math.max(18, marcas.length * 4.5)}s`);
 })();
 
 /* ---------- Contacto ---------- */

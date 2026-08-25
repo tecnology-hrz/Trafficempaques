@@ -107,6 +107,16 @@ function renderCotizacion() {
     document.getElementById("cotFecha").textContent       = fechaStr;
     document.getElementById("cotFechaCliente").textContent = fechaStr;
 
+    // Asesor comercial que elaboro la cotizacion. Si la cotizacion es antigua
+    // y no tiene el dato, se oculta el campo en lugar de mostrar un guion.
+    const elAsesor  = document.getElementById("cotAsesor");
+    const itemAsesor = document.getElementById("cotAsesorItem");
+    if (elAsesor) {
+        const asesor = (cotizacion.creadoPor || "").trim();
+        elAsesor.textContent = asesor || "-";
+        if (itemAsesor) itemAsesor.style.display = asesor ? "" : "none";
+    }
+
     // Items con ID
     const tbody = document.getElementById("cotItemsBody");
     tbody.innerHTML = "";
