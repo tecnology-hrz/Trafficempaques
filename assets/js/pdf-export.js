@@ -309,5 +309,123 @@ async function exportarOrdenPDF(orden) {
     docPdf.save(`${orden.numero || "orden"}.pdf`);
 }
 
+// ===== DESPACHO (remision de entrega parcial o total) =====
+// Recibe un objeto despacho ya "resuelto", donde cada item trae:
+//   { producto, cantidadOrdenada, cantidadDespachada, acumulado, pendiente }
+// cantidadDespachada = lo que salio en ESTE despacho.
+// acumulado          = total despachado de esa referencia contando todos los dias.
+// pendiente          = cantidadOrdenada - acumulado.
+async function exportarDespachoPDF(despacho) {
+    const JsPDF = getJsPDF();
+    if (!JsPDF) { alert("No se pudo cargar el generador de PDF. Verifica tu conexion."); return; }
+
+    const logo = await cargarLogo();
+    const docPdf = new JsPDF({ unit: "mm", format: "a4" });
+    let y = drawHeader(docPdf, "REMISION DE DESPACHO", despacho.numero || "", logo);
+
+    let fechaStr = despacho.fechaDia || "-";
+    if (despacho.fecha) {
+        const f = new Date(despacho.fecha);
+        if (!isNaN(f)) {
+            fechaStr = f.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" }) +
+                       " " + f.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+        }
+    }
+    const tipoLabel = despacho.tipo === "digital" ? "Digital" : "Imprenta";
+
+    y = drawInfoCliente(docPdf, y, [
+        ["Cliente", despacho.cliente || "-", "Fecha despacho", fechaStr],
+        ["NIT / Cedula", despacho.nit || "-", "Tipo", tipoLabel],
+        ["Negocio", despacho.negocio || "-", "Orden", despacho.numero || "-"],
+        ["Telefono", despacho.telefono || "-", "Ciudad", despacho.ciudad || "-"],
+        ["Direccion", despacho.direccion || "-", "Despachado por", despacho.creadoPor || "-"]
+    ]);
+
+    const items = despacho.items || [];
+    const body = items.map(i => [
+        i.producto || "-",
+        i.cantidadOrdenada || 0,
+        i.cantidadDespachada || 0,
+        i.acumulado || 0,
+        i.pendiente || 0
+    ]);
+
+    // Fila de totales
+    const sum = campo => items.reduce((s, i) => s + (parseInt(i[campo]) || 0), 0);
+    body.push([
+        "TOTALES",
+        sum("cantidadOrdenada"),
+        sum("cantidadDespachada"),
+        sum("acumulado"),
+        sum("pendiente")
+    ]);
+
+    docPdf.autoTable({
+        startY: y,
+        head: [["Producto", "Ordenado", "Despachado hoy", "Despachado total", "Pendiente"]],
+        body,
+        theme: "striped",
+        headStyles: { fillColor: BRAND.primary, textColor: 255, fontSize: 9, halign: "center" },
+        styles: { fontSize: 9, cellPadding: 2.5, textColor: BRAND.dark },
+        columnStyles: {
+            0: { cellWidth: "auto" },
+            1: { halign: "center", cellWidth: 24 },
+            2: { halign: "center", cellWidth: 30, fontStyle: "bold" },
+            3: { halign: "center", cellWidth: 30 },
+            4: { halign: "center", cellWidth: 24, fontStyle: "bold" }
+        },
+        // Resaltar la fila de totales
+        didParseCell: data => {
+            if (data.row.index === body.length - 1) {
+                data.cell.styles.fillColor = BRAND.light;
+                data.cell.styles.fontStyle = "bold";
+            }
+        }
+    });
+
+    y = docPdf.lastAutoTable.finalY + 8;
+
+    const totalPendiente = sum("pendiente");
+    docPdf.setFont("helvetica", "bold");
+    docPdf.setFontSize(10);
+    docPdf.setTextColor(...BRAND.dark);
+    docPdf.text(
+        totalPendiente > 0
+            ? `Saldo pendiente por despachar de esta orden: ${totalPendiente} unidades`
+            : "Orden despachada en su totalidad.",
+        14, y
+    );
+    y += 8;
+
+    if (despacho.observaciones) {
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(9);
+        docPdf.text("Observaciones:", 14, y);
+        docPdf.setFont("helvetica", "normal");
+        docPdf.setTextColor(...BRAND.gray);
+        const pageW = docPdf.internal.pageSize.getWidth();
+        const lineas = docPdf.splitTextToSize(String(despacho.observaciones), pageW - 28);
+        docPdf.text(lineas, 14, y + 5);
+        y += 5 + lineas.length * 4.5;
+    }
+
+    // Espacio de firmas
+    y += 10;
+    const pageH = docPdf.internal.pageSize.getHeight();
+    if (y < pageH - 40) {
+        docPdf.setDrawColor(...BRAND.gray);
+        docPdf.line(14, y, 84, y);
+        docPdf.line(110, y, 180, y);
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(...BRAND.gray);
+        docPdf.text("Entrega (Traffic)", 14, y + 5);
+        docPdf.text("Recibe (Cliente)", 110, y + 5);
+    }
+
+    drawFooter(docPdf);
+    docPdf.save(`despacho_${(despacho.numero || "orden")}_${despacho.fechaDia || ""}.pdf`);
+}
+
 window.exportarCotizacionPDF = exportarCotizacionPDF;
 window.exportarOrdenPDF = exportarOrdenPDF;
+window.exportarDespachoPDF = exportarDespachoPDF;

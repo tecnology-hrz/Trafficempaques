@@ -1434,6 +1434,9 @@
                     <button class="tab-btn" data-tab="pdiaPendientes">
                         <i class="bi bi-clock-history"></i> Pendientes acumulados
                     </button>
+                    <button class="tab-btn" data-tab="pdiaDespachos">
+                        <i class="bi bi-truck"></i> Despachos diarios
+                    </button>
                 </div>
 
                 <!-- TAB: PLAN DEL DIA -->
@@ -1487,6 +1490,28 @@
                                 </table>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- TAB: DESPACHOS DIARIOS -->
+                <div class="tab-content" id="tab-pdiaDespachos">
+                    <div class="pdesp-toolbar">
+                        <label class="pdesp-toggle">
+                            <input type="checkbox" id="pdespVerTodos">
+                            <span>Ver todos los dias</span>
+                        </label>
+                        <div class="clientes-search-wrap pdesp-search">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="pdespBuscar" placeholder="Buscar por orden, cliente o negocio...">
+                        </div>
+                        <button class="btn-primary" id="pdespBtnNuevo">
+                            <i class="bi bi-plus-lg"></i> Registrar despacho
+                        </button>
+                    </div>
+
+                    <div class="pdesp-resumen" id="pdespResumen"></div>
+                    <div id="pdespLista">
+                        <p class="placeholder-text">Cargando despachos...</p>
                     </div>
                 </div>
             </div>
@@ -2254,6 +2279,61 @@
                 <span class="pdia-select-count" id="pdiaSelectCount">0 seleccionadas</span>
                 <button class="btn-cancel" id="pdiaSelectCancel">Cancelar</button>
                 <button class="btn-save" id="pdiaSelectSave"><i class="bi bi-check-lg"></i> Programar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL REGISTRAR DESPACHO ===== -->
+    <div class="modal-overlay" id="pdespOverlay">
+        <div class="modal modal-pdesp">
+            <div class="modal-header">
+                <h3><i class="bi bi-truck"></i> Registrar despacho</h3>
+                <button class="modal-close" id="pdespClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <!-- Paso 1: elegir orden -->
+                <div id="pdespPaso1">
+                    <p class="pdia-hint">Elige la orden que vas a despachar. Se muestran las unidades que aun quedan pendientes.</p>
+                    <div class="clientes-search-wrap pdia-select-search">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="pdespOrdenBuscar" placeholder="Buscar por numero, cliente o negocio...">
+                    </div>
+                    <div class="pdia-select-lista" id="pdespOrdenLista">
+                        <p class="placeholder-text">Cargando ordenes...</p>
+                    </div>
+                </div>
+
+                <!-- Paso 2: cantidades a despachar -->
+                <div id="pdespPaso2" style="display:none;">
+                    <button class="btn-back pdesp-volver" id="pdespVolver"><i class="bi bi-arrow-left"></i> Cambiar orden</button>
+                    <div class="pdesp-orden-info" id="pdespOrdenInfo"></div>
+                    <div class="modal-field">
+                        <label>Fecha del despacho</label>
+                        <input type="date" id="pdespFecha">
+                    </div>
+                    <div class="pdesp-items-wrap">
+                        <table class="clientes-tabla pdesp-items-tabla">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Ordenado</th>
+                                    <th>Ya despachado</th>
+                                    <th>Pendiente</th>
+                                    <th>Despachar ahora</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pdespItemsBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="modal-field">
+                        <label>Observaciones (opcional)</label>
+                        <input type="text" id="pdespObs" placeholder="Ej: entrega parcial, transportadora, remision fisica N...">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="pdespCancel">Cancelar</button>
+                <button class="btn-save" id="pdespSave" style="display:none;"><i class="bi bi-check-lg"></i> Guardar despacho</button>
             </div>
         </div>
     </div>

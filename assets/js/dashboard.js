@@ -73,6 +73,13 @@ let pdiaOrdenesCache  = [];     // ordenes de la coleccion "produccion" (para el
 let pdiaSeleccion     = new Set();
 let pdiaReagendarCtx  = null;   // { fecha, ordenId }
 
+// ===== ESTADO: DESPACHOS DIARIOS =====
+const PDESP_COL = "despachosDia";
+
+let pdespDiasCache    = [];     // [{ fecha, despachos: [...] }] todos los dias
+let pdespOrdenesCache = [];     // ordenes de "produccion" para el selector
+let pdespOrdenSel     = null;   // orden elegida en el modal
+
 initDashboard(rol, nombre);
 
 async function initDashboard(rol, nombre) {
@@ -8275,12 +8282,23 @@ function setupProduccionDia() {
     setupPdiaSelectModal();
     setupPdiaReagendarModal();
 
-    // Al entrar al tab de pendientes, recargarlos
+    setupPdespModal();
+
+    // Al entrar a cada tab, recargar su contenido
     document.querySelectorAll("#pdiaTabBar .tab-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             if (btn.dataset.tab === "pdiaPendientes") cargarPdiaPendientes();
+            if (btn.dataset.tab === "pdiaDespachos")  cargarPdespDespachos();
         });
     });
+
+    // Filtros del tab de despachos
+    const chkTodos = document.getElementById("pdespVerTodos");
+    if (chkTodos) chkTodos.addEventListener("change", renderPdespDespachos);
+    const inputBuscarDesp = document.getElementById("pdespBuscar");
+    if (inputBuscarDesp) inputBuscarDesp.addEventListener("input", renderPdespDespachos);
+    const btnNuevoDesp = document.getElementById("pdespBtnNuevo");
+    if (btnNuevoDesp) btnNuevoDesp.addEventListener("click", abrirPdespModal);
 }
 
 // ===== CARGA DEL PLAN DEL DIA =====
@@ -8300,6 +8318,8 @@ async function cargarProduccionDia() {
 
     renderProduccionDia();
     cargarPdiaPendientes();
+    // Si ya se cargaron los despachos, re-renderizarlos con la nueva fecha
+    if (pdespDiasCache.length > 0) renderPdespDespachos();
 }
 
 function renderProduccionDia() {
@@ -8742,5 +8762,493 @@ async function pdiaReagendarConfirmar() {
     } catch (e) {
         console.error(e);
         showNotifToast("No se pudo reagendar la orden");
+    }
+}
+
+// ============================================================
+// ===== DESPACHOS DIARIOS ====================================
+// Registro de lo que realmente salio de cada orden, por dia.
+// Soporta despachos parciales: una orden puede despacharse en
+// varios dias y el saldo pendiente se calcula acumulando todos
+// los despachos historicos de esa orden.
+//
+// Coleccion Firestore: "despachosDia"
+//   id del doc = fecha en formato YYYY-MM-DD
+//   {
+//     fecha: "YYYY-MM-DD",
+//     despachos: [{
+//        despachoId, ordenId, numero, cliente, negocio, nit,
+//        telefono, direccion, ciudad, tipo,
+//        items: [{ itemIdx, producto, cantidadOrdenada, cantidadDespachada }],
+//        observaciones, fecha: ISO, creadoPor
+//     }]
+//   }
+// ============================================================
+
+// Total ya despachado de una orden, por indice de producto, sumando todos los
+// dias. Si se pasa "excluirDespachoId", ese despacho no se cuenta (util para
+// mostrar "ya despachado antes de este").
+function pdespAcumuladoPorItem(ordenId, excluirDespachoId) {
+    const acum = {};
+    pdespDiasCache.forEach(dia => {
+        (dia.despachos || []).forEach(d => {
+            if (d.ordenId !== ordenId) return;
+            if (excluirDespachoId && d.despachoId === excluirDespachoId) return;
+            (d.items || []).forEach(i => {
+                const key = i.itemIdx !== undefined && i.itemIdx !== null ? i.itemIdx : i.producto;
+                acum[key] = (acum[key] || 0) + (parseInt(i.cantidadDespachada) || 0);
+            });
+        });
+    });
+    return acum;
+}
+
+// Enriquece los items de un despacho con acumulado y pendiente de la orden.
+function pdespResolverItems(despacho) {
+    const acum = pdespAcumuladoPorItem(despacho.ordenId);
+    return (despacho.items || []).map(i => {
+        const key = i.itemIdx !== undefined && i.itemIdx !== null ? i.itemIdx : i.producto;
+        const ordenada   = parseInt(i.cantidadOrdenada) || 0;
+        const despachada = parseInt(i.cantidadDespachada) || 0;
+        const acumulado  = acum[key] || 0;
+        return {
+            ...i,
+            cantidadOrdenada: ordenada,
+            cantidadDespachada: despachada,
+            acumulado,
+            pendiente: Math.max(0, ordenada - acumulado)
+        };
+    });
+}
+
+// ===== CARGA =====
+async function cargarPdespDespachos() {
+    const cont = document.getElementById("pdespLista");
+    if (!cont) return;
+    cont.innerHTML = '<p class="placeholder-text">Cargando despachos...</p>';
+
+    try {
+        const snap = await getDocs(collection(db, PDESP_COL));
+        pdespDiasCache = [];
+        snap.forEach(d => pdespDiasCache.push({ fecha: d.id, ...d.data() }));
+        pdespDiasCache.sort((a, b) => b.fecha.localeCompare(a.fecha));
+        renderPdespDespachos();
+    } catch (e) {
+        console.error("Error cargando despachos", e);
+        cont.innerHTML = '<p class="placeholder-text">Error al cargar los despachos.</p>';
+    }
+}
+
+function renderPdespDespachos() {
+    const cont = document.getElementById("pdespLista");
+    if (!cont) return;
+
+    const verTodos = document.getElementById("pdespVerTodos")?.checked;
+    const term = (document.getElementById("pdespBuscar")?.value || "").toLowerCase().trim();
+
+    // Dias a mostrar: solo el seleccionado, o todos
+    let dias = verTodos
+        ? pdespDiasCache
+        : pdespDiasCache.filter(d => d.fecha === pdiaFechaActual);
+
+    // Aplicar busqueda sobre los despachos de cada dia
+    dias = dias.map(dia => ({
+        fecha: dia.fecha,
+        despachos: (dia.despachos || []).filter(d => {
+            if (!term) return true;
+            return [d.numero, d.cliente, d.negocio, d.tipo].some(v => String(v || "").toLowerCase().includes(term));
+        })
+    })).filter(dia => dia.despachos.length > 0);
+
+    renderPdespResumen(dias, verTodos);
+
+    if (dias.length === 0) {
+        cont.innerHTML = `<div class="empty-state"><i class="bi bi-truck"></i><p>${
+            verTodos
+                ? (term ? "Ningun despacho coincide con la busqueda." : "Aun no hay despachos registrados.")
+                : `No hay despachos registrados el ${pdiaEsc(pdiaFechaLarga(pdiaFechaActual))}.`
+        }</p></div>`;
+        return;
+    }
+
+    cont.innerHTML = dias.map(dia => {
+        const totalDia = dia.despachos.reduce((s, d) =>
+            s + (d.items || []).reduce((t, i) => t + (parseInt(i.cantidadDespachada) || 0), 0), 0);
+
+        const cards = dia.despachos
+            .slice()
+            .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")))
+            .map(d => pdespCardHtml(d, dia.fecha))
+            .join("");
+
+        return `
+            <div class="pdesp-dia">
+                <div class="pdesp-dia-header">
+                    <span class="pdesp-dia-fecha"><i class="bi bi-calendar2-week"></i> ${pdiaEsc(pdiaFechaLarga(dia.fecha))}</span>
+                    <span class="pdesp-dia-meta">${dia.despachos.length} despacho(s) · ${totalDia.toLocaleString("es-CO")} unidades</span>
+                </div>
+                ${cards}
+            </div>`;
+    }).join("");
+
+    // Acciones
+    cont.querySelectorAll(".pdesp-btn-pdf").forEach(b =>
+        b.addEventListener("click", () => pdespImprimirPDF(b.dataset.fecha, b.dataset.id)));
+    cont.querySelectorAll(".pdesp-btn-eliminar").forEach(b =>
+        b.addEventListener("click", () => {
+            showConfirm("Eliminar despacho",
+                "Eliminar este registro de despacho? Las unidades volveran a contarse como pendientes.",
+                () => pdespEliminar(b.dataset.fecha, b.dataset.id));
+        }));
+}
+
+function pdespCardHtml(d, fechaDia) {
+    const items = pdespResolverItems(d);
+    const hora = d.fecha ? new Date(d.fecha).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "";
+    const totalDespachado = items.reduce((s, i) => s + i.cantidadDespachada, 0);
+    const totalPendiente  = items.reduce((s, i) => s + i.pendiente, 0);
+    const completa = totalPendiente === 0;
+
+    const filas = items.map(i => `
+        <tr>
+            <td>${pdiaEsc(i.producto || "-")}</td>
+            <td class="pdesp-num">${i.cantidadOrdenada.toLocaleString("es-CO")}</td>
+            <td class="pdesp-num pdesp-num-fuerte">${i.cantidadDespachada.toLocaleString("es-CO")}</td>
+            <td class="pdesp-num">${i.acumulado.toLocaleString("es-CO")}</td>
+            <td class="pdesp-num ${i.pendiente > 0 ? "pdesp-num-pend" : "pdesp-num-ok"}">${i.pendiente.toLocaleString("es-CO")}</td>
+        </tr>`).join("");
+
+    return `
+        <div class="pdesp-card">
+            <div class="pdesp-card-header">
+                <div class="pdesp-card-info">
+                    <span class="pdesp-card-numero">${pdiaEsc(d.numero || d.ordenId)}
+                        <span class="pdia-tipo">${pdiaEsc(d.tipo || "--")}</span>
+                    </span>
+                    <span class="pdesp-card-cliente">${pdiaEsc(d.cliente || "--")}${d.negocio ? " · " + pdiaEsc(d.negocio) : ""}</span>
+                    <small>${hora ? "Despachado " + hora + " · " : ""}por ${pdiaEsc(d.creadoPor || "--")}</small>
+                </div>
+                <div class="pdesp-card-right">
+                    <span class="pdia-badge ${completa ? "completado" : "pendiente"}">${completa ? "Orden completa" : totalPendiente.toLocaleString("es-CO") + " pendientes"}</span>
+                    <div class="pdia-acciones">
+                        <button class="btn-icon pdesp-btn-pdf" data-fecha="${pdiaEsc(fechaDia)}" data-id="${pdiaEsc(d.despachoId)}" title="Imprimir remision en PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+                        ${pdiaEsAdmin() ? `<button class="btn-icon btn-delete pdesp-btn-eliminar" data-fecha="${pdiaEsc(fechaDia)}" data-id="${pdiaEsc(d.despachoId)}" title="Eliminar despacho"><i class="bi bi-trash3"></i></button>` : ""}
+                    </div>
+                </div>
+            </div>
+            <div class="clientes-tabla-wrap">
+                <table class="clientes-tabla pdesp-tabla">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="pdesp-num">Ordenado</th>
+                            <th class="pdesp-num">Despachado</th>
+                            <th class="pdesp-num">Acumulado</th>
+                            <th class="pdesp-num">Pendiente</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+            </div>
+            <div class="pdesp-card-footer">
+                <span><i class="bi bi-box-seam"></i> ${totalDespachado.toLocaleString("es-CO")} unidades en este despacho</span>
+                ${d.observaciones ? `<span class="pdesp-obs"><i class="bi bi-chat-left-text"></i> ${pdiaEsc(d.observaciones)}</span>` : ""}
+            </div>
+        </div>`;
+}
+
+function renderPdespResumen(dias, verTodos) {
+    const cont = document.getElementById("pdespResumen");
+    if (!cont) return;
+
+    const despachos = dias.flatMap(d => d.despachos);
+    const unidades = despachos.reduce((s, d) =>
+        s + (d.items || []).reduce((t, i) => t + (parseInt(i.cantidadDespachada) || 0), 0), 0);
+    const ordenes = new Set(despachos.map(d => d.ordenId)).size;
+    const parciales = despachos.filter(d => pdespResolverItems(d).some(i => i.pendiente > 0)).length;
+
+    cont.innerHTML = `
+        <div class="pdia-card">
+            <span class="pdia-card-label">${verTodos ? "Despachos (historico)" : "Despachos del dia"}</span>
+            <span class="pdia-card-valor">${despachos.length}</span>
+        </div>
+        <div class="pdia-card ok">
+            <span class="pdia-card-label">Unidades despachadas</span>
+            <span class="pdia-card-valor">${unidades.toLocaleString("es-CO")}</span>
+        </div>
+        <div class="pdia-card">
+            <span class="pdia-card-label">Ordenes distintas</span>
+            <span class="pdia-card-valor">${ordenes}</span>
+        </div>
+        <div class="pdia-card warn">
+            <span class="pdia-card-label">Con saldo pendiente</span>
+            <span class="pdia-card-valor">${parciales}</span>
+        </div>`;
+}
+
+// ===== PDF =====
+function pdespImprimirPDF(fechaDia, despachoId) {
+    if (typeof window.exportarDespachoPDF !== "function") {
+        showNotifToast("El modulo de PDF no esta disponible");
+        return;
+    }
+    const dia = pdespDiasCache.find(d => d.fecha === fechaDia);
+    const d = dia && (dia.despachos || []).find(x => x.despachoId === despachoId);
+    if (!d) {
+        showNotifToast("No se encontro el despacho");
+        return;
+    }
+    window.exportarDespachoPDF({ ...d, fechaDia, items: pdespResolverItems(d) });
+}
+
+// ===== ELIMINAR =====
+async function pdespEliminar(fechaDia, despachoId) {
+    if (!pdiaEsAdmin()) return;
+    try {
+        const ref = doc(db, PDESP_COL, fechaDia);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const despachos = (data.despachos || []).filter(d => d.despachoId !== despachoId);
+        await setDoc(ref, {
+            fecha: fechaDia,
+            despachos,
+            actualizadoPor: sessionStorage.getItem("userName") || "",
+            actualizado: new Date().toISOString()
+        }, { merge: true });
+
+        const dia = pdespDiasCache.find(d => d.fecha === fechaDia);
+        if (dia) dia.despachos = despachos;
+        renderPdespDespachos();
+        showNotifToast("Despacho eliminado");
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo eliminar el despacho");
+    }
+}
+
+// ===== MODAL: REGISTRAR DESPACHO =====
+function setupPdespModal() {
+    const overlay = document.getElementById("pdespOverlay");
+    if (!overlay) return;
+    const cerrar = () => { overlay.classList.remove("show"); pdespOrdenSel = null; };
+
+    document.getElementById("pdespClose").addEventListener("click", cerrar);
+    document.getElementById("pdespCancel").addEventListener("click", cerrar);
+    overlay.addEventListener("click", e => { if (e.target === overlay) cerrar(); });
+    document.getElementById("pdespOrdenBuscar").addEventListener("input", renderPdespOrdenLista);
+    document.getElementById("pdespVolver").addEventListener("click", pdespVolverAPaso1);
+    document.getElementById("pdespSave").addEventListener("click", pdespGuardar);
+}
+
+async function abrirPdespModal() {
+    const overlay = document.getElementById("pdespOverlay");
+    pdespOrdenSel = null;
+    document.getElementById("pdespOrdenBuscar").value = "";
+    document.getElementById("pdespObs").value = "";
+    document.getElementById("pdespFecha").value = pdiaFechaActual;
+    pdespVolverAPaso1();
+    document.getElementById("pdespOrdenLista").innerHTML = '<p class="placeholder-text">Cargando ordenes...</p>';
+    overlay.classList.add("show");
+
+    // Asegurar que el historico de despachos este cargado para calcular pendientes
+    if (pdespDiasCache.length === 0) {
+        try {
+            const snap = await getDocs(collection(db, PDESP_COL));
+            pdespDiasCache = [];
+            snap.forEach(d => pdespDiasCache.push({ fecha: d.id, ...d.data() }));
+            pdespDiasCache.sort((a, b) => b.fecha.localeCompare(a.fecha));
+        } catch (e) {
+            console.warn("No se pudo cargar el historico de despachos", e);
+        }
+    }
+
+    try {
+        const snap = await getDocs(collection(db, "produccion"));
+        pdespOrdenesCache = [];
+        snap.forEach(d => pdespOrdenesCache.push({ id: d.id, ...d.data() }));
+        pdespOrdenesCache = pdespOrdenesCache
+            .filter(o => !o.eliminado)
+            .sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+        renderPdespOrdenLista();
+    } catch (e) {
+        console.error(e);
+        document.getElementById("pdespOrdenLista").innerHTML = '<p class="placeholder-text">Error al cargar las ordenes.</p>';
+    }
+}
+
+function pdespVolverAPaso1() {
+    document.getElementById("pdespPaso1").style.display = "";
+    document.getElementById("pdespPaso2").style.display = "none";
+    document.getElementById("pdespSave").style.display = "none";
+    pdespOrdenSel = null;
+}
+
+// Unidades pendientes totales de una orden (contra el historico de despachos)
+function pdespPendienteOrden(orden) {
+    const acum = pdespAcumuladoPorItem(orden.id);
+    return (orden.items || []).reduce((s, item, idx) => {
+        const ordenada = parseInt(item.cantidad) || 0;
+        return s + Math.max(0, ordenada - (acum[idx] || 0));
+    }, 0);
+}
+
+function renderPdespOrdenLista() {
+    const cont = document.getElementById("pdespOrdenLista");
+    const term = (document.getElementById("pdespOrdenBuscar").value || "").toLowerCase().trim();
+
+    const lista = pdespOrdenesCache.filter(o => {
+        if (!term) return true;
+        return [o.numero, o.cliente, o.negocio, o.tipo].some(v => String(v || "").toLowerCase().includes(term));
+    });
+
+    if (lista.length === 0) {
+        cont.innerHTML = '<p class="placeholder-text">No se encontraron ordenes.</p>';
+        return;
+    }
+
+    cont.innerHTML = lista.map(o => {
+        const pend = pdespPendienteOrden(o);
+        const total = (o.items || []).reduce((s, i) => s + (parseInt(i.cantidad) || 0), 0);
+        return `
+            <div class="pdia-select-item pdesp-orden-item ${pend === 0 ? "ya-en-plan" : ""}" data-id="${pdiaEsc(o.id)}">
+                <span class="pdia-select-info">
+                    <strong>${pdiaEsc(o.numero || o.id)}</strong>
+                    <span>${pdiaEsc(o.cliente || "--")}${o.negocio ? " · " + pdiaEsc(o.negocio) : ""}</span>
+                    <small>${pdiaEsc(o.tipo || "")} · etapa: ${pdiaEsc(o.pasoActual || "recibido")} · ${total.toLocaleString("es-CO")} unidades ordenadas</small>
+                </span>
+                <span class="pdia-badge ${pend === 0 ? "completado" : "pendiente"}">${pend === 0 ? "Despachada" : pend.toLocaleString("es-CO") + " pendientes"}</span>
+            </div>`;
+    }).join("");
+
+    cont.querySelectorAll(".pdesp-orden-item").forEach(el =>
+        el.addEventListener("click", () => pdespElegirOrden(el.dataset.id)));
+}
+
+function pdespElegirOrden(ordenId) {
+    const orden = pdespOrdenesCache.find(o => o.id === ordenId);
+    if (!orden) return;
+    pdespOrdenSel = orden;
+
+    document.getElementById("pdespPaso1").style.display = "none";
+    document.getElementById("pdespPaso2").style.display = "";
+    document.getElementById("pdespSave").style.display = "";
+
+    document.getElementById("pdespOrdenInfo").innerHTML = `
+        <strong>${pdiaEsc(orden.numero || orden.id)}</strong>
+        <span>${pdiaEsc(orden.cliente || "--")}${orden.negocio ? " · " + pdiaEsc(orden.negocio) : ""}</span>
+        <small>${pdiaEsc(orden.tipo || "")}${orden.ciudad ? " · " + pdiaEsc(orden.ciudad) : ""}</small>`;
+
+    const acum = pdespAcumuladoPorItem(orden.id);
+    const items = orden.items || [];
+
+    if (items.length === 0) {
+        document.getElementById("pdespItemsBody").innerHTML =
+            '<tr><td colspan="5" class="tabla-empty">Esta orden no tiene productos detallados.</td></tr>';
+        return;
+    }
+
+    document.getElementById("pdespItemsBody").innerHTML = items.map((item, idx) => {
+        const ordenada = parseInt(item.cantidad) || 0;
+        const ya = acum[idx] || 0;
+        const pend = Math.max(0, ordenada - ya);
+        return `
+            <tr>
+                <td>${pdiaEsc(item.producto || item.nombre || "Producto")}</td>
+                <td class="pdesp-num">${ordenada.toLocaleString("es-CO")}</td>
+                <td class="pdesp-num">${ya.toLocaleString("es-CO")}</td>
+                <td class="pdesp-num ${pend > 0 ? "pdesp-num-pend" : "pdesp-num-ok"}">${pend.toLocaleString("es-CO")}</td>
+                <td>
+                    <input type="number" class="pdesp-input-cant" data-idx="${idx}" data-max="${pend}"
+                           min="0" max="${pend}" value="${pend}" inputmode="numeric" ${pend === 0 ? "disabled" : ""}>
+                </td>
+            </tr>`;
+    }).join("");
+}
+
+async function pdespGuardar() {
+    if (!pdespOrdenSel) return;
+    const fecha = document.getElementById("pdespFecha").value || pdiaHoyISO();
+    const inputs = [...document.querySelectorAll(".pdesp-input-cant")];
+    const orden = pdespOrdenSel;
+    const items = orden.items || [];
+
+    const itemsDespacho = [];
+    for (const inp of inputs) {
+        const idx = parseInt(inp.dataset.idx);
+        const max = parseInt(inp.dataset.max) || 0;
+        const cant = parseInt(inp.value) || 0;
+        if (cant <= 0) continue;
+        if (cant > max) {
+            showNotifToast(`No puedes despachar mas de ${max} unidades de "${items[idx]?.producto || "ese producto"}"`);
+            return;
+        }
+        itemsDespacho.push({
+            itemIdx: idx,
+            producto: items[idx]?.producto || items[idx]?.nombre || "Producto",
+            cantidadOrdenada: parseInt(items[idx]?.cantidad) || 0,
+            cantidadDespachada: cant
+        });
+    }
+
+    if (itemsDespacho.length === 0) {
+        showNotifToast("Indica al menos una cantidad a despachar");
+        return;
+    }
+
+    const despacho = {
+        despachoId: `${orden.id}-${Date.now()}`,
+        ordenId:    orden.id,
+        numero:     orden.numero || orden.id,
+        cliente:    orden.cliente || "",
+        negocio:    orden.negocio || "",
+        nit:        orden.nit || "",
+        telefono:   orden.telefono || "",
+        direccion:  orden.direccion || "",
+        ciudad:     orden.ciudad || "",
+        tipo:       orden.tipo || "",
+        items:      itemsDespacho,
+        observaciones: document.getElementById("pdespObs").value.trim(),
+        fecha:      new Date().toISOString(),
+        creadoPor:  sessionStorage.getItem("userName") || ""
+    };
+
+    const btn = document.getElementById("pdespSave");
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Guardando...';
+
+    try {
+        const ref = doc(db, PDESP_COL, fecha);
+        const snap = await getDoc(ref);
+        const despachos = snap.exists() ? (snap.data().despachos || []) : [];
+        despachos.push(despacho);
+        await setDoc(ref, {
+            fecha,
+            despachos,
+            actualizadoPor: sessionStorage.getItem("userName") || "",
+            actualizado: new Date().toISOString()
+        }, { merge: true });
+
+        // Refrescar cache local
+        const dia = pdespDiasCache.find(d => d.fecha === fecha);
+        if (dia) dia.despachos = despachos;
+        else {
+            pdespDiasCache.push({ fecha, despachos });
+            pdespDiasCache.sort((a, b) => b.fecha.localeCompare(a.fecha));
+        }
+
+        document.getElementById("pdespOverlay").classList.remove("show");
+        pdespOrdenSel = null;
+        renderPdespDespachos();
+
+        const unidades = itemsDespacho.reduce((s, i) => s + i.cantidadDespachada, 0);
+        showNotifToast(`Despacho registrado: ${unidades.toLocaleString("es-CO")} unidades el ${pdiaFechaCorta(fecha)}`);
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo guardar el despacho");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
     }
 }
