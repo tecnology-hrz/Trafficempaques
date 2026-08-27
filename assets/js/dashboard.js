@@ -61,6 +61,18 @@ function copyToClipboard(text) {
     return Promise.resolve();
 }
 
+// ===== ESTADO: PRODUCCION DEL DIA =====
+// Se declara aqui (antes de initDashboard) porque las funciones "pdia*" del
+// final del archivo se invocan durante la inicializacion, y las variables
+// declaradas con let/const no existen hasta que el modulo llega a su linea.
+const PDIA_COL = "produccionDia";
+
+let pdiaFechaActual   = pdiaHoyISO();
+let pdiaPlanCache     = null;   // doc del dia actualmente visible
+let pdiaOrdenesCache  = [];     // ordenes de la coleccion "produccion" (para el selector)
+let pdiaSeleccion     = new Set();
+let pdiaReagendarCtx  = null;   // { fecha, ordenId }
+
 initDashboard(rol, nombre);
 
 async function initDashboard(rol, nombre) {
@@ -106,6 +118,11 @@ async function initDashboard(rol, nombre) {
     const rolesArea = ["guillotina", "impresion", "troquelado", "vasos", "empaques"];
     if (rolesArea.includes(rol)) {
         activateSection("seguimiento");
+    }
+
+    // Rol jefe de produccion: arranca en Produccion del dia
+    if (rol === "jefe_produccion") {
+        activateSection("produccion-dia");
     }
 
     // Rol ventas: ocultar solo lo que no le corresponde
@@ -182,6 +199,12 @@ async function initDashboard(rol, nombre) {
     if (rol === "administrador" || rol === "ventas" || rol === "ordenes") {
         setupRemision();
         cargarRemision();
+    }
+
+    // Produccion del dia: admin (programa) y jefe de produccion (reporta)
+    if (rol === "administrador" || rol === "jefe_produccion") {
+        setupProduccionDia();
+        cargarProduccionDia();
     }
 
     // Cargar ordenes para todos los roles
@@ -401,7 +424,7 @@ function activateSection(target) {
     sidebarItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
     bottomItems.forEach(n => n.classList.toggle("active", n.dataset.section === target));
 
-    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", landing: "Landing Page", inventario: "Inventario", documentos: "Documentos" };
+    const titles = { cotizador: "Cotizador", ordenes: "Ordenes", seguimiento: "Seguimiento", disenos: "Diseños", clientes: "Clientes", finanzas: "Finanzas", usuarios: "Usuarios", configuracion: "Configuracion", "catalogo-admin": "Catálogo", landing: "Landing Page", inventario: "Inventario", documentos: "Documentos", "produccion-dia": "Producción del día" };
     document.getElementById("topbarTitle").textContent = titles[target] || target;
 }
 
@@ -8145,4 +8168,579 @@ function setupLandingPreviewModal() {
             stage.dataset.dev = btn.dataset.dev;
         });
     });
+}
+
+// ============================================================
+// ===== PRODUCCION DEL DIA ===================================
+// El administrador programa que ordenes se deben producir en
+// una fecha. El jefe de produccion marca cuales salieron ese
+// dia; las que no, quedan pendientes y el admin las reagenda.
+//
+// Coleccion Firestore: "produccionDia"
+//   id del doc = fecha en formato YYYY-MM-DD
+//   {
+//     fecha: "YYYY-MM-DD",
+//     ordenes: [{
+//        ordenId, numero, cliente, negocio, tipo, items,
+//        estado: "pendiente" | "completado",
+//        nota, agregadoPor, fechaAgregado,
+//        completadoPor, fechaCompletado, reagendadoDe
+//     }],
+//     creadoPor, actualizadoPor, actualizado
+//   }
+// ============================================================
+
+function pdiaHoyISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function pdiaEsc(str) {
+    return String(str ?? "").replace(/[&<>"']/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+}
+
+function pdiaFechaLarga(iso) {
+    if (!iso) return "--";
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("es-CO", {
+        weekday: "long", day: "numeric", month: "long", year: "numeric"
+    });
+}
+
+function pdiaFechaCorta(iso) {
+    if (!iso) return "--";
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+}
+
+function pdiaSumarDias(iso, dias) {
+    const [y, m, d] = iso.split("-").map(Number);
+    const f = new Date(y, m - 1, d);
+    f.setDate(f.getDate() + dias);
+    return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}`;
+}
+
+function pdiaEsAdmin()  { return rol === "administrador"; }
+function pdiaPuedeReportar() { return rol === "administrador" || rol === "jefe_produccion"; }
+
+// Resumen corto de los productos de una orden
+function pdiaResumenItems(items) {
+    if (!Array.isArray(items) || items.length === 0) return "Sin productos";
+    return items.map(i => {
+        const nombre = i.producto || i.nombre || i.descripcion || "Producto";
+        const cant   = i.cantidad ? ` x${i.cantidad}` : "";
+        return nombre + cant;
+    }).join(", ");
+}
+
+// ===== SETUP =====
+function setupProduccionDia() {
+    const inputFecha = document.getElementById("pdiaFecha");
+    if (!inputFecha) return;
+
+    inputFecha.value = pdiaFechaActual;
+
+    inputFecha.addEventListener("change", () => {
+        pdiaFechaActual = inputFecha.value || pdiaHoyISO();
+        inputFecha.value = pdiaFechaActual;
+        cargarProduccionDia();
+    });
+
+    document.getElementById("pdiaDiaAnterior").addEventListener("click", () => {
+        pdiaFechaActual = pdiaSumarDias(pdiaFechaActual, -1);
+        inputFecha.value = pdiaFechaActual;
+        cargarProduccionDia();
+    });
+    document.getElementById("pdiaDiaSiguiente").addEventListener("click", () => {
+        pdiaFechaActual = pdiaSumarDias(pdiaFechaActual, 1);
+        inputFecha.value = pdiaFechaActual;
+        cargarProduccionDia();
+    });
+    document.getElementById("pdiaHoy").addEventListener("click", () => {
+        pdiaFechaActual = pdiaHoyISO();
+        inputFecha.value = pdiaFechaActual;
+        cargarProduccionDia();
+    });
+
+    // Solo el admin programa ordenes
+    const btnAgregar = document.getElementById("pdiaBtnAgregar");
+    if (pdiaEsAdmin()) {
+        btnAgregar.addEventListener("click", abrirPdiaSelect);
+    } else if (btnAgregar) {
+        btnAgregar.style.display = "none";
+    }
+
+    setupPdiaSelectModal();
+    setupPdiaReagendarModal();
+
+    // Al entrar al tab de pendientes, recargarlos
+    document.querySelectorAll("#pdiaTabBar .tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            if (btn.dataset.tab === "pdiaPendientes") cargarPdiaPendientes();
+        });
+    });
+}
+
+// ===== CARGA DEL PLAN DEL DIA =====
+async function cargarProduccionDia() {
+    const tbody = document.getElementById("pdiaTablaBody");
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">Cargando plan del dia...</td></tr>';
+
+    try {
+        const snap = await getDoc(doc(db, PDIA_COL, pdiaFechaActual));
+        pdiaPlanCache = snap.exists() ? { id: snap.id, ...snap.data() } : { id: pdiaFechaActual, fecha: pdiaFechaActual, ordenes: [] };
+    } catch (e) {
+        console.error("Error cargando produccion del dia", e);
+        tbody.innerHTML = '<tr><td colspan="7" class="tabla-empty">Error al cargar el plan del dia.</td></tr>';
+        return;
+    }
+
+    renderProduccionDia();
+    cargarPdiaPendientes();
+}
+
+function renderProduccionDia() {
+    const tbody  = document.getElementById("pdiaTablaBody");
+    const banner = document.getElementById("pdiaBanner");
+    const footer = document.getElementById("pdiaFooter");
+    if (!tbody) return;
+
+    const ordenes = (pdiaPlanCache && pdiaPlanCache.ordenes) || [];
+
+    banner.innerHTML = `<i class="bi bi-calendar2-week"></i> Plan de <strong>${pdiaEsc(pdiaFechaLarga(pdiaFechaActual))}</strong>`;
+
+    renderPdiaResumen(ordenes);
+
+    if (ordenes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="tabla-empty">${
+            pdiaEsAdmin()
+                ? "No hay ordenes programadas para este dia. Usa \"Programar ordenes\" para agregarlas."
+                : "El administrador aun no ha programado ordenes para este dia."
+        }</td></tr>`;
+        footer.innerHTML = "";
+        return;
+    }
+
+    tbody.innerHTML = ordenes.map(o => {
+        const completado = o.estado === "completado";
+        const registro = completado
+            ? `<span class="pdia-registro">Por ${pdiaEsc(o.completadoPor || "--")}<br><small>${o.fechaCompletado ? new Date(o.fechaCompletado).toLocaleString("es-CO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</small></span>`
+            : `<span class="pdia-registro"><small>${o.reagendadoDe ? "Reagendada de " + pdiaEsc(pdiaFechaCorta(o.reagendadoDe)) : "Sin reportar"}</small></span>`;
+
+        let acciones = "";
+        if (pdiaPuedeReportar()) {
+            acciones += completado
+                ? `<button class="btn-icon pdia-btn-revertir" data-id="${pdiaEsc(o.ordenId)}" title="Marcar como pendiente"><i class="bi bi-arrow-counterclockwise"></i></button>`
+                : `<button class="btn-icon pdia-btn-completar" data-id="${pdiaEsc(o.ordenId)}" title="Marcar como producida hoy"><i class="bi bi-check2-circle"></i></button>`;
+        }
+        if (pdiaEsAdmin()) {
+            if (!completado) {
+                acciones += `<button class="btn-icon pdia-btn-reagendar" data-id="${pdiaEsc(o.ordenId)}" title="Reagendar a otro dia"><i class="bi bi-calendar2-event"></i></button>`;
+            }
+            acciones += `<button class="btn-icon btn-delete pdia-btn-quitar" data-id="${pdiaEsc(o.ordenId)}" title="Quitar del plan"><i class="bi bi-trash3"></i></button>`;
+        }
+
+        return `
+            <tr class="${completado ? "pdia-row-ok" : ""}">
+                <td><strong>${pdiaEsc(o.numero || o.ordenId)}</strong></td>
+                <td>${pdiaEsc(o.cliente || "--")}${o.negocio ? `<br><small>${pdiaEsc(o.negocio)}</small>` : ""}</td>
+                <td><span class="pdia-tipo">${pdiaEsc(o.tipo || "--")}</span></td>
+                <td><small>${pdiaEsc(pdiaResumenItems(o.items))}</small></td>
+                <td><span class="pdia-badge ${completado ? "completado" : "pendiente"}">${completado ? "Producida" : "Pendiente"}</span></td>
+                <td>${registro}</td>
+                <td><div class="pdia-acciones">${acciones}</div></td>
+            </tr>`;
+    }).join("");
+
+    const pendientes = ordenes.filter(o => o.estado !== "completado");
+    footer.innerHTML = pdiaPuedeReportar() && pendientes.length > 0
+        ? `<div class="pdia-footer-inner">
+               <span>${pendientes.length} orden(es) sin reportar</span>
+               <button class="btn-save" id="pdiaBtnCompletarTodas"><i class="bi bi-check-all"></i> Marcar todas como producidas</button>
+           </div>`
+        : "";
+
+    const btnTodas = document.getElementById("pdiaBtnCompletarTodas");
+    if (btnTodas) {
+        btnTodas.addEventListener("click", () => {
+            showConfirm(
+                "Confirmar produccion",
+                `Marcar las ${pendientes.length} orden(es) restantes como producidas el ${pdiaFechaLarga(pdiaFechaActual)}?`,
+                () => pdiaMarcarTodas()
+            );
+        });
+    }
+
+    tbody.querySelectorAll(".pdia-btn-completar").forEach(b =>
+        b.addEventListener("click", () => pdiaCambiarEstado(b.dataset.id, "completado")));
+    tbody.querySelectorAll(".pdia-btn-revertir").forEach(b =>
+        b.addEventListener("click", () => pdiaCambiarEstado(b.dataset.id, "pendiente")));
+    tbody.querySelectorAll(".pdia-btn-reagendar").forEach(b =>
+        b.addEventListener("click", () => abrirPdiaReagendar(pdiaFechaActual, b.dataset.id)));
+    tbody.querySelectorAll(".pdia-btn-quitar").forEach(b =>
+        b.addEventListener("click", () => {
+            const o = (pdiaPlanCache.ordenes || []).find(x => x.ordenId === b.dataset.id);
+            showConfirm("Quitar del plan", `Quitar la orden ${o ? (o.numero || o.ordenId) : ""} del plan de este dia?`,
+                () => pdiaQuitarOrden(b.dataset.id));
+        }));
+}
+
+function renderPdiaResumen(ordenes) {
+    const cont = document.getElementById("pdiaResumen");
+    if (!cont) return;
+    const total = ordenes.length;
+    const hechas = ordenes.filter(o => o.estado === "completado").length;
+    const pend = total - hechas;
+    const pct = total ? Math.round((hechas / total) * 100) : 0;
+
+    cont.innerHTML = `
+        <div class="pdia-card">
+            <span class="pdia-card-label">Programadas</span>
+            <span class="pdia-card-valor">${total}</span>
+        </div>
+        <div class="pdia-card ok">
+            <span class="pdia-card-label">Producidas</span>
+            <span class="pdia-card-valor">${hechas}</span>
+        </div>
+        <div class="pdia-card warn">
+            <span class="pdia-card-label">Pendientes</span>
+            <span class="pdia-card-valor">${pend}</span>
+        </div>
+        <div class="pdia-card">
+            <span class="pdia-card-label">Cumplimiento</span>
+            <span class="pdia-card-valor">${pct}%</span>
+            <div class="pdia-progress"><div style="width:${pct}%"></div></div>
+        </div>`;
+}
+
+// ===== GUARDADO DEL PLAN =====
+async function pdiaGuardarPlan(fecha, ordenes) {
+    const payload = {
+        fecha,
+        ordenes,
+        actualizadoPor: sessionStorage.getItem("userName") || "",
+        actualizado: new Date().toISOString()
+    };
+    await setDoc(doc(db, PDIA_COL, fecha), payload, { merge: true });
+    return payload;
+}
+
+async function pdiaCambiarEstado(ordenId, nuevoEstado) {
+    if (!pdiaPuedeReportar() || !pdiaPlanCache) return;
+    const ordenes = (pdiaPlanCache.ordenes || []).map(o => {
+        if (o.ordenId !== ordenId) return o;
+        if (nuevoEstado === "completado") {
+            return {
+                ...o,
+                estado: "completado",
+                completadoPor: sessionStorage.getItem("userName") || "",
+                fechaCompletado: new Date().toISOString()
+            };
+        }
+        const { completadoPor, fechaCompletado, ...resto } = o;
+        return { ...resto, estado: "pendiente" };
+    });
+
+    try {
+        await pdiaGuardarPlan(pdiaFechaActual, ordenes);
+        pdiaPlanCache.ordenes = ordenes;
+        renderProduccionDia();
+        cargarPdiaPendientes();
+        showNotifToast(nuevoEstado === "completado" ? "Orden marcada como producida" : "Orden devuelta a pendiente");
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo actualizar la orden");
+    }
+}
+
+async function pdiaMarcarTodas() {
+    if (!pdiaPuedeReportar() || !pdiaPlanCache) return;
+    const ahora = new Date().toISOString();
+    const quien = sessionStorage.getItem("userName") || "";
+    const ordenes = (pdiaPlanCache.ordenes || []).map(o =>
+        o.estado === "completado" ? o : { ...o, estado: "completado", completadoPor: quien, fechaCompletado: ahora }
+    );
+    try {
+        await pdiaGuardarPlan(pdiaFechaActual, ordenes);
+        pdiaPlanCache.ordenes = ordenes;
+        renderProduccionDia();
+        cargarPdiaPendientes();
+        showNotifToast("Plan del dia completado");
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo completar el plan");
+    }
+}
+
+async function pdiaQuitarOrden(ordenId) {
+    if (!pdiaEsAdmin() || !pdiaPlanCache) return;
+    const ordenes = (pdiaPlanCache.ordenes || []).filter(o => o.ordenId !== ordenId);
+    try {
+        await pdiaGuardarPlan(pdiaFechaActual, ordenes);
+        pdiaPlanCache.ordenes = ordenes;
+        renderProduccionDia();
+        cargarPdiaPendientes();
+        showNotifToast("Orden retirada del plan");
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo quitar la orden");
+    }
+}
+
+// ===== MODAL: SELECCIONAR ORDENES A PROGRAMAR =====
+function setupPdiaSelectModal() {
+    const overlay = document.getElementById("pdiaSelectOverlay");
+    if (!overlay) return;
+    const cerrar = () => overlay.classList.remove("show");
+
+    document.getElementById("pdiaSelectClose").addEventListener("click", cerrar);
+    document.getElementById("pdiaSelectCancel").addEventListener("click", cerrar);
+    overlay.addEventListener("click", e => { if (e.target === overlay) cerrar(); });
+    document.getElementById("pdiaSelectBuscar").addEventListener("input", renderPdiaSelectLista);
+    document.getElementById("pdiaSelectSave").addEventListener("click", pdiaProgramarSeleccion);
+}
+
+async function abrirPdiaSelect() {
+    const overlay = document.getElementById("pdiaSelectOverlay");
+    pdiaSeleccion = new Set();
+    document.getElementById("pdiaSelectBuscar").value = "";
+    document.getElementById("pdiaSelectFechaLabel").textContent = pdiaFechaLarga(pdiaFechaActual);
+    document.getElementById("pdiaSelectLista").innerHTML = '<p class="placeholder-text">Cargando ordenes...</p>';
+    overlay.classList.add("show");
+
+    try {
+        const snap = await getDocs(collection(db, "produccion"));
+        pdiaOrdenesCache = [];
+        snap.forEach(d => pdiaOrdenesCache.push({ id: d.id, ...d.data() }));
+        // Solo ordenes vivas: no eliminadas y no terminadas
+        pdiaOrdenesCache = pdiaOrdenesCache
+            .filter(o => !o.eliminado && o.pasoActual !== "terminado" && o.estado !== "terminado")
+            .sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+        renderPdiaSelectLista();
+    } catch (e) {
+        console.error(e);
+        document.getElementById("pdiaSelectLista").innerHTML = '<p class="placeholder-text">Error al cargar las ordenes.</p>';
+    }
+}
+
+function renderPdiaSelectLista() {
+    const cont = document.getElementById("pdiaSelectLista");
+    const term = (document.getElementById("pdiaSelectBuscar").value || "").toLowerCase().trim();
+    const yaEnPlan = new Set(((pdiaPlanCache && pdiaPlanCache.ordenes) || []).map(o => o.ordenId));
+
+    const lista = pdiaOrdenesCache.filter(o => {
+        if (!term) return true;
+        return [o.numero, o.cliente, o.negocio, o.tipo].some(v => String(v || "").toLowerCase().includes(term));
+    });
+
+    if (lista.length === 0) {
+        cont.innerHTML = '<p class="placeholder-text">No se encontraron ordenes en produccion.</p>';
+        pdiaActualizarContador();
+        return;
+    }
+
+    cont.innerHTML = lista.map(o => {
+        const enPlan = yaEnPlan.has(o.id);
+        const checked = pdiaSeleccion.has(o.id) ? "checked" : "";
+        return `
+            <label class="pdia-select-item ${enPlan ? "ya-en-plan" : ""}">
+                <input type="checkbox" data-id="${pdiaEsc(o.id)}" ${checked} ${enPlan ? "disabled" : ""}>
+                <span class="pdia-select-info">
+                    <strong>${pdiaEsc(o.numero || o.id)}</strong>
+                    <span>${pdiaEsc(o.cliente || "--")}${o.negocio ? " · " + pdiaEsc(o.negocio) : ""}</span>
+                    <small>${pdiaEsc(o.tipo || "")} · etapa: ${pdiaEsc(o.pasoActual || "recibido")} · ${pdiaEsc(pdiaResumenItems(o.items))}</small>
+                </span>
+                ${enPlan ? '<span class="pdia-badge completado">Ya programada</span>' : ""}
+            </label>`;
+    }).join("");
+
+    cont.querySelectorAll('input[type="checkbox"]').forEach(chk => {
+        chk.addEventListener("change", () => {
+            if (chk.checked) pdiaSeleccion.add(chk.dataset.id);
+            else pdiaSeleccion.delete(chk.dataset.id);
+            pdiaActualizarContador();
+        });
+    });
+    pdiaActualizarContador();
+}
+
+function pdiaActualizarContador() {
+    const el = document.getElementById("pdiaSelectCount");
+    if (el) el.textContent = `${pdiaSeleccion.size} seleccionada(s)`;
+}
+
+async function pdiaProgramarSeleccion() {
+    if (pdiaSeleccion.size === 0) {
+        showNotifToast("Selecciona al menos una orden");
+        return;
+    }
+    const existentes = (pdiaPlanCache && pdiaPlanCache.ordenes) || [];
+    const yaEnPlan = new Set(existentes.map(o => o.ordenId));
+    const ahora = new Date().toISOString();
+    const quien = sessionStorage.getItem("userName") || "";
+
+    const nuevas = [...pdiaSeleccion]
+        .filter(id => !yaEnPlan.has(id))
+        .map(id => {
+            const o = pdiaOrdenesCache.find(x => x.id === id) || {};
+            return {
+                ordenId: id,
+                numero: o.numero || id,
+                cliente: o.cliente || "",
+                negocio: o.negocio || "",
+                tipo: o.tipo || "",
+                items: (o.items || []).map(i => ({
+                    producto: i.producto || i.nombre || i.descripcion || "Producto",
+                    cantidad: i.cantidad || 0
+                })),
+                estado: "pendiente",
+                agregadoPor: quien,
+                fechaAgregado: ahora
+            };
+        });
+
+    try {
+        const ordenes = existentes.concat(nuevas);
+        await pdiaGuardarPlan(pdiaFechaActual, ordenes);
+        if (!pdiaPlanCache) pdiaPlanCache = { fecha: pdiaFechaActual, ordenes: [] };
+        pdiaPlanCache.ordenes = ordenes;
+        document.getElementById("pdiaSelectOverlay").classList.remove("show");
+        renderProduccionDia();
+        cargarPdiaPendientes();
+        showNotifToast(`${nuevas.length} orden(es) programada(s) para el ${pdiaFechaCorta(pdiaFechaActual)}`);
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudieron programar las ordenes");
+    }
+}
+
+// ===== PENDIENTES ACUMULADOS =====
+async function cargarPdiaPendientes() {
+    const tbody = document.getElementById("pdiaPendientesBody");
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="tabla-empty">Cargando pendientes...</td></tr>';
+
+    try {
+        const snap = await getDocs(collection(db, PDIA_COL));
+        const hoy = pdiaHoyISO();
+        const filas = [];
+        snap.forEach(d => {
+            const data = d.data();
+            // Solo dias ya pasados (los de hoy o futuros aun estan en curso)
+            if (d.id >= hoy) return;
+            (data.ordenes || []).forEach(o => {
+                if (o.estado !== "completado") filas.push({ fecha: d.id, ...o });
+            });
+        });
+        filas.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+        if (filas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="tabla-empty">No hay ordenes pendientes de dias anteriores.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filas.map(f => `
+            <tr>
+                <td><strong>${pdiaEsc(pdiaFechaCorta(f.fecha))}</strong><br><small>${pdiaEsc(f.fecha)}</small></td>
+                <td>${pdiaEsc(f.numero || f.ordenId)}</td>
+                <td>${pdiaEsc(f.cliente || "--")}${f.negocio ? `<br><small>${pdiaEsc(f.negocio)}</small>` : ""}</td>
+                <td><span class="pdia-tipo">${pdiaEsc(f.tipo || "--")}</span></td>
+                <td><span class="pdia-badge pendiente">No producida</span></td>
+                <td><div class="pdia-acciones">${
+                    pdiaEsAdmin()
+                        ? `<button class="btn-icon pdia-btn-reagendar-pend" data-fecha="${pdiaEsc(f.fecha)}" data-id="${pdiaEsc(f.ordenId)}" title="Reagendar"><i class="bi bi-calendar2-event"></i></button>`
+                        : ""
+                }</div></td>
+            </tr>`).join("");
+
+        tbody.querySelectorAll(".pdia-btn-reagendar-pend").forEach(b =>
+            b.addEventListener("click", () => abrirPdiaReagendar(b.dataset.fecha, b.dataset.id)));
+    } catch (e) {
+        console.error("Error cargando pendientes de produccion", e);
+        tbody.innerHTML = '<tr><td colspan="6" class="tabla-empty">Error al cargar pendientes.</td></tr>';
+    }
+}
+
+// ===== MODAL: REAGENDAR =====
+function setupPdiaReagendarModal() {
+    const overlay = document.getElementById("pdiaReagendarOverlay");
+    if (!overlay) return;
+    const cerrar = () => { overlay.classList.remove("show"); pdiaReagendarCtx = null; };
+
+    document.getElementById("pdiaReagendarClose").addEventListener("click", cerrar);
+    document.getElementById("pdiaReagendarCancel").addEventListener("click", cerrar);
+    overlay.addEventListener("click", e => { if (e.target === overlay) cerrar(); });
+    document.getElementById("pdiaReagendarSave").addEventListener("click", pdiaReagendarConfirmar);
+}
+
+async function abrirPdiaReagendar(fecha, ordenId) {
+    if (!pdiaEsAdmin()) return;
+    let orden = null;
+    if (fecha === pdiaFechaActual && pdiaPlanCache) {
+        orden = (pdiaPlanCache.ordenes || []).find(o => o.ordenId === ordenId);
+    }
+    if (!orden) {
+        const snap = await getDoc(doc(db, PDIA_COL, fecha));
+        if (snap.exists()) orden = (snap.data().ordenes || []).find(o => o.ordenId === ordenId);
+    }
+    if (!orden) {
+        showNotifToast("No se encontro la orden en el plan");
+        return;
+    }
+
+    pdiaReagendarCtx = { fecha, ordenId };
+    document.getElementById("pdiaReagendarInfo").innerHTML =
+        `Orden <strong>${pdiaEsc(orden.numero || ordenId)}</strong> de ${pdiaEsc(orden.cliente || "--")}, programada el ${pdiaEsc(pdiaFechaLarga(fecha))}.`;
+    document.getElementById("pdiaReagendarFecha").value = pdiaSumarDias(pdiaHoyISO(), 1);
+    document.getElementById("pdiaReagendarOverlay").classList.add("show");
+}
+
+async function pdiaReagendarConfirmar() {
+    if (!pdiaReagendarCtx) return;
+    const nueva = document.getElementById("pdiaReagendarFecha").value;
+    if (!nueva) {
+        showNotifToast("Selecciona una fecha");
+        return;
+    }
+    const { fecha, ordenId } = pdiaReagendarCtx;
+    if (nueva === fecha) {
+        showNotifToast("La orden ya esta programada en esa fecha");
+        return;
+    }
+
+    try {
+        // Quitar del dia original
+        const origenSnap = await getDoc(doc(db, PDIA_COL, fecha));
+        if (!origenSnap.exists()) { showNotifToast("El plan de origen no existe"); return; }
+        const origenOrdenes = origenSnap.data().ordenes || [];
+        const orden = origenOrdenes.find(o => o.ordenId === ordenId);
+        if (!orden) { showNotifToast("La orden ya no esta en ese plan"); return; }
+        await pdiaGuardarPlan(fecha, origenOrdenes.filter(o => o.ordenId !== ordenId));
+
+        // Agregar al dia destino (sin duplicar)
+        const destinoSnap = await getDoc(doc(db, PDIA_COL, nueva));
+        const destinoOrdenes = destinoSnap.exists() ? (destinoSnap.data().ordenes || []) : [];
+        if (!destinoOrdenes.some(o => o.ordenId === ordenId)) {
+            const { completadoPor, fechaCompletado, ...limpio } = orden;
+            destinoOrdenes.push({
+                ...limpio,
+                estado: "pendiente",
+                reagendadoDe: fecha,
+                agregadoPor: sessionStorage.getItem("userName") || "",
+                fechaAgregado: new Date().toISOString()
+            });
+        }
+        await pdiaGuardarPlan(nueva, destinoOrdenes);
+
+        document.getElementById("pdiaReagendarOverlay").classList.remove("show");
+        pdiaReagendarCtx = null;
+        await cargarProduccionDia();
+        showNotifToast(`Orden reagendada al ${pdiaFechaCorta(nueva)}`);
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo reagendar la orden");
+    }
 }

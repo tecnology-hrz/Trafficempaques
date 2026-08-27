@@ -31,6 +31,10 @@
                 <i class="bi bi-truck"></i>
                 <span>Seguimiento</span>
             </a>
+            <a class="nav-item" data-section="produccion-dia" data-role="administrador,jefe_produccion">
+                <i class="bi bi-calendar2-check"></i>
+                <span>Produccion del dia</span>
+            </a>
             <a class="nav-item" data-section="remision" data-role="administrador,ventas,ordenes">
                 <i class="bi bi-geo-alt"></i>
                 <span>Remision</span>
@@ -1404,6 +1408,89 @@
                 </div>
             </div>
 
+            <!-- ===== SECCION: PRODUCCION DEL DIA (admin y jefe de produccion) ===== -->
+            <div class="section" id="section-produccion-dia">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-calendar2-check"></i> Produccion del dia</h2>
+                    <div class="section-header-actions">
+                        <div class="pdia-fecha-wrap">
+                            <button class="btn-back" id="pdiaDiaAnterior" title="Dia anterior"><i class="bi bi-chevron-left"></i></button>
+                            <input type="date" id="pdiaFecha">
+                            <button class="btn-back" id="pdiaDiaSiguiente" title="Dia siguiente"><i class="bi bi-chevron-right"></i></button>
+                            <button class="btn-back" id="pdiaHoy">Hoy</button>
+                        </div>
+                        <button class="btn-primary" id="pdiaBtnAgregar" data-role="administrador">
+                            <i class="bi bi-plus-lg"></i> Programar ordenes
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pdia-resumen" id="pdiaResumen"></div>
+
+                <div class="tab-bar" id="pdiaTabBar">
+                    <button class="tab-btn active" data-tab="pdiaPlan">
+                        <i class="bi bi-list-check"></i> Plan del dia
+                    </button>
+                    <button class="tab-btn" data-tab="pdiaPendientes">
+                        <i class="bi bi-clock-history"></i> Pendientes acumulados
+                    </button>
+                </div>
+
+                <!-- TAB: PLAN DEL DIA -->
+                <div class="tab-content active" id="tab-pdiaPlan">
+                    <div class="pdia-banner" id="pdiaBanner"></div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="clientes-tabla-wrap">
+                                <table class="clientes-tabla pdia-tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Orden</th>
+                                            <th>Cliente</th>
+                                            <th>Tipo</th>
+                                            <th>Productos</th>
+                                            <th>Estado</th>
+                                            <th>Registro</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pdiaTablaBody">
+                                        <tr><td colspan="7" class="tabla-empty">Cargando plan del dia...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer pdia-footer" id="pdiaFooter"></div>
+                    </div>
+                </div>
+
+                <!-- TAB: PENDIENTES ACUMULADOS -->
+                <div class="tab-content" id="tab-pdiaPendientes">
+                    <p class="pdia-hint"><i class="bi bi-info-circle"></i> Ordenes que fueron programadas en dias anteriores y no se completaron. El administrador puede reagendarlas.</p>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="clientes-tabla-wrap">
+                                <table class="clientes-tabla pdia-tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Dia programado</th>
+                                            <th>Orden</th>
+                                            <th>Cliente</th>
+                                            <th>Tipo</th>
+                                            <th>Estado</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pdiaPendientesBody">
+                                        <tr><td colspan="6" class="tabla-empty">Cargando pendientes...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -1870,6 +1957,10 @@
                             <i class="bi bi-box-seam"></i>
                             <span>Empaques</span>
                         </button>
+                        <button type="button" class="rol-option" data-rol="jefe_produccion">
+                            <i class="bi bi-person-badge"></i>
+                            <span>Jefe de produccion</span>
+                        </button>
                     </div>
                     <input type="hidden" id="usuarioRol" value="digital">
                 </div>
@@ -2060,6 +2151,10 @@
             <i class="bi bi-truck"></i>
             <span>Seguimiento</span>
         </a>
+        <a class="bottom-nav-item" data-section="produccion-dia" data-role="administrador,jefe_produccion">
+            <i class="bi bi-calendar2-check"></i>
+            <span>Prod. dia</span>
+        </a>
         <a class="bottom-nav-item" data-section="remision" data-role="administrador,ventas,ordenes">
             <i class="bi bi-geo-alt"></i>
             <span>Remision</span>
@@ -2134,6 +2229,52 @@
             <div class="modal-footer">
                 <button class="btn-cancel" id="tempProductoCancel">Cancelar</button>
                 <button class="btn-save" id="tempProductoAdd"><i class="bi bi-plus-lg"></i> Agregar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL PROGRAMAR ORDENES EN PRODUCCION DEL DIA ===== -->
+    <div class="modal-overlay" id="pdiaSelectOverlay">
+        <div class="modal modal-pdia-select">
+            <div class="modal-header">
+                <h3><i class="bi bi-calendar2-plus"></i> Programar ordenes</h3>
+                <button class="modal-close" id="pdiaSelectClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="pdia-hint">Selecciona las ordenes que se deben producir el <strong id="pdiaSelectFechaLabel">--</strong>.</p>
+                <div class="clientes-search-wrap pdia-select-search">
+                    <i class="bi bi-search"></i>
+                    <input type="text" id="pdiaSelectBuscar" placeholder="Buscar por numero, cliente o negocio...">
+                </div>
+                <div class="pdia-select-lista" id="pdiaSelectLista">
+                    <p class="placeholder-text">Cargando ordenes...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="pdia-select-count" id="pdiaSelectCount">0 seleccionadas</span>
+                <button class="btn-cancel" id="pdiaSelectCancel">Cancelar</button>
+                <button class="btn-save" id="pdiaSelectSave"><i class="bi bi-check-lg"></i> Programar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL REAGENDAR ORDEN ===== -->
+    <div class="modal-overlay" id="pdiaReagendarOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="bi bi-calendar2-event"></i> Reagendar orden</h3>
+                <button class="modal-close" id="pdiaReagendarClose"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="pdia-hint" id="pdiaReagendarInfo">--</p>
+                <div class="modal-field">
+                    <label>Nueva fecha de produccion</label>
+                    <input type="date" id="pdiaReagendarFecha">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="pdiaReagendarCancel">Cancelar</button>
+                <button class="btn-save" id="pdiaReagendarSave"><i class="bi bi-check-lg"></i> Reagendar</button>
             </div>
         </div>
     </div>
