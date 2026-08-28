@@ -6,7 +6,7 @@
    - Utilidades UI compartidas: header, toast, zoom, whatsapp
    ======================================================= */
 
-import { db, collection, getDocs } from "./auth.js";
+import { db, collection, getDocs, doc, getDoc } from "./auth.js";
 import { CATALOGO_DATA } from "./catalogo-data.js";
 
 /* -------------------------------------------------------
@@ -133,6 +133,11 @@ function normalizar(data, origen, docId) {
         ancho: data.ancho ?? "-",
         imagen: imgOrPlaceholder(data.imagen),
         orden: Number(data.orden ?? data.id ?? 0),
+        // Precio unitario base y escalas por cantidad, administrados desde el
+        // panel (Catalogo > producto). Si precio es 0 el producto se muestra
+        // como "a cotizar" y no suma al total.
+        precio: Number(data.precio) || 0,
+        tiers: normalizarTiers(data.tiers),
         // Descuento administrado desde el panel (Catalogo > producto).
         // Solo cuenta como descuento si hay porcentaje: un booleano sin
         // porcentaje seria una promesa vacia en la tarjeta.
@@ -140,6 +145,75 @@ function normalizar(data, origen, docId) {
         descuentoPct: Number(data.descuentoPct) || 0,
         origen
     };
+}
+
+/* -------------------------------------------------------
+   PRECIOS
+   Un producto puede tener:
+   - precio: valor unitario base (desde 1 unidad)
+   - tiers:  escalas por cantidad [{ min, precio }], donde "precio" es el
+             valor unitario a partir de "min" unidades.
+   Se elige la escala mas alta cuyo "min" no supere la cantidad pedida.
+   ------------------------------------------------------- */
+function normalizarTiers(tiers) {
+    if (!Array.isArray(tiers)) return [];
+    return tiers
+        .map(t => ({ min: parseInt(t?.min) || 0, precio: Number(t?.precio) || 0 }))
+        .filter(t => t.min > 0 && t.precio > 0)
+        .sort((a, b) => a.min - b.min);
+}
+
+/** true si el producto tiene algun precio publicable. */
+export function tienePrecio(p) {
+    return (Number(p?.precio) || 0) > 0 || normalizarTiers(p?.tiers).length > 0;
+}
+
+/** Valor unitario ANTES de descuento, segun la cantidad pedida. */
+export function precioUnitarioBase(p, cantidad) {
+    const cant = Math.max(1, parseInt(cantidad) || 1);
+    let valor = Number(p?.precio) || 0;
+    normalizarTiers(p?.tiers).forEach(t => {
+        if (cant >= t.min) valor = t.precio;
+    });
+    return Math.round(valor);
+}
+
+/** Valor unitario final (con descuento aplicado si el producto lo tiene). */
+export function precioUnitario(p, cantidad) {
+    const base = precioUnitarioBase(p, cantidad);
+    if (!base) return 0;
+    const pct = p?.descuento && Number(p.descuentoPct) > 0 ? Number(p.descuentoPct) : 0;
+    return pct > 0 ? Math.round(base * (1 - pct / 100)) : base;
+}
+
+/** Formato de moneda colombiana sin decimales: $1.250 */
+export function formatCOP(valor) {
+    const num = Math.round(Number(valor) || 0);
+    return "$" + num.toLocaleString("es-CO");
+}
+
+/** Texto de la escala vigente, para mostrar debajo del precio. */
+export function textoEscala(p, cantidad) {
+    const tiers = normalizarTiers(p?.tiers);
+    if (tiers.length === 0) return "";
+    const cant = Math.max(1, parseInt(cantidad) || 1);
+    let vigente = null;
+    tiers.forEach(t => { if (cant >= t.min) vigente = t; });
+    const siguiente = tiers.find(t => t.min > cant);
+    if (siguiente) {
+        return `Desde ${siguiente.min.toLocaleString("es-CO")} und: ${formatCOP(siguiente.precio)} c/u`;
+    }
+    return vigente ? `Precio por volumen (desde ${vigente.min.toLocaleString("es-CO")} und)` : "";
+}
+
+/** Precio "desde" para mostrar en tarjetas sin cantidad elegida. */
+export function precioDesde(p) {
+    const tiers = normalizarTiers(p?.tiers);
+    const candidatos = [Number(p?.precio) || 0, ...tiers.map(t => t.precio)].filter(v => v > 0);
+    if (candidatos.length === 0) return 0;
+    const min = Math.min(...candidatos);
+    const pct = p?.descuento && Number(p.descuentoPct) > 0 ? Number(p.descuentoPct) : 0;
+    return pct > 0 ? Math.round(min * (1 - pct / 100)) : min;
 }
 
 /** Productos con descuento activo, en el orden del catalogo. */
@@ -229,6 +303,10 @@ export function agregarAlCarrito(producto, cantidad = 1) {
             alto: producto.alto,
             largo: producto.largo,
             ancho: producto.ancho,
+            // Precio vigente al agregar. En el carrito se refresca contra el
+            // catalogo actual, asi que esto es solo un respaldo.
+            precio: Number(producto.precio) || 0,
+            tiers: Array.isArray(producto.tiers) ? producto.tiers : [],
             // Se guarda el descuento vigente al agregar, para que la
             // solicitud de cotizacion llegue con ese dato al equipo
             descuento: Boolean(producto.descuento),
@@ -361,8 +439,26 @@ export function initZoom() {
     };
 }
 
-export function whatsappLink(mensaje) {
-    return `https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent(mensaje)}`;
+export function whatsappLink(mensaje, numero) {
+    return `https://wa.me/${numero || EMPRESA.whatsapp}?text=${encodeURIComponent(mensaje)}`;
+}
+
+/**
+ * Numero de WhatsApp a usar. Permite sobreescribir el constante desde
+ * Firestore (config/landing campo "whatsapp") sin tocar codigo.
+ * Nunca lanza: si algo falla devuelve el numero por defecto.
+ */
+let _whatsappCache = null;
+export async function getWhatsappNumero() {
+    if (_whatsappCache) return _whatsappCache;
+    try {
+        const snap = await getDoc(doc(db, "config", "landing"));
+        const num = snap.exists() ? String(snap.data().whatsapp || "").replace(/[^0-9]/g, "") : "";
+        _whatsappCache = num || EMPRESA.whatsapp;
+    } catch {
+        _whatsappCache = EMPRESA.whatsapp;
+    }
+    return _whatsappCache;
 }
 
 /** Marca el enlace de navegacion activo segun data-nav. */

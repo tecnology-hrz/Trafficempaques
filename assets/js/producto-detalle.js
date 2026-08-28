@@ -5,7 +5,8 @@
 import { initLayout } from "./tienda-layout.js";
 import {
     getCatalogo, buscarPorSku, getCategoriaInfo, formatMedidas,
-    escapeHtml, slug, initZoom, agregarAlCarrito, toast, whatsappLink
+    escapeHtml, slug, initZoom, agregarAlCarrito, toast, whatsappLink,
+    tienePrecio, precioUnitario, precioUnitarioBase, formatCOP, textoEscala
 } from "./tienda-core.js";
 import { renderProductGrid } from "./tienda-cards.js";
 
@@ -106,6 +107,8 @@ function render(p) {
                 ${info.usos ? `<li><strong>Ideal para</strong><span>${escapeHtml(info.usos)}</span></li>` : ""}
             </ul>
 
+            <div class="detail-price" id="detallePrecio"></div>
+
             <div class="qty-row">
                 <span class="qty-label">Cantidad</span>
                 <div class="qty-input">
@@ -126,9 +129,11 @@ function render(p) {
             </div>
 
             <div class="detail-note">
-                <strong>Sobre el precio:</strong> el valor depende de la cantidad, el material y el
-                numero de tintas. Agrega las referencias que te interesan y te enviamos la
-                cotizacion formal por WhatsApp o correo.
+                <strong>Sobre el precio:</strong> ${tienePrecio(p)
+                    ? `el valor unitario baja segun la cantidad. El total definitivo se confirma
+                       en la cotizacion formal segun material y numero de tintas.`
+                    : `esta referencia se cotiza a medida. Agregala y te enviamos el valor
+                       segun cantidad, material y numero de tintas.`}
                 ${p.descuento && p.descuentoPct
                     ? `<br><br><strong>Descuento activo:</strong> esta referencia tiene
                        ${p.descuentoPct}% de descuento. Lo aplicamos sobre el valor final
@@ -142,14 +147,46 @@ function render(p) {
     const input = document.getElementById("inputCantidad");
     const paso = () => (parseInt(input.value) || 0);
 
+    // El precio se recalcula con la cantidad, porque las escalas por volumen
+    // cambian el valor unitario.
+    const precioEl = document.getElementById("detallePrecio");
+    function pintarPrecio() {
+        const cant = Math.max(1, paso() || 1);
+        if (!tienePrecio(p)) {
+            precioEl.innerHTML = `<span class="detail-price__sin">
+                    <i class="bi bi-tag"></i> Precio a cotizar
+                </span>`;
+            return;
+        }
+        const unit  = precioUnitario(p, cant);
+        const base  = precioUnitarioBase(p, cant);
+        const escala = textoEscala(p, cant);
+        precioEl.innerHTML = `
+            <div class="detail-price__main">
+                ${base > unit ? `<span class="detail-price__old">${formatCOP(base)}</span>` : ""}
+                <strong class="detail-price__unit">${formatCOP(unit)}</strong>
+                <span class="detail-price__per">por unidad</span>
+            </div>
+            <div class="detail-price__total">
+                Total ${cant.toLocaleString("es-CO")} und:
+                <strong>${formatCOP(unit * cant)}</strong>
+            </div>
+            ${escala ? `<div class="detail-price__escala"><i class="bi bi-arrow-down-circle"></i> ${escapeHtml(escala)}</div>` : ""}`;
+    }
+    pintarPrecio();
+
     document.getElementById("btnMas").addEventListener("click", () => {
         input.value = paso() + 1;
+        pintarPrecio();
     });
     document.getElementById("btnMenos").addEventListener("click", () => {
         input.value = Math.max(1, paso() - 1);
+        pintarPrecio();
     });
+    input.addEventListener("input", pintarPrecio);
     input.addEventListener("change", () => {
         input.value = Math.max(1, paso() || 1);
+        pintarPrecio();
     });
 
     document.getElementById("btnZoom").addEventListener("click", () => abrirZoom(p.imagen, p.nombre));

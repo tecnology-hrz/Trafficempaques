@@ -2139,6 +2139,21 @@
                                 <input type="text" class="form-input" id="catProdAncho" placeholder="13.3 cm">
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Precio unitario base (COP)</label>
+                            <input type="number" class="form-input" id="catProdPrecio" min="0" step="1" placeholder="0">
+                            <span class="cat-precio-hint">Valor por unidad desde 1 unidad. Dejalo en 0 si esta referencia no se publica con precio.</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Escalas por cantidad</label>
+                            <span class="cat-precio-hint">Precio unitario mas bajo a partir de cierta cantidad. Se aplica la escala mas alta que alcance el cliente.</span>
+                            <div class="cat-tiers" id="catTiersLista"></div>
+                            <button type="button" class="btn-secondary cat-tier-add" id="catTierAgregar">
+                                <i class="bi bi-plus-lg"></i> Agregar escala
+                            </button>
+                        </div>
+
                         <div class="form-group cat-descuento-row">
                             <label class="cat-descuento-toggle">
                                 <input type="checkbox" id="catProdDescuento">

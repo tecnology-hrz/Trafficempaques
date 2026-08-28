@@ -2,7 +2,28 @@
    Tarjeta de producto reutilizable (listado y landing)
    ======================================================= */
 
-import { escapeHtml, formatMedidas, slug, agregarAlCarrito, toast } from "./tienda-core.js";
+import {
+    escapeHtml, formatMedidas, slug, agregarAlCarrito, toast,
+    tienePrecio, precioDesde, precioUnitarioBase, formatCOP
+} from "./tienda-core.js";
+
+/** Bloque de precio de la tarjeta. Si no hay precio, invita a cotizar. */
+export function precioCardHTML(p) {
+    if (!tienePrecio(p)) {
+        return `<p class="product-card__price product-card__price--sin">Precio a cotizar</p>`;
+    }
+    const final = precioDesde(p);
+    const base  = precioUnitarioBase(p, 1);
+    const tachado = p.descuento && p.descuentoPct && base > final
+        ? `<span class="product-card__price-old">${formatCOP(base)}</span>`
+        : "";
+    return `<p class="product-card__price">
+                <span class="product-card__price-label">Desde</span>
+                ${tachado}
+                <strong>${formatCOP(final)}</strong>
+                <span class="product-card__price-unit">c/u</span>
+            </p>`;
+}
 
 export function urlProducto(p) {
     return `producto.html?sku=${encodeURIComponent(p.sku)}`;
@@ -38,6 +59,7 @@ export function productCardHTML(p) {
                 <a href="${urlProducto(p)}">${escapeHtml(p.nombre)}</a>
             </h3>
             <p class="product-card__dims">${escapeHtml(formatMedidas(p))}</p>
+            ${precioCardHTML(p)}
             <div class="product-card__actions">
                 <button class="btn-add" type="button" data-add>
                     <i class="bi bi-cart-plus"></i> Agregar

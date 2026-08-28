@@ -1595,11 +1595,16 @@ function renderListaCotizaciones() {
                 ? ` &bull; <i class="bi bi-person-badge"></i> ${cot.creadoPor}`
                 : "";
 
+            // Cotizaciones que el cliente genero desde la web publica
+            const badgeWeb = cot.origen === "web"
+                ? `<span class="cot-badge-web" title="Generada por el cliente desde la web"><i class="bi bi-globe2"></i> Web</span>`
+                : "";
+
             const item = document.createElement("div");
-            item.className = "cot-list-item";
+            item.className = "cot-list-item" + (cot.origen === "web" ? " cot-list-item--web" : "");
             item.innerHTML = `
                 <div class="cot-list-info">
-                    <span class="cot-list-numero">${cot.numero} <span class="cot-estado ${cot.estado}">${cot.estado}</span> ${badgeModalidad} ${badgePagoPend}</span>
+                    <span class="cot-list-numero">${cot.numero} <span class="cot-estado ${cot.estado}">${cot.estado}</span> ${badgeModalidad} ${badgePagoPend} ${badgeWeb}</span>
                     <span class="cot-list-cliente">${cot.cliente} &bull; ${cot.tipo} &bull; ${fechaStr}${asesorTxt}</span>
                 </div>
                 <div class="cot-list-right">
@@ -6038,7 +6043,39 @@ function setupCatalogoAdmin() {
         }
     });
 
+    document.getElementById("catTierAgregar").addEventListener("click", () => agregarFilaTier());
+
     document.getElementById("catProductoModalSave").addEventListener("click", guardarCatProducto);
+}
+
+// ===== ESCALAS DE PRECIO POR CANTIDAD (catalogo) =====
+// Cada fila es { min, precio }: a partir de "min" unidades, el valor unitario
+// pasa a ser "precio". Se guarda ordenado y sin filas vacias.
+function agregarFilaTier(min = "", precio = "") {
+    const cont = document.getElementById("catTiersLista");
+    const fila = document.createElement("div");
+    fila.className = "cat-tier-fila";
+    fila.innerHTML = `
+        <span class="cat-tier-label">Desde</span>
+        <input type="number" class="form-input cat-tier-min" min="1" step="1" placeholder="500" value="${min}">
+        <span class="cat-tier-label">und a</span>
+        <input type="number" class="form-input cat-tier-precio" min="0" step="1" placeholder="900" value="${precio}">
+        <span class="cat-tier-label">c/u</span>
+        <button type="button" class="btn-icon btn-delete cat-tier-quitar" title="Quitar escala">
+            <i class="bi bi-x-lg"></i>
+        </button>`;
+    fila.querySelector(".cat-tier-quitar").addEventListener("click", () => fila.remove());
+    cont.appendChild(fila);
+}
+
+function leerTiersFormulario() {
+    return [...document.querySelectorAll("#catTiersLista .cat-tier-fila")]
+        .map(f => ({
+            min: parseInt(f.querySelector(".cat-tier-min").value) || 0,
+            precio: parseInt(f.querySelector(".cat-tier-precio").value) || 0
+        }))
+        .filter(t => t.min > 0 && t.precio > 0)
+        .sort((a, b) => a.min - b.min);
 }
 
 function fileToBase64(file) {
@@ -6088,7 +6125,10 @@ async function poblarCatalogoDesdeLocal() {
                 alto: producto.alto,
                 largo: producto.largo,
                 ancho: producto.ancho,
-                imagen: producto.imagen
+                imagen: producto.imagen,
+                // El precio se define despues desde el panel
+                precio: 0,
+                tiers: []
             });
         }
     }
@@ -6137,6 +6177,10 @@ function renderCatAdminGrid() {
         const descBadge = prod.descuento
             ? `<span class="cat-admin-descuento-badge">-${prod.descuentoPct}%</span>`
             : "";
+        const nTiers = Array.isArray(prod.tiers) ? prod.tiers.length : 0;
+        const precioTxt = prod.precio > 0
+            ? `<span class="cat-admin-precio">$${Number(prod.precio).toLocaleString("es-CO")} c/u${nTiers ? ` · ${nTiers} escala(s)` : ""}</span>`
+            : `<span class="cat-admin-precio cat-admin-precio--sin">Sin precio publicado</span>`;
         card.innerHTML = `
             ${descBadge}
             <img src="${prod.imagen}" alt="${prod.nombre}" class="cat-admin-img">
@@ -6144,6 +6188,7 @@ function renderCatAdminGrid() {
                 <span class="cat-admin-orden">#${prod.orden}</span>
                 <span class="cat-admin-nombre">${prod.nombre}</span>
                 ${medidas}
+                ${precioTxt}
             </div>
             <div class="cat-admin-card-actions">
                 <button class="cat-btn-edit" data-id="${prod.firestoreId}"><i class="bi bi-pencil"></i> Editar</button>
@@ -6170,6 +6215,14 @@ function abrirModalCatProducto(prod) {
     document.getElementById("catProdLargo").value = prod ? prod.largo : "";
     document.getElementById("catProdAncho").value = prod ? prod.ancho : "";
     document.getElementById("catProdImagenUrl").value = prod ? prod.imagen : "";
+    document.getElementById("catProdPrecio").value = prod && prod.precio ? prod.precio : "";
+
+    // Escalas por cantidad
+    const tiersCont = document.getElementById("catTiersLista");
+    tiersCont.innerHTML = "";
+    if (prod && Array.isArray(prod.tiers)) {
+        prod.tiers.forEach(t => agregarFilaTier(t.min || "", t.precio || ""));
+    }
 
     // Descuento
     const descCheck = document.getElementById("catProdDescuento");
@@ -6206,6 +6259,8 @@ async function guardarCatProducto() {
     const largo  = document.getElementById("catProdLargo").value.trim() || "-";
     const ancho  = document.getElementById("catProdAncho").value.trim() || "-";
     const imagen = document.getElementById("catProdImagenUrl").value.trim();
+    const precio = parseInt(document.getElementById("catProdPrecio").value) || 0;
+    const tiers  = leerTiersFormulario();
     const descuento = document.getElementById("catProdDescuento").checked;
     const descuentoPct = descuento ? (parseInt(document.getElementById("catProdDescuentoPct").value) || 0) : 0;
 
@@ -6240,6 +6295,8 @@ async function guardarCatProducto() {
             largo,
             ancho,
             imagen,
+            precio,
+            tiers,
             descuento,
             descuentoPct
         });

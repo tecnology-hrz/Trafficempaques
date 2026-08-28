@@ -1,5 +1,5 @@
 import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "./auth.js";
-import { query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ===== FORMATO =====
 function formatMoney(value) {
@@ -47,23 +47,38 @@ export async function cargarCatalogos() {
 
 // ===== GENERAR NUMERO COTIZACION =====
 async function generarNumeroCotizacion() {
-    // Usar un contador persistente para nunca reutilizar numeros
+    // Usar un contador persistente para nunca reutilizar numeros.
+    // Va en una transaccion porque ahora tambien lo incrementan los clientes
+    // desde la web: dos solicitudes simultaneas darian el mismo numero.
     const contadorRef = doc(db, "config", "contadorCotizaciones");
-    const contadorSnap = await getDoc(contadorRef);
 
-    let siguiente;
-    if (contadorSnap.exists()) {
-        siguiente = (contadorSnap.data().ultimo || 0) + 1;
-    } else {
-        // Primera vez: inicializar basado en cotizaciones existentes para no perder la secuencia
+    // Semilla para la primera vez, fuera de la transaccion (no se puede
+    // consultar una coleccion completa dentro de una).
+    let semilla = null;
+    const previo = await getDoc(contadorRef);
+    if (!previo.exists()) {
         const snap = await getDocs(collection(db, "cotizaciones"));
-        siguiente = snap.size + 1;
+        semilla = snap.size;
     }
 
-    // Guardar el nuevo contador
-    await setDoc(contadorRef, { ultimo: siguiente });
-
-    return "COT-" + String(siguiente).padStart(4, "0");
+    try {
+        const siguiente = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(contadorRef);
+            const actual = snap.exists() ? (snap.data().ultimo || 0) : (semilla || 0);
+            const nuevo = actual + 1;
+            tx.set(contadorRef, { ultimo: nuevo }, { merge: true });
+            return nuevo;
+        });
+        return "COT-" + String(siguiente).padStart(4, "0");
+    } catch (err) {
+        // Si la transaccion no es posible, se cae al camino simple para no
+        // bloquear la creacion de la cotizacion.
+        console.warn("[cotizador] contador sin transaccion, se usa lectura directa", err);
+        const snap = await getDoc(contadorRef);
+        const siguiente = (snap.exists() ? (snap.data().ultimo || 0) : (semilla || 0)) + 1;
+        await setDoc(contadorRef, { ultimo: siguiente }, { merge: true });
+        return "COT-" + String(siguiente).padStart(4, "0");
+    }
 }
 
 // ===== CREAR COTIZACION =====
@@ -98,7 +113,10 @@ export async function crearCotizacion(datos) {
         fechaActual: datos.fechaActual || "",
         fechaEntrega: datos.fechaEntrega || "",
         creadoPor: datos.creadoPor || "",
-        creadoPorEmail: datos.creadoPorEmail || ""
+        creadoPorEmail: datos.creadoPorEmail || "",
+        // "web" cuando la genera el cliente desde el carrito publico,
+        // "panel" cuando la crea un asesor. Permite distinguirlas en la lista.
+        origen: datos.origen || "panel"
     };
 
     await setDoc(doc(db, "cotizaciones", id), cotizacion);

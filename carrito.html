@@ -44,35 +44,24 @@
                     <div class="cart-summary__row">
                         <span>Unidades totales</span><strong id="resumenUnidades">0</strong>
                     </div>
-                    <p class="cart-summary__note">
+                    <div class="cart-summary__row cart-summary__row--total" id="resumenTotalRow">
+                        <span>Subtotal estimado</span><strong id="resumenTotal">$0</strong>
+                    </div>
+                    <p class="cart-summary__note" id="resumenNota">
                         Los precios se confirman en la cotizacion formal segun cantidad,
                         material y numero de tintas.
                     </p>
 
-                    <form id="formCotizacion" novalidate>
-                        <div class="form-field">
-                            <label for="clienteNombre">Nombre o empresa *</label>
-                            <input type="text" id="clienteNombre" required autocomplete="organization">
-                        </div>
-                        <div class="form-field">
-                            <label for="clienteTelefono">Telefono / WhatsApp *</label>
-                            <input type="tel" id="clienteTelefono" required autocomplete="tel">
-                        </div>
-                        <div class="form-field">
-                            <label for="clienteCorreo">Correo</label>
-                            <input type="email" id="clienteCorreo" autocomplete="email">
-                        </div>
-                        <div class="form-field">
-                            <label for="clienteNotas">Notas del pedido</label>
-                            <textarea id="clienteNotas" placeholder="Tintas, colores, fecha de entrega..."></textarea>
-                        </div>
-
-                        <button class="btn btn--primary btn--block btn--lg" type="submit">
-                            <i class="bi bi-whatsapp"></i> Enviar por WhatsApp
+                    <div class="cart-cta">
+                        <button class="btn btn--primary btn--block btn--lg" type="button" id="btnGenerarCotizacion">
+                            <i class="bi bi-file-earmark-text"></i> Generar cotizacion
                         </button>
-                    </form>
+                        <button class="btn btn--outline btn--block btn--lg" type="button" id="btnWhatsapp">
+                            <i class="bi bi-whatsapp"></i> Hablar por WhatsApp
+                        </button>
+                    </div>
 
-                    <button class="btn btn--outline btn--block" type="button" id="btnVaciar" style="margin-top:12px">
+                    <button class="btn btn--ghost btn--block" type="button" id="btnVaciar" style="margin-top:12px">
                         <i class="bi bi-trash3"></i> Vaciar cotizacion
                     </button>
                 </aside>
@@ -82,6 +71,120 @@
 
     <div data-layout="footer"></div>
 
+    <!-- ===== MODAL: DATOS PARA GENERAR LA COTIZACION ===== -->
+    <div class="cot-modal" id="cotModal" role="dialog" aria-modal="true" aria-labelledby="cotModalTitulo">
+        <div class="cot-modal__box">
+            <div class="cot-modal__header">
+                <h2 id="cotModalTitulo"><i class="bi bi-file-earmark-text"></i> Generar cotizacion</h2>
+                <button class="cot-modal__close" type="button" id="cotModalClose" aria-label="Cerrar">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <form class="cot-modal__body" id="formCotizacion" novalidate>
+                <p class="cot-modal__intro">
+                    Completa tus datos y registramos la cotizacion en nuestro sistema. Te llega
+                    al correo con el detalle y un link para aprobarla.
+                </p>
+
+                <div class="form-field">
+                    <label>Tipo de cliente *</label>
+                    <div class="cot-tipo-persona" id="cotTipoPersona">
+                        <button type="button" class="cot-tipo-opt is-active" data-tipo="natural">
+                            <i class="bi bi-person"></i> Persona natural
+                        </button>
+                        <button type="button" class="cot-tipo-opt" data-tipo="juridica">
+                            <i class="bi bi-building"></i> Empresa
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="cotNombre" id="cotNombreLabel">Nombre completo *</label>
+                    <input type="text" id="cotNombre" required autocomplete="name">
+                </div>
+
+                <div class="cot-form-row">
+                    <div class="form-field">
+                        <label for="cotTipoDoc">Tipo de documento *</label>
+                        <select id="cotTipoDoc">
+                            <option value="CC">Cedula de ciudadania</option>
+                            <option value="CE">Cedula de extranjeria</option>
+                            <option value="NIT">NIT</option>
+                            <option value="PP">Pasaporte</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label for="cotDocumento">Numero de documento *</label>
+                        <input type="text" id="cotDocumento" required inputmode="numeric">
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="cotNegocio">Nombre del negocio o marca</label>
+                    <input type="text" id="cotNegocio" autocomplete="organization">
+                </div>
+
+                <div class="cot-form-row">
+                    <div class="form-field">
+                        <label for="cotTelefono">Telefono / WhatsApp *</label>
+                        <input type="tel" id="cotTelefono" required autocomplete="tel">
+                    </div>
+                    <div class="form-field">
+                        <label for="cotCorreo">Correo electronico *</label>
+                        <input type="email" id="cotCorreo" required autocomplete="email">
+                    </div>
+                </div>
+
+                <div class="cot-form-row">
+                    <div class="form-field">
+                        <label for="cotCiudad">Ciudad *</label>
+                        <input type="text" id="cotCiudad" required autocomplete="address-level2">
+                    </div>
+                    <div class="form-field">
+                        <label for="cotDireccion">Direccion de entrega</label>
+                        <input type="text" id="cotDireccion" autocomplete="street-address">
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="cotNotas">Notas del pedido</label>
+                    <textarea id="cotNotas" placeholder="Tintas, colores, fecha de entrega deseada..."></textarea>
+                </div>
+
+                <div class="cot-modal__resumen" id="cotModalResumen"></div>
+
+                <p class="cot-modal__error" id="cotModalError" hidden></p>
+
+                <button class="btn btn--primary btn--block btn--lg" type="submit" id="cotModalEnviar">
+                    <i class="bi bi-send"></i> Enviar cotizacion
+                </button>
+            </form>
+
+            <!-- Confirmacion -->
+            <div class="cot-modal__ok" id="cotModalOk" hidden>
+                <i class="bi bi-check-circle-fill"></i>
+                <h3>Cotizacion registrada</h3>
+                <p>
+                    Tu cotizacion <strong id="cotOkNumero">--</strong> quedo registrada en nuestro
+                    sistema. Nuestro equipo la revisa y te contacta.
+                </p>
+                <p class="cot-modal__ok-mail" id="cotOkCorreo"></p>
+                <div class="cot-modal__ok-actions">
+                    <a class="btn btn--primary btn--block" id="cotOkLink" href="#" target="_blank" rel="noopener">
+                        <i class="bi bi-eye"></i> Ver mi cotizacion
+                    </a>
+                    <a class="btn btn--outline btn--block" id="cotOkWa" href="#" target="_blank" rel="noopener">
+                        <i class="bi bi-whatsapp"></i> Avisar por WhatsApp
+                    </a>
+                    <a class="btn btn--ghost btn--block" href="catalogo.html">Seguir viendo el catalogo</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EmailJS: notificacion de la cotizacion al cliente -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script type="module" src="assets/js/carrito-publico.js"></script>
 </body>
 </html>
