@@ -7049,3 +7049,12 @@ body {
 }
 
 .cot-list-item--web { border-left: 3px solid #4338ca; }
+
+/* Rastro de un despacho que fue movido de dia */
+.pdesp-reagendado {
+    color: #7c3aed;
+    font-weight: 600;
+}
+.pdesp-reagendado i { color: #7c3aed; }
+
+.pdesp-btn-reagendar i { color: #29ABE2; }

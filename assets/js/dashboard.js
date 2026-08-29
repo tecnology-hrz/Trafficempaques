@@ -8768,15 +8768,22 @@ async function abrirPdiaReagendar(fecha, ordenId) {
         return;
     }
 
-    pdiaReagendarCtx = { fecha, ordenId };
+    pdiaReagendarCtx = { tipo: "orden", fecha, ordenId };
+    document.getElementById("pdiaReagendarTitulo").innerHTML =
+        `<i class="bi bi-calendar2-event"></i> Reagendar orden`;
+    document.getElementById("pdiaReagendarLabel").textContent = "Nueva fecha de produccion";
     document.getElementById("pdiaReagendarInfo").innerHTML =
         `Orden <strong>${pdiaEsc(orden.numero || ordenId)}</strong> de ${pdiaEsc(orden.cliente || "--")}, programada el ${pdiaEsc(pdiaFechaLarga(fecha))}.`;
     document.getElementById("pdiaReagendarFecha").value = pdiaSumarDias(pdiaHoyISO(), 1);
     document.getElementById("pdiaReagendarOverlay").classList.add("show");
 }
 
+// Enruta la confirmacion segun lo que se este reagendando: una orden del plan
+// del dia o un despacho ya registrado.
 async function pdiaReagendarConfirmar() {
     if (!pdiaReagendarCtx) return;
+    if (pdiaReagendarCtx.tipo === "despacho") return pdespReagendarConfirmar();
+
     const nueva = document.getElementById("pdiaReagendarFecha").value;
     if (!nueva) {
         showNotifToast("Selecciona una fecha");
@@ -8951,6 +8958,8 @@ function renderPdespDespachos() {
     // Acciones
     cont.querySelectorAll(".pdesp-btn-pdf").forEach(b =>
         b.addEventListener("click", () => pdespImprimirPDF(b.dataset.fecha, b.dataset.id)));
+    cont.querySelectorAll(".pdesp-btn-reagendar").forEach(b =>
+        b.addEventListener("click", () => abrirPdespReagendar(b.dataset.fecha, b.dataset.id)));
     cont.querySelectorAll(".pdesp-btn-eliminar").forEach(b =>
         b.addEventListener("click", () => {
             showConfirm("Eliminar despacho",
@@ -8983,12 +8992,15 @@ function pdespCardHtml(d, fechaDia) {
                         <span class="pdia-tipo">${pdiaEsc(d.tipo || "--")}</span>
                     </span>
                     <span class="pdesp-card-cliente">${pdiaEsc(d.cliente || "--")}${d.negocio ? " · " + pdiaEsc(d.negocio) : ""}</span>
-                    <small>${hora ? "Despachado " + hora + " · " : ""}por ${pdiaEsc(d.creadoPor || "--")}</small>
+                    <small>${hora ? "Despachado " + hora + " · " : ""}por ${pdiaEsc(d.creadoPor || "--")}${
+                        d.reagendadoDe ? ` · <span class="pdesp-reagendado"><i class="bi bi-calendar2-event"></i> movido del ${pdiaEsc(pdiaFechaCorta(d.reagendadoDe))}</span>` : ""
+                    }</small>
                 </div>
                 <div class="pdesp-card-right">
                     <span class="pdia-badge ${completa ? "completado" : "pendiente"}">${completa ? "Orden completa" : totalPendiente.toLocaleString("es-CO") + " pendientes"}</span>
                     <div class="pdia-acciones">
                         <button class="btn-icon pdesp-btn-pdf" data-fecha="${pdiaEsc(fechaDia)}" data-id="${pdiaEsc(d.despachoId)}" title="Imprimir remision en PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+                        ${pdiaPuedeReportar() ? `<button class="btn-icon pdesp-btn-reagendar" data-fecha="${pdiaEsc(fechaDia)}" data-id="${pdiaEsc(d.despachoId)}" title="Reagendar a otro dia"><i class="bi bi-calendar2-event"></i></button>` : ""}
                         ${pdiaEsAdmin() ? `<button class="btn-icon btn-delete pdesp-btn-eliminar" data-fecha="${pdiaEsc(fechaDia)}" data-id="${pdiaEsc(d.despachoId)}" title="Eliminar despacho"><i class="bi bi-trash3"></i></button>` : ""}
                     </div>
                 </div>
@@ -9058,6 +9070,107 @@ function pdespImprimirPDF(fechaDia, despachoId) {
     window.exportarDespachoPDF({ ...d, fechaDia, items: pdespResolverItems(d) });
 }
 
+// ===== GUARDADO DE UN DIA DE DESPACHOS =====
+// merge:true no fusiona arrays, los reemplaza, que es justo lo que queremos:
+// "despachos" siempre se escribe completo.
+async function pdespGuardarDia(fecha, despachos) {
+    await setDoc(doc(db, PDESP_COL, fecha), {
+        fecha,
+        despachos,
+        actualizadoPor: sessionStorage.getItem("userName") || "",
+        actualizado: new Date().toISOString()
+    }, { merge: true });
+}
+
+// ===== REAGENDAR UN DESPACHO A OTRO DIA =====
+// Mueve el registro completo de un dia a otro. Reusa el modal de reagendar
+// del plan del dia, distinguiendo por pdiaReagendarCtx.tipo.
+function abrirPdespReagendar(fechaDia, despachoId) {
+    if (!pdiaPuedeReportar()) return;
+
+    const dia = pdespDiasCache.find(d => d.fecha === fechaDia);
+    const d = dia && (dia.despachos || []).find(x => x.despachoId === despachoId);
+    if (!d) {
+        showNotifToast("No se encontro el despacho");
+        return;
+    }
+
+    const unidades = (d.items || []).reduce((s, i) => s + (parseInt(i.cantidadDespachada) || 0), 0);
+
+    pdiaReagendarCtx = { tipo: "despacho", fecha: fechaDia, despachoId };
+    document.getElementById("pdiaReagendarTitulo").innerHTML =
+        `<i class="bi bi-truck"></i> Reagendar despacho`;
+    document.getElementById("pdiaReagendarLabel").textContent = "Nueva fecha del despacho";
+    document.getElementById("pdiaReagendarInfo").innerHTML =
+        `Despacho de la orden <strong>${pdiaEsc(d.numero || d.ordenId)}</strong> ` +
+        `(${unidades.toLocaleString("es-CO")} unidades) de ${pdiaEsc(d.cliente || "--")}, ` +
+        `registrado el ${pdiaEsc(pdiaFechaLarga(fechaDia))}.`;
+    document.getElementById("pdiaReagendarFecha").value = fechaDia;
+    document.getElementById("pdiaReagendarOverlay").classList.add("show");
+}
+
+async function pdespReagendarConfirmar() {
+    if (!pdiaReagendarCtx || pdiaReagendarCtx.tipo !== "despacho") return;
+
+    const nueva = document.getElementById("pdiaReagendarFecha").value;
+    if (!nueva) {
+        showNotifToast("Selecciona una fecha");
+        return;
+    }
+    const { fecha, despachoId } = pdiaReagendarCtx;
+    if (nueva === fecha) {
+        showNotifToast("El despacho ya esta en esa fecha");
+        return;
+    }
+
+    try {
+        // Sacar del dia original
+        const origenRef = doc(db, PDESP_COL, fecha);
+        const origenSnap = await getDoc(origenRef);
+        if (!origenSnap.exists()) { showNotifToast("El dia de origen no existe"); return; }
+        const origenDespachos = origenSnap.data().despachos || [];
+        const despacho = origenDespachos.find(x => x.despachoId === despachoId);
+        if (!despacho) { showNotifToast("El despacho ya no esta en ese dia"); return; }
+
+        await pdespGuardarDia(fecha, origenDespachos.filter(x => x.despachoId !== despachoId));
+
+        // Mover al dia destino conservando la hora original del registro, para
+        // que la tarjeta siga mostrando una hora coherente con su nuevo dia.
+        const original = new Date(despacho.fecha || Date.now());
+        const [y, m, dd] = nueva.split("-").map(Number);
+        const nuevaFechaIso = new Date(
+            y, m - 1, dd,
+            isNaN(original) ? 0 : original.getHours(),
+            isNaN(original) ? 0 : original.getMinutes()
+        ).toISOString();
+
+        const destinoSnap = await getDoc(doc(db, PDESP_COL, nueva));
+        const destinoDespachos = destinoSnap.exists() ? (destinoSnap.data().despachos || []) : [];
+        if (!destinoDespachos.some(x => x.despachoId === despachoId)) {
+            destinoDespachos.push({
+                ...despacho,
+                fecha: nuevaFechaIso,
+                // Rastro del movimiento: de donde vino y quien lo movio
+                reagendadoDe: despacho.reagendadoDe || fecha,
+                fechaRegistroOriginal: despacho.fechaRegistroOriginal || despacho.fecha || "",
+                reagendadoPor: sessionStorage.getItem("userName") || "",
+                fechaReagendado: new Date().toISOString()
+            });
+        }
+        await pdespGuardarDia(nueva, destinoDespachos);
+
+        document.getElementById("pdiaReagendarOverlay").classList.remove("show");
+        pdiaReagendarCtx = null;
+
+        // Recargar desde Firestore para que el cache quede consistente
+        await cargarPdespDespachos();
+        showNotifToast(`Despacho movido al ${pdiaFechaCorta(nueva)}`);
+    } catch (e) {
+        console.error(e);
+        showNotifToast("No se pudo reagendar el despacho");
+    }
+}
+
 // ===== ELIMINAR =====
 async function pdespEliminar(fechaDia, despachoId) {
     if (!pdiaEsAdmin()) return;
@@ -9067,12 +9180,7 @@ async function pdespEliminar(fechaDia, despachoId) {
         if (!snap.exists()) return;
         const data = snap.data();
         const despachos = (data.despachos || []).filter(d => d.despachoId !== despachoId);
-        await setDoc(ref, {
-            fecha: fechaDia,
-            despachos,
-            actualizadoPor: sessionStorage.getItem("userName") || "",
-            actualizado: new Date().toISOString()
-        }, { merge: true });
+        await pdespGuardarDia(fechaDia, despachos);
 
         const dia = pdespDiasCache.find(d => d.fecha === fechaDia);
         if (dia) dia.despachos = despachos;
@@ -9280,12 +9388,7 @@ async function pdespGuardar() {
         const snap = await getDoc(ref);
         const despachos = snap.exists() ? (snap.data().despachos || []) : [];
         despachos.push(despacho);
-        await setDoc(ref, {
-            fecha,
-            despachos,
-            actualizadoPor: sessionStorage.getItem("userName") || "",
-            actualizado: new Date().toISOString()
-        }, { merge: true });
+        await pdespGuardarDia(fecha, despachos);
 
         // Refrescar cache local
         const dia = pdespDiasCache.find(d => d.fecha === fecha);
