@@ -208,8 +208,9 @@ async function initDashboard(rol, nombre) {
         cargarRemision();
     }
 
-    // Produccion del dia: admin (programa) y jefe de produccion (reporta)
-    if (rol === "administrador" || rol === "jefe_produccion") {
+    // Produccion del dia: admin (programa), jefe de produccion (reporta)
+    // y ventas (solo consulta, para saber que se esta produciendo y despachando)
+    if (rol === "administrador" || rol === "jefe_produccion" || rol === "ventas") {
         setupProduccionDia();
         cargarProduccionDia();
     }
@@ -8286,6 +8287,10 @@ function pdiaSumarDias(iso, dias) {
     return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}`;
 }
 
+// Permisos de la seccion:
+//   administrador    -> programa, reporta, reagenda y elimina
+//   jefe_produccion  -> reporta produccion y registra/reagenda despachos
+//   ventas           -> solo consulta (necesita saber que se produce y despacha)
 function pdiaEsAdmin()  { return rol === "administrador"; }
 function pdiaPuedeReportar() { return rol === "administrador" || rol === "jefe_produccion"; }
 
@@ -8354,8 +8359,12 @@ function setupProduccionDia() {
     if (chkTodos) chkTodos.addEventListener("change", renderPdespDespachos);
     const inputBuscarDesp = document.getElementById("pdespBuscar");
     if (inputBuscarDesp) inputBuscarDesp.addEventListener("input", renderPdespDespachos);
+    // Registrar despachos es operativo: ventas entra en modo consulta
     const btnNuevoDesp = document.getElementById("pdespBtnNuevo");
-    if (btnNuevoDesp) btnNuevoDesp.addEventListener("click", abrirPdespModal);
+    if (btnNuevoDesp) {
+        if (pdiaPuedeReportar()) btnNuevoDesp.addEventListener("click", abrirPdespModal);
+        else btnNuevoDesp.style.display = "none";
+    }
 }
 
 // ===== CARGA DEL PLAN DEL DIA =====
