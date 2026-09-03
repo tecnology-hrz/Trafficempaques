@@ -8314,9 +8314,11 @@ function pdiaSumarDias(iso, dias) {
 // Permisos de la seccion:
 //   administrador    -> programa, reporta, reagenda y elimina
 //   jefe_produccion  -> reporta produccion y registra/reagenda despachos
-//   ventas           -> solo consulta (necesita saber que se produce y despacha)
+//   ventas           -> puede programar ordenes y registrar despachos, pero
+//                       no elimina ni reagenda (eso sigue siendo del admin)
 function pdiaEsAdmin()  { return rol === "administrador"; }
-function pdiaPuedeReportar() { return rol === "administrador" || rol === "jefe_produccion"; }
+function pdiaPuedeReportar() { return rol === "administrador" || rol === "jefe_produccion" || rol === "ventas"; }
+function pdiaPuedeProgramar() { return rol === "administrador" || rol === "ventas"; }
 
 // Resumen corto de los productos de una orden
 function pdiaResumenItems(items) {
@@ -8357,9 +8359,9 @@ function setupProduccionDia() {
         cargarProduccionDia();
     });
 
-    // Solo el admin programa ordenes
+    // Admin y ventas pueden programar ordenes
     const btnAgregar = document.getElementById("pdiaBtnAgregar");
-    if (pdiaEsAdmin()) {
+    if (pdiaPuedeProgramar()) {
         btnAgregar.addEventListener("click", abrirPdiaSelect);
     } else if (btnAgregar) {
         btnAgregar.style.display = "none";
@@ -8426,7 +8428,7 @@ function renderProduccionDia() {
 
     if (ordenes.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" class="tabla-empty">${
-            pdiaEsAdmin()
+            pdiaPuedeProgramar()
                 ? "No hay ordenes programadas para este dia. Usa \"Programar ordenes\" para agregarlas."
                 : "El administrador aun no ha programado ordenes para este dia."
         }</td></tr>`;
