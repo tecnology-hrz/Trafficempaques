@@ -4542,6 +4542,7 @@ function setupFinanzas() {
     const filtroMes = document.getElementById("finanzasFiltroMes");
     const filtroAnio = document.getElementById("finanzasFiltroAnio");
     const filtroVendedor = document.getElementById("finanzasFiltroVendedor");
+    const inputBuscar = document.getElementById("finanzasBuscar");
 
     // Llenar años disponibles
     const anioActual = new Date().getFullYear();
@@ -4566,12 +4567,18 @@ function setupFinanzas() {
         poblarFiltroVendedores();
     }
 
+    // Buscador por cliente, numero o negocio: filtra solo la tabla de pagos
+    // (no vuelve a consultar Firestore, reutiliza lo ya cargado por mes/año/vendedor)
+    if (inputBuscar) {
+        inputBuscar.addEventListener("input", () => renderTablaFinanzas(finanzasFiltradasCache));
+    }
+
     // Filtros de estado de pago en la tabla
     document.querySelectorAll(".finanzas-filtro-pago").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".finanzas-filtro-pago").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            cargarFinanzas();
+            renderTablaFinanzas(finanzasFiltradasCache);
         });
     });
 }
@@ -4709,7 +4716,13 @@ async function cargarFinanzas() {
     }
 }
 
+// Cache de la lista ya filtrada por mes/año/vendedor (antes del buscador y del
+// filtro de estado de pago), para que el buscador y las pastillas de estado
+// puedan re-renderizar la tabla sin volver a consultar Firestore.
+let finanzasFiltradasCache = [];
+
 function renderFinanzas(cotizaciones) {
+    finanzasFiltradasCache = cotizaciones;
     const fmtMoney = (v) => "$" + (parseInt(v) || 0).toLocaleString("en-US");
 
     // Calcular totales
@@ -4827,31 +4840,42 @@ function renderDetalleServicio(containerId, cotizaciones, tipo) {
 function renderTablaFinanzas(cotizaciones) {
     const tbody = document.getElementById("finanzasTablaBody");
 
+    // Buscador por cliente, numero o negocio
+    const busqueda = (document.getElementById("finanzasBuscar")?.value || "").trim().toLowerCase();
+    let cotsBase = cotizaciones;
+    if (busqueda) {
+        cotsBase = cotsBase.filter(c =>
+            (c.cliente || "").toLowerCase().includes(busqueda) ||
+            (c.numero || "").toLowerCase().includes(busqueda) ||
+            (c.negocio || "").toLowerCase().includes(busqueda)
+        );
+    }
+
     // Aplicar filtro de estado de pago
     const filtroPago = document.querySelector(".finanzas-filtro-pago.active")?.dataset.filtroPago || "todos";
-    let cotsFiltradas = cotizaciones;
+    let cotsFiltradas = cotsBase;
     if (filtroPago === "pendientes") {
-        cotsFiltradas = cotizaciones.filter(c => {
+        cotsFiltradas = cotsBase.filter(c => {
             const total = parseInt(c.total) || 0;
             const pagado = parseInt(c.montoPagado) || 0;
             return (total - pagado) > 0;
         });
     } else if (filtroPago === "restante") {
-        cotsFiltradas = cotizaciones.filter(c => !!c.pagoRestanteCompletado);
+        cotsFiltradas = cotsBase.filter(c => !!c.pagoRestanteCompletado);
     } else if (filtroPago === "pagados") {
-        cotsFiltradas = cotizaciones.filter(c => {
+        cotsFiltradas = cotsBase.filter(c => {
             const total = parseInt(c.total) || 0;
             const pagado = parseInt(c.montoPagado) || 0;
             return (total - pagado) <= 0;
         });
     } else if (filtroPago === "comp1") {
-        cotsFiltradas = cotizaciones.filter(c => {
+        cotsFiltradas = cotsBase.filter(c => {
             const tieneInicial = !!c.comprobante;
             const tieneRestante = !!c.pagoRestanteComprobante;
             return (tieneInicial ? 1 : 0) + (tieneRestante ? 1 : 0) === 1;
         });
     } else if (filtroPago === "comp2") {
-        cotsFiltradas = cotizaciones.filter(c => !!c.comprobante && !!c.pagoRestanteComprobante);
+        cotsFiltradas = cotsBase.filter(c => !!c.comprobante && !!c.pagoRestanteComprobante);
     }
 
     if (cotsFiltradas.length === 0) {
