@@ -783,6 +783,11 @@ function setupCotizador() {
     if (selectDisenosEstado) selectDisenosEstado.addEventListener("change", () => renderDisenosFiltrados());
 
     btnNueva.addEventListener("click", () => {
+        // Importante: salir de cualquier modo edicion pendiente. Si no se
+        // limpia el editId, el boton Guardar seguiria apuntando a la
+        // cotizacion que se abrio antes y la sobrescribiria con los datos
+        // nuevos en vez de crear una cotizacion aparte.
+        salirModoEdicionCotizacion();
         cotItems = [];
         document.getElementById("cotCliente").value  = "";
         document.getElementById("cotNit").value      = "";
@@ -814,6 +819,9 @@ function setupCotizador() {
     });
 
     btnVolver.addEventListener("click", () => {
+        // Al salir del formulario tambien se abandona el modo edicion, para
+        // que la siguiente cotizacion no herede el editId.
+        salirModoEdicionCotizacion();
         document.getElementById("cotizadorForm").style.display  = "none";
         document.getElementById("cotizadorLista").style.display = "block";
     });
@@ -874,7 +882,23 @@ function setupCotizador() {
             // Editar: actualizar sin cambiar el ID ni el link
             const ref = doc(db, "cotizaciones", editId);
             const snap = await getDoc(ref);
+            if (!snap.exists()) {
+                // Referencia colgada: mejor avisar que escribir un documento
+                // nuevo con un ID que ya no corresponde a nada.
+                salirModoEdicionCotizacion();
+                showNotif("Cotizacion no encontrada", "La cotizacion que intentabas editar ya no existe. Vuelve a abrirla desde la lista.");
+                return;
+            }
             const existing = snap.data();
+            // Red de seguridad: si el numero del documento no es el que se
+            // abrio para editar, algo quedo desincronizado. Se aborta antes de
+            // sobrescribir la cotizacion de otro cliente.
+            const numeroEsperado = btnGuardar.dataset.editNumero || "";
+            if (numeroEsperado && (existing.numero || "") !== numeroEsperado) {
+                salirModoEdicionCotizacion();
+                showNotif("Operacion cancelada", `Se iba a sobrescribir la cotizacion ${existing.numero || "(sin numero)"} en vez de ${numeroEsperado}. No se guardo nada; vuelve a abrir la cotizacion desde la lista.`);
+                return;
+            }
             const notas = document.getElementById("cotNotas").value.trim();
             const cotActualizada = { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas };
             await setDoc(ref, cotActualizada);
@@ -884,9 +908,7 @@ function setupCotizador() {
             } catch (errCascada) {
                 console.error("Error al actualizar en cascada:", errCascada);
             }
-            btnGuardar.dataset.editId = "";
-            btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
-            document.getElementById("formCotTitle").textContent = "Nueva Cotizacion";
+            salirModoEdicionCotizacion();
             // Mostrar link para re-enviar al cliente
             const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
             const link = baseUrl + "cotizacion.html?id=" + editId;
@@ -909,6 +931,19 @@ function setupCotizador() {
         document.getElementById("cotizadorLista").style.display = "block";
         cargarListaCotizaciones();
     });
+}
+
+/* Deja el formulario del cotizador en modo "crear". Es el unico punto donde
+   se borra el editId, para que no queden estados a medias. */
+function salirModoEdicionCotizacion() {
+    const btnGuardar = document.getElementById("btnGuardarCotizacion");
+    if (btnGuardar) {
+        delete btnGuardar.dataset.editId;
+        delete btnGuardar.dataset.editNumero;
+        btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar y generar link';
+    }
+    const titulo = document.getElementById("formCotTitle");
+    if (titulo) titulo.textContent = "Nueva Cotizacion";
 }
 
 function renderCotItems() {
@@ -1737,6 +1772,9 @@ function abrirModalAcciones(cotId, cotName) {
 
         const btnGuardar = document.getElementById("btnGuardarCotizacion");
         btnGuardar.dataset.editId = cotId;
+        // Se guarda tambien el numero visible para poder verificar al guardar
+        // que se escribe sobre la misma cotizacion que se abrio.
+        btnGuardar.dataset.editNumero = cot.numero || "";
         btnGuardar.innerHTML = '<i class="bi bi-check-lg"></i> Guardar cambios';
         document.getElementById("formCotTitle").textContent = "Editar " + cotName;
         const papeleraViewEdit = document.getElementById("cotizadorPapelera");

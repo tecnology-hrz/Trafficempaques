@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoria y recuperacion de cotizaciones</title>
+<style>
+    :root { --bg:#f4f6fa; --card:#fff; --line:#e3e8ef; --txt:#1f2937; --mut:#6b7280;
+            --pri:#2563eb; --ok:#059669; --warn:#b45309; --bad:#dc2626; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--txt);
+           font-family:system-ui,-apple-system,"Segoe UI",sans-serif; font-size:14px; }
+    header { background:#111827; color:#fff; padding:18px 24px; }
+    header h1 { margin:0; font-size:18px; }
+    header p { margin:4px 0 0; font-size:13px; color:#9ca3af; }
+    main { padding:24px; max-width:1180px; margin:0 auto; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+            padding:18px; margin-bottom:18px; }
+    .card h2 { margin:0 0 4px; font-size:15px; }
+    .card h2 .n { color:var(--mut); font-weight:400; }
+    .hint { color:var(--mut); font-size:12.5px; margin:0 0 14px; line-height:1.5; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input[type=text] { padding:9px 12px; border:1px solid var(--line); border-radius:7px;
+                       font-size:14px; min-width:220px; }
+    button { padding:9px 15px; border:0; border-radius:7px; background:var(--pri);
+             color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+    button.sec { background:#e5e7eb; color:#374151; }
+    button.ok  { background:var(--ok); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
+            font-size:13px; vertical-align:top; }
+    th { background:#f9fafb; font-size:11.5px; text-transform:uppercase;
+         letter-spacing:.4px; color:var(--mut); }
+    code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-size:12px; }
+    .tag { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px;
+           font-weight:700; }
+    .tag.bad  { background:#fee2e2; color:var(--bad); }
+    .tag.ok   { background:#d1fae5; color:var(--ok); }
+    .tag.warn { background:#fef3c7; color:var(--warn); }
+    .empty { color:var(--mut); font-style:italic; padding:10px 0; }
+    .kv { display:grid; grid-template-columns:150px 1fr; gap:6px 14px; margin:10px 0 0; }
+    .kv dt { color:var(--mut); font-size:12.5px; }
+    .kv dd { margin:0; font-size:13px; word-break:break-word; }
+    .note { background:#fffbeb; border:1px solid #fde68a; border-radius:8px;
+            padding:12px 14px; font-size:13px; line-height:1.55; color:#7c2d12; }
+    .grid-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+                 gap:12px; margin-bottom:12px; }
+    .grid-form label { display:flex; flex-direction:column; gap:5px; font-size:12.5px;
+                       color:var(--mut); }
+    .grid-form input, .grid-form select { padding:8px 10px; border:1px solid var(--line);
+                       border-radius:7px; font-size:13.5px; color:var(--txt); min-width:0; }
+    .rc-iva-wrap { display:flex; align-items:center; gap:8px; font-size:13px; }
+    .rc-tabla input, .rc-tabla select { padding:7px 9px; border:1px solid var(--line);
+                       border-radius:6px; font-size:13px; width:100%; }
+    .rc-neg { color:var(--bad); font-weight:600; }
+    .log { background:#0f172a; color:#a5f3fc; font-family:ui-monospace,Consolas,monospace;
+           font-size:12px; padding:12px; border-radius:8px; max-height:200px;
+           overflow:auto; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+    <h1>Auditoria y recuperacion de cotizaciones</h1>
+    <p>Cruza cotizaciones contra produccion, ordenes de diseno, movimientos de inventario y clientes para encontrar registros sobrescritos.</p>
+</header>
+
+<main>
+    <div class="card">
+        <div class="row">
+            <button id="btnCargar">Cargar base de datos</button>
+            <input type="text" id="inpNumero" placeholder="Numero, ej. 0335">
+            <button id="btnBuscar" class="sec" disabled>Investigar numero</button>
+            <button id="btnAuditar" class="sec" disabled>Auditar todas</button>
+        </div>
+        <div class="log" id="log" style="margin-top:14px;">Sin cargar.</div>
+    </div>
+
+    <div id="resultado"></div>
+    <div id="auditoria"></div>
+</main>
+
+<script type="module">
+import {
+    db, collection, getDocs, doc, getDoc, setDoc
+} from "./assets/js/auth.js";
+
+const logEl = document.getElementById("log");
+const lines = [];
+function log(msg) {
+    lines.push(msg);
+    logEl.textContent = lines.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+const DB = {
+    cotizaciones: [],
+    produccion: [],
+    ordenesDiseno: [],
+    inventarioMovimientos: [],
+    clientes: []
+};
+
+function esc(v) {
+    return String(v === undefined || v === null ? "" : v)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// Normaliza nombres para comparar: sin acentos, sin puntuacion, minusculas.
+function norm(s) {
+    return String(s || "")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function fecha(v) {
+    if (!v) return "-";
+    const d = new Date(v);
+    return isNaN(d) ? String(v) : d.toLocaleString("es-CO");
+}
+
+async function leer(nombre) {
+    const snap = await getDocs(collection(db, nombre));
+    const arr = [];
+    snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+    log(`  ${nombre}: ${arr.length} documentos`);
+    return arr;
+}
+
+document.getElementById("btnCargar").addEventListener("click", async () => {
+    lines.length = 0;
+    log("Leyendo colecciones...");
+    try {
+        DB.cotizaciones          = await leer("cotizaciones");
+        DB.produccion            = await leer("produccion");
+        DB.ordenesDiseno         = await leer("ordenesDiseno");
+        DB.inventarioMovimientos = await leer("inventarioMovimientos");
+        DB.clientes              = await leer("clientes");
+        log("Listo. Ya puedes investigar un numero o auditar todas.");
+        document.getElementById("btnBuscar").disabled  = false;
+        document.getElementById("btnAuditar").disabled = false;
+    } catch (err) {
+        log("ERROR: " + err.message);
+        log("Si es un error de permisos, las reglas de Firestore estan bloqueando la lectura.");
+    }
+});
+
+/* Devuelve todos los rastros de una cotizacion en el resto de la base.
+   produccion y ordenesDiseno SI son reescritos por la cascada al editar,
+   asi que pueden estar contaminados. inventarioMovimientos NO se reescribe
+   nunca: es la fuente historica mas confiable. */
+function rastrosDe(cot) {
+    const prod = DB.produccion.filter(p =>
+        p.cotizacionId === cot.id ||
+        p.id.startsWith(cot.id + "-") ||
+        (cot.numero && p.numero === cot.numero));
+
+    const idsProd = new Set(prod.map(p => p.id));
+    const dis = DB.ordenesDiseno.filter(d =>
+        idsProd.has(d.produccionId) ||
+        d.cotizacionId === cot.id ||
+        d.id.startsWith(cot.id + "-") ||
+        (cot.numero && d.numero === cot.numero));
+
+    const movs = DB.inventarioMovimientos.filter(m =>
+        m.cotizacionId === cot.id ||
+        idsProd.has(m.ordenId) ||
+        (cot.numero && m.ordenNumero && String(m.ordenNumero).includes(cot.numero)));
+
+    return { prod, dis, movs };
+}
+
+/* Nombres de cliente distintos al actual encontrados en los rastros.
+   Cada uno es evidencia de que la cotizacion fue sobrescrita. */
+function clientesDiscrepantes(cot, r) {
+    const actual = norm(cot.cliente);
+    const out = [];
+    const push = (nombre, origen, detalle) => {
+        if (!nombre) return;
+        if (norm(nombre) === actual) return;
+        out.push({ nombre, origen, detalle });
+    };
+    r.movs.forEach(m => push(m.cliente, "inventarioMovimientos", `${m.id} · ${fecha(m.fecha)}`));
+    r.prod.forEach(p => push(p.cliente, "produccion", p.id));
+    r.dis.forEach(d  => push(d.cliente,  "ordenesDiseno",  d.id));
+    return out;
+}
+
+function tablaClientesCandidatos(nombreBuscado) {
+    const n = norm(nombreBuscado);
+    const hits = DB.clientes.filter(c => {
+        const cn = norm(c.nombre);
+        return cn === n || (n && (cn.includes(n) || n.includes(cn)));
+    });
+    if (hits.length === 0) return '<p class="empty">Sin coincidencias en la coleccion clientes.</p>';
+    return `<table><tr><th>Nombre</th><th>Negocio</th><th>NIT/CC</th><th>Telefono</th>
+            <th>Ciudad</th><th>Direccion</th><th>Creado</th></tr>` +
+        hits.map(c => `<tr>
+            <td><strong>${esc(c.nombre)}</strong></td><td>${esc(c.negocio)}</td>
+            <td>${esc(c.nit)}</td><td>${esc(c.telefono)}</td><td>${esc(c.ciudad)}</td>
+            <td>${esc(c.direccion)}</td><td>${esc(fecha(c.fechaCreacion))}</td>
+        </tr>`).join("") + `</table>`;
+}
+
+document.getElementById("btnBuscar").addEventListener("click", () => {
+    const q = document.getElementById("inpNumero").value.trim().toLowerCase();
+    const cont = document.getElementById("resultado");
+    document.getElementById("auditoria").innerHTML = "";
+    if (!q) { cont.innerHTML = ""; return; }
+
+    const encontradas = DB.cotizaciones.filter(c =>
+        (c.numero || "").toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+
+    if (encontradas.length === 0) {
+        cont.innerHTML = `<div class="card"><p class="empty">No hay cotizaciones que coincidan con "${esc(q)}".</p></div>`;
+        return;
+    }
+
+    cont.innerHTML = encontradas.map(cot => {
+        const r = rastrosDe(cot);
+        const disc = clientesDiscrepantes(cot, r);
+
+        const veredicto = disc.length > 0
+            ? `<span class="tag bad">Sobrescrita</span>`
+            : `<span class="tag ok">Sin evidencia de sobrescritura</span>`;
+
+        const itemsTxt = (cot.items || [])
+            .map(i => `${esc(i.producto)} x${esc(i.cantidad)}`).join("<br>") || "-";
+
+        const btnTodo = disc.length === 0
+            ? ""
+            : `<div class="row" style="margin-bottom:14px;">
+                   <button class="ok btn-todo" data-cot="${esc(cot.id)}">Restaurar todo lo recuperable</button>
+               </div>
+               <p class="hint">Un solo clic: devuelve el cliente con sus datos de contacto,
+                  repara el bloque de pagos (recalcula el monto pagado desde los abonos, corrige
+                  si figura como abono o pago completo y reengancha el comprobante) y sincroniza
+                  las ordenes de produccion y diseno que quedaron a nombre del cliente
+                  equivocado. No toca los productos ni los precios: esos no quedaron
+                  registrados en ninguna coleccion y se llenan en la tarjeta de reconstruccion.</p>`;
+
+        const tablaDisc = disc.length === 0
+            ? '<p class="empty">Ningun rastro contradice al cliente actual.</p>'
+            : `<table><tr><th>Cliente original hallado</th><th>Coleccion</th><th>Documento</th><th></th></tr>` +
+              disc.map((d, i) => `<tr>
+                    <td><strong>${esc(d.nombre)}</strong></td>
+                    <td><code>${esc(d.origen)}</code></td>
+                    <td>${esc(d.detalle)}</td>
+                    <td><button class="ok btn-restaurar" data-cot="${esc(cot.id)}" data-nombre="${esc(d.nombre)}">Restaurar este cliente</button></td>
+              </tr>`).join("") + `</table>`;
+
+        /* Huella financiera: los pagos NO se sobrescriben al editar, porque la
+           rama de edicion no toca montoPagado, tipoPago, abonos ni comprobante.
+           Si el monto pagado no cuadra con el total actual, ese monto es el
+           total de la cotizacion original. */
+        const abonos = Array.isArray(cot.abonos) ? cot.abonos : [];
+        const pagado = Number(cot.montoPagado) || 0;
+        const totalAct = Number(cot.total) || 0;
+        const descuadre = pagado > 0 && totalAct > 0 && pagado !== totalAct;
+
+        const filasAbonos = abonos.length === 0
+            ? '<p class="empty">Sin historial de abonos.</p>'
+            : `<table><tr><th>Fecha</th><th>Monto</th><th>Metodo</th><th>Comprobante</th></tr>` +
+              abonos.map(a => `<tr><td>${esc(fecha(a.fecha))}</td>
+                    <td><strong>${esc((Number(a.monto) || 0).toLocaleString("en-US"))}</strong></td>
+                    <td>${esc(a.metodo)}</td>
+                    <td>${a.comprobante ? `<a href="${esc(a.comprobante)}" target="_blank" rel="noopener">ver imagen</a>` : "-"}</td>
+              </tr>`).join("") + `</table>`;
+
+        const avisoDescuadre = descuadre
+            ? `<div class="note">El monto pagado registrado es
+               <strong>${esc(pagado.toLocaleString("en-US"))}</strong> pero el total actual de la
+               cotizacion es <strong>${esc(totalAct.toLocaleString("en-US"))}</strong>. Ese descuadre
+               es prueba de la sobrescritura, y si el pago fue completo
+               (${esc(cot.tipoPago || "?")}) el monto pagado equivale al total de la cotizacion
+               original. Las imagenes de los comprobantes suelen mostrar el valor y a veces el
+               concepto, lo que ayuda a reconstruir los productos.</div>`
+            : "";
+
+        // Los items en produccion/diseno solo son los originales si la cascada
+        // de edicion no llego a correr. Vale la pena mirarlos igual.
+        const itemsRastro = [];
+        r.prod.forEach(p => (p.items || []).forEach(i => itemsRastro.push({
+            origen: "produccion " + p.id, ...i })));
+        r.dis.forEach(d => (d.items || []).forEach(i => itemsRastro.push({
+            origen: "diseno " + d.id, ...i })));
+
+        const filasItemsRastro = itemsRastro.length === 0
+            ? '<p class="empty">No hay items registrados en produccion ni en diseno.</p>'
+            : `<table><tr><th>Origen</th><th>Producto</th><th>Cantidad</th><th>Precio unit.</th><th>Precio total</th><th>Imagenes</th></tr>` +
+              itemsRastro.map(i => `<tr><td><code>${esc(i.origen)}</code></td>
+                    <td>${esc(i.producto)}</td><td>${esc(i.cantidad)}</td>
+                    <td>${esc(i.precioUnit)}</td><td>${esc(i.precioTotal)}</td>
+                    <td>${(i.imagenes || []).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">img</a>`).join(" ") || "-"}</td>
+              </tr>`).join("") + `</table>`;
+
+        const filasProd = r.prod.length === 0
+            ? '<p class="empty">No hay ordenes de produccion para esta cotizacion.</p>'
+            : `<table><tr><th>ID</th><th>Numero</th><th>Cliente</th><th>Negocio</th><th>Total</th><th>Paso</th></tr>` +
+              r.prod.map(p => `<tr><td><code>${esc(p.id)}</code></td><td>${esc(p.numero)}</td>
+                    <td>${esc(p.cliente)}</td><td>${esc(p.negocio)}</td>
+                    <td>${esc(p.total)}</td><td>${esc(p.pasoActual)}</td></tr>`).join("") + `</table>`;
+
+        const filasDis = r.dis.length === 0
+            ? '<p class="empty">No hay ordenes de diseno.</p>'
+            : `<table><tr><th>ID</th><th>Cliente</th><th>Telefono</th><th>Actualizada</th></tr>` +
+              r.dis.map(d => `<tr><td><code>${esc(d.id)}</code></td><td>${esc(d.cliente)}</td>
+                    <td>${esc(d.telefono)}</td><td>${esc(fecha(d.fechaActualizacion))}</td></tr>`).join("") + `</table>`;
+
+        const filasMov = r.movs.length === 0
+            ? '<p class="empty">No hay movimientos de inventario asociados.</p>'
+            : `<table><tr><th>Fecha</th><th>Cliente registrado</th><th>Orden</th><th>Carton</th><th>Pliegos</th><th>Usuario</th></tr>` +
+              r.movs.map(m => `<tr><td>${esc(fecha(m.fecha))}</td>
+                    <td><strong>${esc(m.cliente)}</strong></td><td>${esc(m.ordenNumero)}</td>
+                    <td>${esc(m.cartonTipo)} ${esc(m.cartonTamano)}</td>
+                    <td>${esc(m.pliegos)}</td><td>${esc(m.usuario)}</td></tr>`).join("") + `</table>`;
+
+        return `
+        <div class="card">
+            <h2>${esc(cot.numero)} ${veredicto} <span class="n">· <code>${esc(cot.id)}</code></span></h2>
+            <dl class="kv">
+                <dt>Cliente actual</dt><dd><strong>${esc(cot.cliente)}</strong></dd>
+                <dt>Negocio / NIT</dt><dd>${esc(cot.negocio)} / ${esc(cot.nit)}</dd>
+                <dt>Telefono</dt><dd>${esc(cot.telefono)}</dd>
+                <dt>Ciudad / Direccion</dt><dd>${esc(cot.ciudad)} / ${esc(cot.direccion)}</dd>
+                <dt>Estado</dt><dd>${esc(cot.estado)} · ${esc(cot.modalidadPago || "contado")}</dd>
+                <dt>Total</dt><dd>${esc(cot.total)}</dd>
+                <dt>Creada</dt><dd>${esc(fecha(cot.fechaCreacion))} por ${esc(cot.creadoPor)}</dd>
+                <dt>Items</dt><dd>${itemsTxt}</dd>
+            </dl>
+        </div>
+        <div class="card">
+            <h2>Evidencia de cliente original</h2>
+            <p class="hint">Los movimientos de inventario nunca se reescriben, por eso son la fuente
+               mas confiable. Produccion y diseno si se reescriben al editar la cotizacion, asi que
+               pueden mostrar ya el cliente equivocado.</p>
+            ${btnTodo}
+            ${tablaDisc}
+        </div>
+        <div class="card">
+            <h2>Huella financiera <span class="n">(los pagos no se sobrescriben al editar)</span></h2>
+            <p class="hint">La edicion de una cotizacion no toca montoPagado, tipoPago, abonos ni
+               comprobante. Por eso los pagos siguen siendo los del cliente original.</p>
+            ${avisoDescuadre}
+            <dl class="kv">
+                <dt>Monto pagado</dt><dd>${esc(pagado.toLocaleString("en-US"))} (${esc(cot.tipoPago || "-")})</dd>
+                <dt>Total actual</dt><dd>${esc(totalAct.toLocaleString("en-US"))}</dd>
+                <dt>Metodo</dt><dd>${esc(cot.metodoPago)}</dd>
+                <dt>Comprobante inicial</dt>
+                <dd>${cot.comprobante ? `<a href="${esc(cot.comprobante)}" target="_blank" rel="noopener">ver imagen</a>` : "-"}</dd>
+                <dt>Comprobante saldo</dt>
+                <dd>${cot.pagoRestanteComprobante ? `<a href="${esc(cot.pagoRestanteComprobante)}" target="_blank" rel="noopener">ver imagen</a>` : "-"}</dd>
+            </dl>
+            ${filasAbonos}
+        </div>
+        <div class="card">
+            <h2>Items registrados en produccion y diseno</h2>
+            <p class="hint">Solo son los originales si la cascada de edicion no llego a correr
+               (por ejemplo si la cotizacion nunca se envio a produccion, o si la cascada fallo).
+               Si coinciden con los del cliente equivocado, ya fueron reescritos.</p>
+            ${filasItemsRastro}
+        </div>
+        <div class="card">
+            <h2>Movimientos de inventario <span class="n">(historico, no se sobrescribe)</span></h2>
+            <p class="hint">Los pliegos y el tipo de carton consumidos permiten estimar las
+               cantidades reales que se produjeron para el cliente original.</p>
+            ${filasMov}
+        </div>
+        <div class="card">
+            <h2>Ordenes de produccion</h2>
+            ${filasProd}
+        </div>
+        <div class="card">
+            <h2>Ordenes de diseno</h2>
+            ${filasDis}
+        </div>
+        <div class="card" data-recon-id="${esc(cot.id)}"></div>
+        <div class="card">
+            <h2>Ficha en la coleccion clientes <span class="n">(no se toca al editar cotizaciones)</span></h2>
+            <p class="hint">Aqui suelen quedar los datos de contacto completos del cliente original,
+               porque la ficha se crea cuando se genera la cotizacion y la edicion no la modifica.
+               Busca por el nombre que aparezca en la evidencia de arriba.</p>
+            <div class="row">
+                <input type="text" id="inpCliente" placeholder="Nombre del cliente a buscar">
+                <button class="sec" id="btnCliente">Buscar ficha</button>
+            </div>
+            <div id="fichaCliente"></div>
+        </div>`;
+    }).join("");
+
+    const btnCli = document.getElementById("btnCliente");
+    if (btnCli) {
+        btnCli.addEventListener("click", () => {
+            const v = document.getElementById("inpCliente").value.trim();
+            document.getElementById("fichaCliente").innerHTML = tablaClientesCandidatos(v);
+        });
+    }
+
+    cont.querySelectorAll(".btn-restaurar").forEach(b => {
+        b.addEventListener("click", () => restaurar(b.dataset.cot, b.dataset.nombre));
+    });
+
+    cont.querySelectorAll(".btn-todo").forEach(b => {
+        b.addEventListener("click", () => restaurarTodo(b.dataset.cot, b));
+    });
+
+    cont.querySelectorAll("[data-recon-id]").forEach(card => {
+        const cot = DB.cotizaciones.find(c => c.id === card.dataset.reconId);
+        if (cot) montarReconstruccion(card, cot);
+    });
+});
+
+/* ---------------------------------------------------------------
+   RESTAURAR TODO LO RECUPERABLE (un clic)
+   Restaura lo que existe en algun lado: identidad del cliente,
+   coherencia del bloque de pagos y los registros derivados.
+   No inventa productos ni precios.
+   --------------------------------------------------------------- */
+async function restaurarTodo(cotId, boton) {
+    const cot = DB.cotizaciones.find(c => c.id === cotId);
+    if (!cot) { alert("No encuentro esa cotizacion en la carga actual."); return; }
+
+    const r = rastrosDe(cot);
+    const disc = clientesDiscrepantes(cot, r);
+    if (disc.length === 0) {
+        alert("No hay evidencia de otro cliente. Usa la tarjeta de reconstruccion para escribirlo a mano.");
+        return;
+    }
+
+    // Prioridad de la fuente: inventarioMovimientos nunca se reescribe, asi que
+    // manda. Luego produccion y por ultimo diseno.
+    const prioridad = { inventarioMovimientos: 0, produccion: 1, ordenesDiseno: 2 };
+    const elegido = [...disc].sort((a, b) => prioridad[a.origen] - prioridad[b.origen])[0];
+    const nombre = elegido.nombre;
+    const ficha = DB.clientes.find(c => norm(c.nombre) === norm(nombre));
+
+    // --- Bloque de pagos: se comprueba la coherencia, no se inventa nada ---
+    const abonos = Array.isArray(cot.abonos) ? cot.abonos : [];
+    const sumaAbonos = abonos.reduce((s, a) => s + (Number(a.monto) || 0), 0);
+    const pagadoActual = Number(cot.montoPagado) || 0;
+    const totalActual = Number(cot.total) || 0;
+
+    const arreglos = [];
+    const parche = { cliente: nombre };
+
+    if (ficha) {
+        parche.negocio     = ficha.negocio || "";
+        parche.nit         = ficha.nit || "";
+        parche.telefono    = ficha.telefono || "";
+        parche.direccion   = ficha.direccion || "";
+        parche.ciudad      = ficha.ciudad || "";
+        parche.tipoPersona = ficha.tipoPersona || cot.tipoPersona || "natural";
+        arreglos.push(`Datos de contacto tomados de la ficha de ${ficha.nombre}`);
+    } else {
+        arreglos.push("Sin ficha en clientes: solo se restaura el nombre");
+    }
+
+    if (sumaAbonos > 0 && sumaAbonos !== pagadoActual) {
+        parche.montoPagado = sumaAbonos;
+        arreglos.push(`Monto pagado corregido de ${pagadoActual.toLocaleString("en-US")} a ${sumaAbonos.toLocaleString("en-US")} (suma real de los abonos)`);
+    }
+
+    const pagadoFinal = parche.montoPagado !== undefined ? parche.montoPagado : pagadoActual;
+    if (totalActual > 0 && pagadoFinal > 0) {
+        const tipoCorrecto = pagadoFinal >= totalActual ? "completo" : "abono";
+        if ((cot.tipoPago || "") !== tipoCorrecto) {
+            parche.tipoPago = tipoCorrecto;
+            arreglos.push(`Tipo de pago ajustado a "${tipoCorrecto}"`);
+        }
+    }
+
+    if (!cot.comprobante) {
+        const conImagen = abonos.find(a => a && a.comprobante);
+        if (conImagen) {
+            parche.comprobante = conImagen.comprobante;
+            arreglos.push("Comprobante principal reenganchado desde el primer abono con imagen");
+        }
+    }
+
+    if (!cot.metodoPago && abonos.length > 0) {
+        const ultimo = abonos[abonos.length - 1];
+        if (ultimo && ultimo.metodo) {
+            parche.metodoPago = ultimo.metodo;
+            arreglos.push(`Metodo de pago recuperado del ultimo abono: ${ultimo.metodo}`);
+        }
+    }
+
+    const derivados = r.prod.length + r.dis.length;
+    if (derivados > 0) {
+        arreglos.push(`Se sincronizaran ${r.prod.length} orden(es) de produccion y ${r.dis.length} de diseno`);
+    }
+
+    const ok = confirm(
+        `Restaurar todo lo recuperable en ${cot.numero}?\n\n` +
+        `Cliente: "${cot.cliente}"  ->  "${nombre}"\n` +
+        `Fuente de la evidencia: ${elegido.origen}\n\n` +
+        arreglos.map(a => "  - " + a).join("\n") +
+        `\n\nLos abonos y sus imagenes no se modifican: nunca se perdieron.\n` +
+        `Los productos y precios NO se restauran, no existen en la base. ` +
+        `Quedan como estan hasta que los llenes en la tarjeta de reconstruccion.`
+    );
+    if (!ok) return;
+
+    if (boton) { boton.disabled = true; boton.textContent = "Restaurando..."; }
+    const hechos = [];
+    try {
+        const ref = doc(db, "cotizaciones", cotId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) { alert("La cotizacion ya no existe."); return; }
+        const data = snap.data();
+
+        parche.recuperacion = {
+            fecha: new Date().toISOString(),
+            clienteAnterior: data.cliente || "",
+            totalAnterior: Number(data.total) || 0,
+            itemsAnteriores: (data.items || []).map(i => `${i.producto} x${i.cantidad} @ ${i.precioUnit}`),
+            fuenteEvidencia: elegido.origen + " / " + elegido.detalle,
+            arreglos,
+            nota: "Restauracion de un clic. Productos y precios pendientes de reconstruir a mano."
+        };
+
+        const nuevo = { ...data, ...parche };
+        await setDoc(ref, nuevo);
+        hechos.push(`Cotizacion ${cot.numero} restaurada a nombre de ${nombre}`);
+
+        const i = DB.cotizaciones.findIndex(c => c.id === cotId);
+        if (i >= 0) DB.cotizaciones[i] = { id: cotId, ...nuevo };
+
+        // Sincronizar los derivados. Solo la identidad del cliente: los items de
+        // produccion se dejan como estan para no borrar avances de la orden.
+        for (const p of r.prod) {
+            const pref = doc(db, "produccion", p.id);
+            const psnap = await getDoc(pref);
+            if (!psnap.exists()) continue;
+            const pdata = psnap.data();
+            await setDoc(pref, {
+                ...pdata,
+                cliente:   nuevo.cliente,
+                negocio:   nuevo.negocio || "",
+                nit:       nuevo.nit || "",
+                telefono:  nuevo.telefono || "",
+                direccion: nuevo.direccion || "",
+                ciudad:    nuevo.ciudad || ""
+            });
+            hechos.push(`Orden de produccion ${p.id} sincronizada`);
+        }
+
+        for (const d of r.dis) {
+            const dref = doc(db, "ordenesDiseno", d.id);
+            const dsnap = await getDoc(dref);
+            if (!dsnap.exists()) continue;
+            const ddata = dsnap.data();
+            await setDoc(dref, {
+                ...ddata,
+                cliente:  nuevo.cliente,
+                telefono: nuevo.telefono || "",
+                fechaActualizacion: new Date().toISOString()
+            });
+            hechos.push(`Orden de diseno ${d.id} sincronizada`);
+        }
+
+        hechos.forEach(h => log(h));
+        alert(
+            `Listo.\n\n${hechos.map(h => "  - " + h).join("\n")}\n\n` +
+            `Pendiente: los productos, cantidades y precios siguen siendo los del cliente ` +
+            `equivocado. Llenalos en la tarjeta "Reconstruccion completa" mas abajo.`
+        );
+        document.getElementById("btnBuscar").click();
+    } catch (err) {
+        alert("Error durante la restauracion: " + err.message +
+              (hechos.length ? `\n\nAlcanzo a hacer:\n${hechos.join("\n")}` : ""));
+    } finally {
+        if (boton) { boton.disabled = false; boton.textContent = "Restaurar todo lo recuperable"; }
+    }
+}
+
+/* ---------------------------------------------------------------
+   RECONSTRUCCION COMPLETA
+   Escribe de vuelta los unicos campos que la edicion sobrescribio:
+   datos del cliente, items, subtotal, IVA y total. Todo lo demas
+   (abonos, comprobantes, estado, fechas, numero, asesor) se conserva
+   tal como esta, porque nunca se perdio.
+   --------------------------------------------------------------- */
+const IVA_RATE = 0.19;
+
+function montarReconstruccion(card, cot) {
+    // Se parte de lo que hay hoy en el documento para no escribir desde cero.
+    const estado = {
+        items: (cot.items || []).map(i => ({ ...i }))
+    };
+
+    card.innerHTML = `
+        <h2>Reconstruccion completa de ${esc(cot.numero)}</h2>
+        <p class="hint">Corrige aqui los datos del cliente y los productos. Al guardar se
+           recalculan subtotal, IVA y total, y se conservan intactos los abonos, los
+           comprobantes, el estado, el numero, la fecha de creacion y el asesor.</p>
+        <div class="row" style="margin-bottom:12px;">
+            <select class="rc-ficha"><option value="">-- traer datos de un cliente registrado --</option></select>
+            <button class="sec rc-aplicar-ficha">Aplicar ficha</button>
+        </div>
+        <div class="grid-form">
+            <label>Cliente<input type="text" class="rc-cliente"></label>
+            <label>Negocio<input type="text" class="rc-negocio"></label>
+            <label>NIT / CC<input type="text" class="rc-nit"></label>
+            <label>Telefono<input type="text" class="rc-telefono"></label>
+            <label>Direccion<input type="text" class="rc-direccion"></label>
+            <label>Ciudad<input type="text" class="rc-ciudad"></label>
+            <label>Tipo de persona
+                <select class="rc-tipopersona">
+                    <option value="natural">Natural</option>
+                    <option value="juridica">Juridica</option>
+                </select></label>
+            <label>Tipo de cotizacion
+                <select class="rc-tipo">
+                    <option value="imprenta">Imprenta</option>
+                    <option value="digital">Digital</option>
+                    <option value="ambas">Ambas</option>
+                </select></label>
+        </div>
+        <label class="rc-iva-wrap"><input type="checkbox" class="rc-iva"> Aplicar IVA del 19%</label>
+        <h2 style="margin-top:18px;">Productos</h2>
+        <table class="rc-tabla">
+            <thead><tr><th style="width:34%">Producto</th><th>Tipo</th><th>Cantidad</th>
+            <th>Precio unit.</th><th>Precio total</th><th></th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <div class="row" style="margin-top:10px;">
+            <button class="sec rc-add">Agregar producto</button>
+        </div>
+        <div class="rc-totales"></div>
+        <div class="row" style="margin-top:14px;">
+            <button class="ok rc-guardar">Guardar reconstruccion</button>
+        </div>`;
+
+    const q = sel => card.querySelector(sel);
+
+    q(".rc-cliente").value     = cot.cliente || "";
+    q(".rc-negocio").value     = cot.negocio || "";
+    q(".rc-nit").value         = cot.nit || "";
+    q(".rc-telefono").value    = cot.telefono || "";
+    q(".rc-direccion").value   = cot.direccion || "";
+    q(".rc-ciudad").value      = cot.ciudad || "";
+    q(".rc-tipopersona").value = cot.tipoPersona || "natural";
+    q(".rc-tipo").value        = cot.tipo || "imprenta";
+    q(".rc-iva").checked       = !!cot.aplicarIva;
+
+    // Selector de fichas de clientes, ordenado por nombre
+    const sel = q(".rc-ficha");
+    [...DB.clientes].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""))
+        .forEach(c => {
+            const o = document.createElement("option");
+            o.value = c.id;
+            o.textContent = c.nombre + (c.negocio ? ` · ${c.negocio}` : "");
+            sel.appendChild(o);
+        });
+
+    q(".rc-aplicar-ficha").addEventListener("click", () => {
+        const ficha = DB.clientes.find(c => c.id === sel.value);
+        if (!ficha) { alert("Elige un cliente de la lista."); return; }
+        q(".rc-cliente").value     = ficha.nombre || "";
+        q(".rc-negocio").value     = ficha.negocio || "";
+        q(".rc-nit").value         = ficha.nit || "";
+        q(".rc-telefono").value    = ficha.telefono || "";
+        q(".rc-direccion").value   = ficha.direccion || "";
+        q(".rc-ciudad").value      = ficha.ciudad || "";
+        q(".rc-tipopersona").value = ficha.tipoPersona || "natural";
+    });
+
+    function totales() {
+        const subtotal = estado.items.reduce(
+            (s, i) => s + (Number(i.cantidad) || 0) * (Number(i.precioUnit) || 0), 0);
+        const iva = q(".rc-iva").checked ? Math.round(subtotal * IVA_RATE) : 0;
+        return { subtotal, iva, total: subtotal + iva };
+    }
+
+    function pintarTotales() {
+        const t = totales();
+        const pagado = Number(cot.montoPagado) || 0;
+        const saldo = t.total - pagado;
+        q(".rc-totales").innerHTML = `
+            <dl class="kv" style="margin-top:14px;">
+                <dt>Subtotal</dt><dd>${t.subtotal.toLocaleString("en-US")}</dd>
+                <dt>IVA</dt><dd>${t.iva.toLocaleString("en-US")}</dd>
+                <dt>Total</dt><dd><strong>${t.total.toLocaleString("en-US")}</strong></dd>
+                <dt>Ya abonado</dt><dd>${pagado.toLocaleString("en-US")}</dd>
+                <dt>Saldo resultante</dt>
+                <dd class="${saldo < 0 ? "rc-neg" : ""}">${saldo.toLocaleString("en-US")}${saldo < 0 ? " (el total quedaria por debajo de lo ya pagado, revisa las cifras)" : ""}</dd>
+            </dl>`;
+    }
+
+    function pintarItems() {
+        const tb = q(".rc-tabla tbody");
+        tb.innerHTML = "";
+        estado.items.forEach((it, idx) => {
+            const tr = document.createElement("tr");
+            const totalFila = (Number(it.cantidad) || 0) * (Number(it.precioUnit) || 0);
+            tr.innerHTML = `
+                <td><input type="text" class="rc-i-prod" value="${esc(it.producto)}"></td>
+                <td><select class="rc-i-tipo">
+                        <option value="imprenta">Imprenta</option>
+                        <option value="digital">Digital</option>
+                    </select></td>
+                <td><input type="text" class="rc-i-cant" value="${esc(it.cantidad)}" style="width:90px"></td>
+                <td><input type="text" class="rc-i-pu" value="${esc(it.precioUnit)}" style="width:110px"></td>
+                <td class="rc-i-total">${totalFila.toLocaleString("en-US")}</td>
+                <td><button class="sec rc-i-del">Quitar</button></td>`;
+            tr.querySelector(".rc-i-tipo").value = it.tipo || q(".rc-tipo").value || "imprenta";
+
+            tr.querySelector(".rc-i-prod").addEventListener("input", e => {
+                estado.items[idx].producto = e.target.value;
+            });
+            tr.querySelector(".rc-i-tipo").addEventListener("change", e => {
+                estado.items[idx].tipo = e.target.value;
+            });
+            const recalc = () => { pintarItems(); pintarTotales(); };
+            tr.querySelector(".rc-i-cant").addEventListener("change", e => {
+                estado.items[idx].cantidad = parseInt(String(e.target.value).replace(/\D/g, "")) || 0;
+                recalc();
+            });
+            tr.querySelector(".rc-i-pu").addEventListener("change", e => {
+                estado.items[idx].precioUnit = parseInt(String(e.target.value).replace(/\D/g, "")) || 0;
+                recalc();
+            });
+            tr.querySelector(".rc-i-del").addEventListener("click", () => {
+                estado.items.splice(idx, 1);
+                recalc();
+            });
+            tb.appendChild(tr);
+        });
+        if (estado.items.length === 0) {
+            tb.innerHTML = '<tr><td colspan="6" class="empty">Sin productos. Agrega al menos uno.</td></tr>';
+        }
+    }
+
+    q(".rc-add").addEventListener("click", () => {
+        estado.items.push({
+            producto: "", tipo: q(".rc-tipo").value === "digital" ? "digital" : "imprenta",
+            cantidad: 1, precioUnit: 0,
+            terminados: [], colores: [], materiales: [], planchas: []
+        });
+        pintarItems();
+        pintarTotales();
+    });
+
+    q(".rc-iva").addEventListener("change", pintarTotales);
+
+    q(".rc-guardar").addEventListener("click", async () => {
+        const cliente = q(".rc-cliente").value.trim();
+        if (!cliente) { alert("El nombre del cliente es obligatorio."); return; }
+        if (estado.items.length === 0) { alert("Agrega al menos un producto."); return; }
+        if (estado.items.some(i => !String(i.producto || "").trim())) {
+            alert("Hay productos sin nombre."); return;
+        }
+
+        const t = totales();
+        const resumen = estado.items
+            .map(i => `  ${i.producto} x${i.cantidad} @ ${(Number(i.precioUnit) || 0).toLocaleString("en-US")}`)
+            .join("\n");
+
+        const ok = confirm(
+            `Reconstruir ${cot.numero}?\n\n` +
+            `Cliente: ${cliente}\n${resumen}\n\n` +
+            `Subtotal ${t.subtotal.toLocaleString("en-US")} · IVA ${t.iva.toLocaleString("en-US")} · Total ${t.total.toLocaleString("en-US")}\n\n` +
+            `Se conservan los abonos, comprobantes, estado, numero, fecha y asesor.`
+        );
+        if (!ok) return;
+
+        const btn = q(".rc-guardar");
+        btn.disabled = true;
+        btn.textContent = "Guardando...";
+        try {
+            const ref = doc(db, "cotizaciones", cot.id);
+            const snap = await getDoc(ref);
+            if (!snap.exists()) { alert("La cotizacion ya no existe."); return; }
+            const data = snap.data();
+
+            const items = estado.items.map((i, idx) => ({
+                ...i,
+                id: idx + 1,
+                producto: String(i.producto).trim(),
+                cantidad: Number(i.cantidad) || 0,
+                precioUnit: Number(i.precioUnit) || 0,
+                precioTotal: (Number(i.cantidad) || 0) * (Number(i.precioUnit) || 0),
+                tipo: i.tipo || "imprenta",
+                terminados: i.terminados || [],
+                colores: i.colores || [],
+                materiales: i.materiales || [],
+                planchas: i.planchas || []
+            }));
+
+            const nuevo = {
+                ...data,
+                cliente,
+                tipoPersona: q(".rc-tipopersona").value,
+                negocio:   q(".rc-negocio").value.trim(),
+                nit:       q(".rc-nit").value.trim(),
+                telefono:  q(".rc-telefono").value.trim(),
+                direccion: q(".rc-direccion").value.trim(),
+                ciudad:    q(".rc-ciudad").value.trim(),
+                tipo:      q(".rc-tipo").value,
+                items,
+                subtotal:  t.subtotal,
+                aplicarIva: q(".rc-iva").checked,
+                iva:       t.iva,
+                total:     t.total,
+                recuperacion: {
+                    fecha: new Date().toISOString(),
+                    clienteAnterior: data.cliente || "",
+                    totalAnterior: Number(data.total) || 0,
+                    itemsAnteriores: (data.items || []).map(i => `${i.producto} x${i.cantidad} @ ${i.precioUnit}`),
+                    nota: "Reconstruccion manual tras la sobrescritura por el bug de editId."
+                }
+            };
+
+            await setDoc(ref, nuevo);
+            const i = DB.cotizaciones.findIndex(c => c.id === cot.id);
+            if (i >= 0) DB.cotizaciones[i] = { id: cot.id, ...nuevo };
+            log(`Reconstruida ${cot.numero}: cliente "${data.cliente}" -> "${cliente}", total ${data.total} -> ${t.total}`);
+            alert(`${cot.numero} quedo reconstruida a nombre de ${cliente}.\n\nSi ya estaba en produccion, revisa la orden: sus datos se sincronizan cuando edites la cotizacion desde el dashboard.`);
+        } catch (err) {
+            alert("Error al guardar: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Guardar reconstruccion";
+        }
+    });
+
+    pintarItems();
+    pintarTotales();
+}
+
+/* Restaura la cabecera del cliente en la cotizacion. Solo toca los campos de
+   identidad del cliente: no inventa items ni precios, porque esos no se pueden
+   deducir de los rastros. */
+async function restaurar(cotId, nombre) {
+    const ficha = DB.clientes.find(c => norm(c.nombre) === norm(nombre));
+    const detalle = ficha
+        ? `Se usaran los datos de la ficha de clientes:\n  negocio: ${ficha.negocio || "-"}\n  NIT/CC: ${ficha.nit || "-"}\n  telefono: ${ficha.telefono || "-"}\n  ciudad: ${ficha.ciudad || "-"}`
+        : "No hay ficha en clientes: solo se restaurara el nombre.";
+
+    const ok = confirm(
+        `Restaurar el cliente "${nombre}" en la cotizacion ${cotId}?\n\n${detalle}\n\n` +
+        `OJO: los productos, cantidades y precios NO se restauran, porque esa ` +
+        `informacion no quedo registrada en ninguna otra coleccion. Debes revisarlos a mano.`
+    );
+    if (!ok) return;
+
+    try {
+        const ref = doc(db, "cotizaciones", cotId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) { alert("La cotizacion ya no existe."); return; }
+        const data = snap.data();
+
+        const parche = { cliente: nombre };
+        if (ficha) {
+            parche.negocio     = ficha.negocio || "";
+            parche.nit         = ficha.nit || "";
+            parche.telefono    = ficha.telefono || "";
+            parche.direccion   = ficha.direccion || "";
+            parche.ciudad      = ficha.ciudad || "";
+            parche.tipoPersona = ficha.tipoPersona || data.tipoPersona || "natural";
+        }
+        // Se deja constancia de la intervencion para no perder el rastro otra vez.
+        parche.recuperacion = {
+            fecha: new Date().toISOString(),
+            clienteAnterior: data.cliente || "",
+            origen: ficha ? "clientes + rastros" : "rastros",
+            nota: "Cliente restaurado tras sobrescritura por el bug de editId. Verificar items y precios."
+        };
+
+        await setDoc(ref, { ...data, ...parche });
+        alert(`Listo. La cotizacion ${cotId} vuelve a estar a nombre de "${nombre}".\n\nRevisa los productos y precios manualmente.`);
+        log(`Restaurado ${cotId}: "${data.cliente}" -> "${nombre}"`);
+        const i = DB.cotizaciones.findIndex(c => c.id === cotId);
+        if (i >= 0) DB.cotizaciones[i] = { id: cotId, ...data, ...parche };
+    } catch (err) {
+        alert("Error al restaurar: " + err.message);
+    }
+}
+
+/* Auditoria global: busca toda cotizacion cuyos rastros apunten a otro cliente,
+   y clientes que no aparecen en ninguna cotizacion (posibles victimas). */
+document.getElementById("btnAuditar").addEventListener("click", () => {
+    document.getElementById("resultado").innerHTML = "";
+    const cont = document.getElementById("auditoria");
+
+    const sospechosas = [];
+    DB.cotizaciones.forEach(cot => {
+        const r = rastrosDe(cot);
+        const disc = clientesDiscrepantes(cot, r);
+        if (disc.length > 0) sospechosas.push({ cot, disc });
+    });
+
+    const usados = new Set(DB.cotizaciones.map(c => norm(c.cliente)));
+    const huerfanos = DB.clientes.filter(c => !usados.has(norm(c.nombre)));
+
+    const t1 = sospechosas.length === 0
+        ? '<p class="empty">Ninguna cotizacion contradice a sus rastros.</p>'
+        : `<table><tr><th>Numero</th><th>Cliente actual</th><th>Cliente en los rastros</th><th>Creada</th><th></th></tr>` +
+          sospechosas.map(s => `<tr>
+                <td><strong>${esc(s.cot.numero)}</strong></td>
+                <td>${esc(s.cot.cliente)}</td>
+                <td>${esc([...new Set(s.disc.map(d => d.nombre))].join(", "))}</td>
+                <td>${esc(fecha(s.cot.fechaCreacion))}</td>
+                <td><button class="sec btn-ver" data-num="${esc(s.cot.numero)}">Ver detalle</button></td>
+          </tr>`).join("") + `</table>`;
+
+    const t2 = huerfanos.length === 0
+        ? '<p class="empty">Todos los clientes registrados tienen al menos una cotizacion a su nombre.</p>'
+        : `<table><tr><th>Cliente</th><th>Negocio</th><th>NIT/CC</th><th>Telefono</th><th>Cotizaciones contadas</th><th>Ficha creada</th></tr>` +
+          huerfanos.map(c => `<tr><td><strong>${esc(c.nombre)}</strong></td>
+                <td>${esc(c.negocio)}</td><td>${esc(c.nit)}</td><td>${esc(c.telefono)}</td>
+                <td>${esc(c.cotizaciones || 0)}</td><td>${esc(fecha(c.fechaCreacion))}</td></tr>`).join("") + `</table>`;
+
+    cont.innerHTML = `
+    <div class="card">
+        <h2>Cotizaciones con cliente sobrescrito <span class="n">(${sospechosas.length})</span></h2>
+        <p class="hint">El cliente guardado en la cotizacion no coincide con el que quedo
+           registrado en produccion, diseno o movimientos de inventario.</p>
+        ${t1}
+    </div>
+    <div class="card">
+        <h2>Clientes sin ninguna cotizacion a su nombre <span class="n">(${huerfanos.length})</span></h2>
+        <p class="hint">La ficha del cliente se crea justo al generar su cotizacion. Si un cliente
+           tiene ficha y contador de cotizaciones pero ninguna cotizacion lo menciona, es muy
+           probable que la suya fuera sobrescrita. Aqui deberian aparecer los casos perdidos.</p>
+        ${t2}
+    </div>`;
+
+    cont.querySelectorAll(".btn-ver").forEach(b => {
+        b.addEventListener("click", () => {
+            document.getElementById("inpNumero").value = b.dataset.num;
+            document.getElementById("btnBuscar").click();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+    });
+});
+</script>
+</body>
+</html>
