@@ -792,6 +792,32 @@
                     </div>
                 </div>
 
+                <!-- Ingresos por tipo de persona -->
+                <div class="finanzas-section-grid" style="margin-top:16px;">
+                    <div class="finanzas-servicio-card">
+                        <div class="finanzas-servicio-header">
+                            <div class="finanzas-servicio-icon imprenta"><i class="bi bi-person"></i></div>
+                            <div class="finanzas-servicio-titulo">
+                                <span class="finanzas-servicio-name">Natural</span>
+                                <span class="finanzas-servicio-count" id="finanzasNaturalCount">0 cotizaciones</span>
+                            </div>
+                            <span class="finanzas-servicio-total" id="finanzasNaturalTotal">$0</span>
+                        </div>
+                        <div class="finanzas-servicio-detalle" id="finanzasNaturalDetalle"></div>
+                    </div>
+                    <div class="finanzas-servicio-card">
+                        <div class="finanzas-servicio-header">
+                            <div class="finanzas-servicio-icon digital"><i class="bi bi-briefcase"></i></div>
+                            <div class="finanzas-servicio-titulo">
+                                <span class="finanzas-servicio-name">Jurídico</span>
+                                <span class="finanzas-servicio-count" id="finanzasJuridicaCount">0 cotizaciones</span>
+                            </div>
+                            <span class="finanzas-servicio-total" id="finanzasJuridicaTotal">$0</span>
+                        </div>
+                        <div class="finanzas-servicio-detalle" id="finanzasJuridicaDetalle"></div>
+                    </div>
+                </div>
+
                 <!-- Detalle de pagos -->
                 <div class="card" style="margin-top:16px;">
                     <div class="card-header">
@@ -1423,7 +1449,7 @@
                             <button class="btn-back" id="pdiaDiaSiguiente" title="Dia siguiente"><i class="bi bi-chevron-right"></i></button>
                             <button class="btn-back" id="pdiaHoy">Hoy</button>
                         </div>
-                        <button class="btn-primary" id="pdiaBtnAgregar" data-role="administrador">
+                        <button class="btn-primary" id="pdiaBtnAgregar" data-role="administrador,ventas">
                             <i class="bi bi-plus-lg"></i> Programar ordenes
                         </button>
                     </div>

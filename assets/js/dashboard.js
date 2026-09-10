@@ -4771,6 +4771,10 @@ function renderFinanzas(cotizaciones) {
     let totalDigital = 0;
     let countImprenta = 0;
     let countDigital = 0;
+    let totalNatural = 0;
+    let totalJuridica = 0;
+    let countNatural = 0;
+    let countJuridica = 0;
     const productoIngresos = {};
 
     cotizaciones.forEach(cot => {
@@ -4801,6 +4805,16 @@ function renderFinanzas(cotizaciones) {
             countDigital++;
         }
 
+        // Por tipo de persona (natural = sin IVA, jurídica = con IVA)
+        const tipoPersona = cot.tipoPersona === "juridica" ? "juridica" : "natural";
+        if (tipoPersona === "juridica") {
+            totalJuridica += total;
+            countJuridica++;
+        } else {
+            totalNatural += total;
+            countNatural++;
+        }
+
         // Por producto
         (cot.items || []).forEach(item => {
             const nombre = item.producto || "Sin nombre";
@@ -4825,9 +4839,19 @@ function renderFinanzas(cotizaciones) {
     document.getElementById("finanzasDigitalTotal").textContent = fmtMoney(totalDigital);
     document.getElementById("finanzasDigitalCount").textContent = countDigital + " cotizaciones";
 
+    // Por tipo de persona
+    document.getElementById("finanzasNaturalTotal").textContent = fmtMoney(totalNatural);
+    document.getElementById("finanzasNaturalCount").textContent = countNatural + " cotizaciones";
+    document.getElementById("finanzasJuridicaTotal").textContent = fmtMoney(totalJuridica);
+    document.getElementById("finanzasJuridicaCount").textContent = countJuridica + " cotizaciones";
+
     // Detalle por servicio - top productos imprenta
     renderDetalleServicio("finanzasImprentaDetalle", cotizaciones.filter(c => c.tipo === "imprenta" || c.tipo === "ambas"), "imprenta");
     renderDetalleServicio("finanzasDigitalDetalle", cotizaciones.filter(c => c.tipo === "digital" || c.tipo === "ambas"), "digital");
+
+    // Detalle por tipo de persona - top clientes
+    renderDetalleTipoPersona("finanzasNaturalDetalle", cotizaciones.filter(c => c.tipoPersona !== "juridica"));
+    renderDetalleTipoPersona("finanzasJuridicaDetalle", cotizaciones.filter(c => c.tipoPersona === "juridica"));
 
     // Tabla de pagos
     renderTablaFinanzas(cotizaciones);
@@ -4852,6 +4876,41 @@ function renderDetalleServicio(containerId, cotizaciones, tipo) {
     });
 
     const sorted = Object.entries(productoMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    if (sorted.length === 0) {
+        container.innerHTML = '<span class="finanzas-no-data">Sin datos</span>';
+        return;
+    }
+
+    const maxVal = sorted[0][1];
+    container.innerHTML = sorted.map(([nombre, total]) => {
+        const pct = maxVal > 0 ? Math.round((total / maxVal) * 100) : 0;
+        return `
+            <div class="finanzas-bar-item">
+                <div class="finanzas-bar-label">
+                    <span>${nombre}</span>
+                    <span>$${total.toLocaleString("en-US")}</span>
+                </div>
+                <div class="finanzas-bar-track">
+                    <div class="finanzas-bar-fill" style="width:${pct}%"></div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function renderDetalleTipoPersona(containerId, cotizaciones) {
+    const container = document.getElementById(containerId);
+    const clienteMap = {};
+
+    cotizaciones.forEach(cot => {
+        const nombre = cot.cliente || "Sin nombre";
+        const total = parseInt(cot.total) || 0;
+        if (!clienteMap[nombre]) clienteMap[nombre] = 0;
+        clienteMap[nombre] += total;
+    });
+
+    const sorted = Object.entries(clienteMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
     if (sorted.length === 0) {
         container.innerHTML = '<span class="finanzas-no-data">Sin datos</span>';
