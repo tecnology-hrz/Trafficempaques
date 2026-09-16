@@ -837,7 +837,14 @@ function setupCotizador() {
         openTempProductoModal();
     });
 
+    // Guarda contra doble clic. Sin esto, cada clic extra mientras corren los
+    // awaits vuelve a ejecutar todo el handler, y crearCotizacion arma un ID
+    // nuevo con Date.now(): nunca sobrescribe, siempre duplica.
+    let guardandoCotizacion = false;
+
     btnGuardar.addEventListener("click", async () => {
+        if (guardandoCotizacion) return;
+
         const cliente  = document.getElementById("cotCliente").value.trim();
         const tipoPersona = document.getElementById("cotTipoPersona").value || "natural";
         const nit      = document.getElementById("cotNit").value.trim();
@@ -878,58 +885,83 @@ function setupCotizador() {
         const iva = aplicarIva ? Math.round(subtotal * IVA_RATE) : 0;
         const total = subtotal + iva;
 
-        if (editId) {
-            // Editar: actualizar sin cambiar el ID ni el link
-            const ref = doc(db, "cotizaciones", editId);
-            const snap = await getDoc(ref);
-            if (!snap.exists()) {
-                // Referencia colgada: mejor avisar que escribir un documento
-                // nuevo con un ID que ya no corresponde a nada.
-                salirModoEdicionCotizacion();
-                showNotif("Cotizacion no encontrada", "La cotizacion que intentabas editar ya no existe. Vuelve a abrirla desde la lista.");
-                return;
-            }
-            const existing = snap.data();
-            // Red de seguridad: si el numero del documento no es el que se
-            // abrio para editar, algo quedo desincronizado. Se aborta antes de
-            // sobrescribir la cotizacion de otro cliente.
-            const numeroEsperado = btnGuardar.dataset.editNumero || "";
-            if (numeroEsperado && (existing.numero || "") !== numeroEsperado) {
-                salirModoEdicionCotizacion();
-                showNotif("Operacion cancelada", `Se iba a sobrescribir la cotizacion ${existing.numero || "(sin numero)"} en vez de ${numeroEsperado}. No se guardo nada; vuelve a abrir la cotizacion desde la lista.`);
-                return;
-            }
-            const notas = document.getElementById("cotNotas").value.trim();
-            const cotActualizada = { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas };
-            await setDoc(ref, cotActualizada);
-            // Cascada: propagar cambios a produccion y ordenes de diseño existentes
-            try {
-                await actualizarCascadaCotizacion(editId, cotActualizada);
-            } catch (errCascada) {
-                console.error("Error al actualizar en cascada:", errCascada);
-            }
-            salirModoEdicionCotizacion();
-            // Mostrar link para re-enviar al cliente
-            const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
-            const link = baseUrl + "cotizacion.html?id=" + editId;
-            showLinkModal("Cotizacion actualizada", "Comparte este link actualizado con el cliente:", link);
-            // Refrescar ordenes/diseños para reflejar la cascada
-            cargarOrdenes(rol);
-            cargarDisenosAprobados(rol);
-        } else {
-            // Crear nueva
-            const notas = document.getElementById("cotNotas").value.trim();
-            const result = await crearCotizacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
-            // Guardar cliente en base de datos
-            await guardarClienteDesdeCotzacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad });
-            const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
-            const link = baseUrl + "cotizacion.html?id=" + result.id;
-            showLinkModal("Cotizacion " + result.numero + " creada", "Comparte este link con el cliente:", link);
-        }
+        // A partir de aca empiezan las escrituras. Se bloquea el boton antes
+        // del primer await y se libera siempre en el finally.
+        guardandoCotizacion = true;
+        btnGuardar.disabled = true;
+        const textoBoton = btnGuardar.innerHTML;
+        btnGuardar.innerHTML = '<i class="bi bi-hourglass-split"></i> Guardando...';
 
-        document.getElementById("cotizadorForm").style.display  = "none";
-        document.getElementById("cotizadorLista").style.display = "block";
-        cargarListaCotizaciones();
+        try {
+            if (editId) {
+                // Editar: actualizar sin cambiar el ID ni el link
+                const ref = doc(db, "cotizaciones", editId);
+                const snap = await getDoc(ref);
+                if (!snap.exists()) {
+                    // Referencia colgada: mejor avisar que escribir un documento
+                    // nuevo con un ID que ya no corresponde a nada.
+                    salirModoEdicionCotizacion();
+                    showNotif("Cotizacion no encontrada", "La cotizacion que intentabas editar ya no existe. Vuelve a abrirla desde la lista.");
+                    return;
+                }
+                const existing = snap.data();
+                // Red de seguridad: si el numero del documento no es el que se
+                // abrio para editar, algo quedo desincronizado. Se aborta antes de
+                // sobrescribir la cotizacion de otro cliente.
+                const numeroEsperado = btnGuardar.dataset.editNumero || "";
+                if (numeroEsperado && (existing.numero || "") !== numeroEsperado) {
+                    salirModoEdicionCotizacion();
+                    showNotif("Operacion cancelada", `Se iba a sobrescribir la cotizacion ${existing.numero || "(sin numero)"} en vez de ${numeroEsperado}. No se guardo nada; vuelve a abrir la cotizacion desde la lista.`);
+                    return;
+                }
+                const notas = document.getElementById("cotNotas").value.trim();
+                const cotActualizada = { ...existing, cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas };
+                await setDoc(ref, cotActualizada);
+                // Cascada: propagar cambios a produccion y ordenes de diseño existentes
+                try {
+                    await actualizarCascadaCotizacion(editId, cotActualizada);
+                } catch (errCascada) {
+                    console.error("Error al actualizar en cascada:", errCascada);
+                }
+                salirModoEdicionCotizacion();
+                // Mostrar link para re-enviar al cliente
+                const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+                const link = baseUrl + "cotizacion.html?id=" + editId;
+                showLinkModal("Cotizacion actualizada", "Comparte este link actualizado con el cliente:", link);
+                // Refrescar ordenes/diseños para reflejar la cascada
+                cargarOrdenes(rol);
+                cargarDisenosAprobados(rol);
+            } else {
+                // Crear nueva
+                const notas = document.getElementById("cotNotas").value.trim();
+                const result = await crearCotizacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad, tipo, items, subtotal, aplicarIva, iva, total, fechaActual, fechaEntrega, modalidadPago, notas, creadoPor: sessionStorage.getItem("userName") || "", creadoPorEmail: sessionStorage.getItem("userEmail") || "" });
+                // Guardar cliente en base de datos. Si falla, la cotizacion ya
+                // quedo guardada: no se reintenta el crearCotizacion.
+                try {
+                    await guardarClienteDesdeCotzacion({ cliente, tipoPersona, nit, negocio, telefono, direccion, ciudad });
+                } catch (errCliente) {
+                    console.error("Error al guardar el cliente de la cotizacion:", errCliente);
+                }
+                const baseUrl = window.location.origin + window.location.pathname.replace("dashboard.html", "");
+                const link = baseUrl + "cotizacion.html?id=" + result.id;
+                showLinkModal("Cotizacion " + result.numero + " creada", "Comparte este link con el cliente:", link);
+            }
+
+            document.getElementById("cotizadorForm").style.display  = "none";
+            document.getElementById("cotizadorLista").style.display = "block";
+            cargarListaCotizaciones();
+        } catch (err) {
+            console.error("Error al guardar la cotizacion:", err);
+            showNotif("No se pudo guardar", "Ocurrio un error al guardar la cotizacion. Revisa tu conexion e intenta de nuevo.");
+        } finally {
+            guardandoCotizacion = false;
+            btnGuardar.disabled = false;
+            // salirModoEdicionCotizacion ya deja el boton en modo "crear".
+            // Solo se restaura el texto si nadie mas lo cambio.
+            if (btnGuardar.innerHTML.includes("hourglass")) {
+                btnGuardar.innerHTML = textoBoton;
+            }
+        }
     });
 }
 
