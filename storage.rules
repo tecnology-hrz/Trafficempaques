@@ -14,6 +14,16 @@ service firebase.storage {
                    || request.resource.size < 20 * 1024 * 1024;
     }
 
+    // Respaldo de ImgBB (assets/js/subir-imagen.js): si ImgBB falla, las
+    // imagenes se suben a estas carpetas. Solo imagenes de hasta 10 MB.
+    match /{carpeta}/{archivo} {
+      allow read: if carpeta in ['comprobantes', 'disenos', 'catalogo', 'landing', 'entregas'];
+      allow write: if carpeta in ['comprobantes', 'disenos', 'catalogo', 'landing', 'entregas']
+                   && (request.resource == null
+                       || (request.resource.size < 10 * 1024 * 1024
+                           && request.resource.contentType.matches('image/.*')));
+    }
+
     // Bloquear todo lo demas por defecto.
     match /{allPaths=**} {
       allow read, write: if false;

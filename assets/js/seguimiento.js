@@ -1,4 +1,5 @@
 import { db, doc, getDoc, setDoc } from "./auth.js";
+import { subirImagen } from "./subir-imagen.js";
 import { validarComprobante, mostrarAlertaComprobante } from "./comprobante-validador.js";
 
 const params = new URLSearchParams(window.location.search);
@@ -526,26 +527,11 @@ function setupPagoRestante(orden, saldoRestante) {
         btnUpload.innerHTML = '<span class="spinner-seg"></span> Subiendo...';
 
         try {
-            const formData = new FormData();
-            formData.append("image", file);
-
-            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
-                method: "POST",
-                body: formData
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                comprobanteRestanteUrl = data.data.url;
-                preview.innerHTML = `<img src="${comprobanteRestanteUrl}" alt="Comprobante" />`;
-                btnUpload.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar comprobante';
-                btnUpload.disabled = false;
-                validarPagoRestante();
-            } else {
-                btnUpload.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Subir comprobante';
-                btnUpload.disabled = false;
-                alert("Error al subir la imagen. Intenta de nuevo.");
-            }
+            comprobanteRestanteUrl = await subirImagen(file, "comprobantes", IMGBB_KEY);
+            preview.innerHTML = `<img src="${comprobanteRestanteUrl}" alt="Comprobante" />`;
+            btnUpload.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar comprobante';
+            btnUpload.disabled = false;
+            validarPagoRestante();
         } catch (err) {
             console.error(err);
             btnUpload.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Subir comprobante';

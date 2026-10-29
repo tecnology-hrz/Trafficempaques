@@ -150,6 +150,7 @@
 
     <script type="module">
         import { db, doc, getDoc, setDoc } from "./assets/js/auth.js";
+        import { subirImagen } from "./assets/js/subir-imagen.js";
 
         const params = new URLSearchParams(window.location.search);
         const ordenId = params.get("id");
@@ -545,21 +546,8 @@
                 btnEnviar.innerHTML = '<span class="spinner"></span> Subiendo imagen...';
 
                 try {
-                    // Subir a IMGBB
-                    const formData = new FormData();
-                    formData.append("image", archivoEvidencia);
-
-                    const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
-                        method: "POST",
-                        body: formData
-                    });
-                    const data = await res.json();
-
-                    if (!data.success) {
-                        throw new Error("Error al subir imagen");
-                    }
-
-                    const imageUrl = data.data.url;
+                    // Subir a ImgBB (respaldo: Firebase Storage)
+                    const imageUrl = await subirImagen(archivoEvidencia, "entregas", IMGBB_KEY);
 
                     // Guardar en Firestore
                     btnEnviar.innerHTML = '<span class="spinner"></span> Guardando...';

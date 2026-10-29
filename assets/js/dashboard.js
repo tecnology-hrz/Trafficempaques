@@ -1,5 +1,6 @@
 ﻿import { db, collection, getDocs, doc, setDoc, getDoc, deleteDoc, storage, storageRef, uploadBytes, getDownloadURL, listAll, getMetadata, deleteObject } from "./auth.js";
 import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { subirImagen } from "./subir-imagen.js";
 import {
     cargarCatalogos, crearCotizacion, obtenerCotizaciones, eliminarCotizacion,
     obtenerCotizacionesEliminadas, restaurarCotizacion, eliminarCotizacionDefinitivo,
@@ -3158,39 +3159,25 @@ async function subirImagenesDiseno(e, productoIdx) {
         container.appendChild(placeholder);
 
         try {
-            const formData = new FormData();
-            formData.append("image", file);
+            const url = await subirImagen(file, "disenos", IMGBB_KEY);
+            placeholder.classList.remove("uploading");
+            placeholder.innerHTML = `
+                <img src="${url}" alt="Diseño" class="diseno-thumb" data-url="${url}">
+                <button class="diseno-img-remove" data-url="${url}" data-idx="${productoIdx}">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
 
-            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
-                method: "POST",
-                body: formData
+            // Click para ver grande
+            placeholder.querySelector(".diseno-thumb").addEventListener("click", () => {
+                document.getElementById("imgModalDashImg").src = url;
+                document.getElementById("imgModalDash").classList.add("show");
             });
-            const data = await res.json();
 
-            if (data.success) {
-                const url = data.data.url;
-                placeholder.classList.remove("uploading");
-                placeholder.innerHTML = `
-                    <img src="${url}" alt="Diseño" class="diseno-thumb" data-url="${url}">
-                    <button class="diseno-img-remove" data-url="${url}" data-idx="${productoIdx}">
-                        <i class="bi bi-x"></i>
-                    </button>
-                `;
-
-                // Click para ver grande
-                placeholder.querySelector(".diseno-thumb").addEventListener("click", () => {
-                    document.getElementById("imgModalDashImg").src = url;
-                    document.getElementById("imgModalDash").classList.add("show");
-                });
-
-                // Eliminar
-                placeholder.querySelector(".diseno-img-remove").addEventListener("click", () => {
-                    placeholder.remove();
-                });
-            } else {
-                placeholder.innerHTML = `<div class="diseno-img-error"><i class="bi bi-exclamation-triangle"></i> Error</div>`;
-                setTimeout(() => placeholder.remove(), 2000);
-            }
+            // Eliminar
+            placeholder.querySelector(".diseno-img-remove").addEventListener("click", () => {
+                placeholder.remove();
+            });
         } catch (err) {
             console.error(err);
             placeholder.innerHTML = `<div class="diseno-img-error"><i class="bi bi-exclamation-triangle"></i> Error</div>`;
@@ -3758,19 +3745,8 @@ function configurarRegistroPago(cot) {
         preview.innerHTML = '<span class="registro-status"><i class="bi bi-arrow-repeat"></i> Subiendo...</span>';
         btnUpload.disabled = true;
         try {
-            const formData = new FormData();
-            formData.append("image", file);
-            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
-                method: "POST",
-                body: formData
-            });
-            const data = await res.json();
-            if (data.success) {
-                comprobanteUrl = data.data.url;
-                preview.innerHTML = `<img src="${comprobanteUrl}" class="registro-comp-img" alt="Comprobante"><span class="registro-comp-nombre">${file.name}</span>`;
-            } else {
-                preview.innerHTML = '<span class="registro-status registro-error">No se pudo subir. Intenta de nuevo.</span>';
-            }
+            comprobanteUrl = await subirImagen(file, "comprobantes", IMGBB_KEY);
+            preview.innerHTML = `<img src="${comprobanteUrl}" class="registro-comp-img" alt="Comprobante"><span class="registro-comp-nombre">${file.name}</span>`;
         } catch (err) {
             console.error(err);
             preview.innerHTML = '<span class="registro-status registro-error">Error al subir el comprobante.</span>';
@@ -6180,18 +6156,9 @@ function setupCatalogoAdmin() {
         const preview = document.getElementById("catImgPreview");
         preview.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i><span>Subiendo...</span>';
         try {
-            const b64 = await fileToBase64(file);
-            const form = new FormData();
-            form.append("key", IMGBB_KEY_ADMIN);
-            form.append("image", b64.split(",")[1]);
-            const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
-            const data = await res.json();
-            if (data.success) {
-                document.getElementById("catProdImagenUrl").value = data.data.url;
-                preview.innerHTML = `<img src="${data.data.url}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
-            } else {
-                preview.innerHTML = '<i class="bi bi-x-circle" style="color:#ef4444"></i><span>Error al subir</span>';
-            }
+            const url = await subirImagen(file, "catalogo", IMGBB_KEY_ADMIN);
+            document.getElementById("catProdImagenUrl").value = url;
+            preview.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
         } catch {
             preview.innerHTML = '<i class="bi bi-x-circle" style="color:#ef4444"></i><span>Error</span>';
         }
@@ -8099,16 +8066,9 @@ function renderLandingGaleria() {
 }
 
 /** Sube un archivo a ImgBB y devuelve la URL publica. */
+// Usada por galeria, campania y marcas de la landing. Con respaldo en Firebase Storage.
 async function subirImgbb(file) {
-    const b64 = await fileToBase64(file);
-    const form = new FormData();
-    form.append("key", IMGBB_KEY_ADMIN);
-    form.append("image", b64.split(",")[1]);
-
-    const res  = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
-    const data = await res.json();
-    if (!data.success) throw new Error(data?.error?.message || "ImgBB rechazo la imagen");
-    return data.data.url;
+    return subirImagen(file, "landing", IMGBB_KEY_ADMIN);
 }
 
 function renderLandingMeta(actualizado) {
@@ -8214,17 +8174,7 @@ async function subirBannerLanding(file, slot, card) {
     landingSubiendo++;
 
     try {
-        const b64 = await fileToBase64(file);
-        const form = new FormData();
-        form.append("key", IMGBB_KEY_ADMIN);
-        form.append("image", b64.split(",")[1]);
-
-        const res  = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
-        const data = await res.json();
-
-        if (!data.success) throw new Error(data?.error?.message || "ImgBB rechazo la imagen");
-
-        landingBannersDraft[slot.key] = data.data.url;
+        landingBannersDraft[slot.key] = await subirImagen(file, "landing", IMGBB_KEY_ADMIN);
         renderHeroPreview();
         showNotifToast(`"${slot.label}" listo. Guarda para publicar`);
     } catch (err) {

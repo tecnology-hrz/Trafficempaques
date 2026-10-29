@@ -1,4 +1,5 @@
 import { db, doc, getDoc, setDoc } from "./auth.js";
+import { subirImagen } from "./subir-imagen.js";
 import { validarComprobante, mostrarAlertaComprobante } from "./comprobante-validador.js";
 
 const params = new URLSearchParams(window.location.search);
@@ -305,39 +306,25 @@ inputComp.addEventListener("change", async (e) => {
     btnUploadComp.disabled = true;
 
     try {
-        const formData = new FormData();
-        formData.append("image", file);
+        comprobanteUrl = await subirImagen(file, "comprobantes", IMGBB_KEY);
+        compPreview.innerHTML = `
+            <img src="${comprobanteUrl}" class="comp-thumb" alt="Comprobante" />
+        `;
+        // Cambiar boton a "Cambiar"
+        btnUploadComp.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar';
+        btnUploadComp.disabled = false;
 
-        const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, {
-            method: "POST",
-            body: formData
+        // Click en miniatura abre modal
+        const thumb = compPreview.querySelector(".comp-thumb");
+        thumb.addEventListener("click", () => {
+            document.getElementById("imgModalImg").src = comprobanteUrl;
+            document.getElementById("imgModal").classList.add("show");
         });
 
-        const data = await res.json();
-        if (data.success) {
-            comprobanteUrl = data.data.url;
-            compPreview.innerHTML = `
-                <img src="${comprobanteUrl}" class="comp-thumb" alt="Comprobante" />
-            `;
-            // Cambiar boton a "Cambiar"
-            btnUploadComp.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar';
-            btnUploadComp.disabled = false;
-
-            // Click en miniatura abre modal
-            const thumb = compPreview.querySelector(".comp-thumb");
-            thumb.addEventListener("click", () => {
-                document.getElementById("imgModalImg").src = comprobanteUrl;
-                document.getElementById("imgModal").classList.add("show");
-            });
-
-            checkCanApprove();
-        } else {
-            compPreview.innerHTML = '<span class="comp-status error">Error</span>';
-            btnUploadComp.disabled = false;
-            archivoComprobante = null;
-        }
+        checkCanApprove();
     } catch (err) {
         console.error(err);
+        comprobanteUrl = "";
         compPreview.innerHTML = '<span class="comp-status error">Error</span>';
         btnUploadComp.disabled = false;
         archivoComprobante = null;
@@ -696,25 +683,15 @@ function setupNuevoAbono(saldo) {
         preview.innerHTML = '<span class="comp-status">Subiendo...</span>';
         btnUpload.disabled = true;
         try {
-            const formData = new FormData();
-            formData.append("image", file);
-            const res = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_KEY, { method: "POST", body: formData });
-            const data = await res.json();
-            if (data.success) {
-                abonoComprobanteUrl = data.data.url;
-                preview.innerHTML = `<img src="${abonoComprobanteUrl}" class="comp-thumb" alt="Comprobante" />`;
-                btnUpload.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar';
-                btnUpload.disabled = false;
-                preview.querySelector(".comp-thumb").addEventListener("click", () => {
-                    document.getElementById("imgModalImg").src = abonoComprobanteUrl;
-                    document.getElementById("imgModal").classList.add("show");
-                });
-                validarNuevoAbono(saldo);
-            } else {
-                preview.innerHTML = '<span class="comp-status error">Error</span>';
-                btnUpload.disabled = false;
-                abonoArchivo = null;
-            }
+            abonoComprobanteUrl = await subirImagen(file, "comprobantes", IMGBB_KEY);
+            preview.innerHTML = `<img src="${abonoComprobanteUrl}" class="comp-thumb" alt="Comprobante" />`;
+            btnUpload.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cambiar';
+            btnUpload.disabled = false;
+            preview.querySelector(".comp-thumb").addEventListener("click", () => {
+                document.getElementById("imgModalImg").src = abonoComprobanteUrl;
+                document.getElementById("imgModal").classList.add("show");
+            });
+            validarNuevoAbono(saldo);
         } catch (err) {
             console.error(err);
             preview.innerHTML = '<span class="comp-status error">Error</span>';
